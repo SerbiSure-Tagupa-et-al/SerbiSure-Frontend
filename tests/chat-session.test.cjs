@@ -604,7 +604,7 @@ test('sensitive incoming bubbles share normal avatar grouping and alignment befo
     { id: 'plain-last', sender: 'other', text: 'Goodbye', time: 'Now', avatar },
   ];
   chat.threadCache.cacheThread(JSON.stringify(['account-one', 'A']), history, chat.threadCache.threadCacheGeneration());
-  chat.update('A');
+  chat.update('A', true, { contactRole: 'Kasambahay', contactAvatar: avatar });
   const descendants = node => [node, ...node.children.flatMap(descendants)];
   const cell = id => chat.nodes().find(node => node.props?.testID === `list-cell-${id}`);
   const avatars = id => descendants(cell(id)).filter(node => node.type === 'Image' && node.props.source?.uri === avatar);
@@ -623,6 +623,26 @@ test('sensitive incoming bubbles share normal avatar grouping and alignment befo
   renderer.flushSync(() => hidden.props.onPress());
   renderer.flushSync(() => chat.nodes().find(node => node.props?.accessibilityLabel === 'Show Message').props.onPress());
   assert.equal(avatars('hidden-last').length, 1);
+  assert.match(chat.texts(), /\bkill\b/);
+});
+
+test('support messages keep the official logo when a sensitive bubble is concealed or revealed', t => {
+  const chat = screen(t);
+  const history = [
+    { id: 'support-first', sender: 'other', text: 'Hello', time: 'Now' },
+    { id: 'support-hidden', sender: 'other', text: 'kill', isSensitive: true, time: 'Now' },
+  ];
+  chat.threadCache.cacheThread(JSON.stringify(['account-one', 'Support']), history, chat.threadCache.threadCacheGeneration());
+  chat.update('Support', true, { contactRole: 'Admin' });
+  const descendants = node => [node, ...node.children.flatMap(descendants)];
+  const cell = id => chat.nodes().find(node => node.props?.testID === `list-cell-${id}`);
+  const logos = id => descendants(cell(id)).filter(node => node.type === 'Image' && node.props.source === 1);
+  assert.equal(logos('support-first').length, 0);
+  assert.equal(logos('support-hidden').length, 1);
+  assert.doesNotMatch(chat.texts(), /\bkill\b/);
+  renderer.flushSync(() => descendants(cell('support-hidden')).find(node => node.props?.accessibilityLabel === 'Open sensitive message').props.onPress());
+  renderer.flushSync(() => chat.nodes().find(node => node.props?.accessibilityLabel === 'Show Message').props.onPress());
+  assert.equal(logos('support-hidden').length, 1);
   assert.match(chat.texts(), /\bkill\b/);
 });
 

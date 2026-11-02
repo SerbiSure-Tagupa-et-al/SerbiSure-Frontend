@@ -1,0 +1,6 @@
+# Require code owner review in the main branch protection/ruleset.
+/.github/ @RiasGremoryHSDXD
+/scripts/release-policy.cjs @RiasGremoryHSDXD
+/scripts/prepare-release.cjs @RiasGremoryHSDXD
+/scripts/run-tests.cjs @RiasGremoryHSDXD
+/AGENTS.md @RiasGremoryHSDXD

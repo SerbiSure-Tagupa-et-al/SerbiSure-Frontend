@@ -137,7 +137,7 @@ test('LandingScreen: renders "Welcome back, Daven" view when isLoginView is true
     '../../../shared/components/AppHeader': { APP_HEADER_BACK_ICON_COLOR: '#2A2925', APP_HEADER_BACK_ICON_SIZE: 26 },
     '../../../shared/auth/rememberedAccount': rememberedAccountModule,
     '../../auth/session/UserContext': { useUser: () => ({ user: { firstName: 'Daven', email: 'daven@serbisure.com' } }) },
-    '../../../../assets/serbisure_new_clean.png': 1,
+    '../../../../assets/serbisure-icon.png': 1,
     '../../../../assets/landingpage1-transparent.png': 2,
   });
 
@@ -239,7 +239,7 @@ test('LandingScreen: back button on Welcome Back view also goes back to landing 
     '../../../shared/components/AppHeader': { APP_HEADER_BACK_ICON_COLOR: '#2A2925', APP_HEADER_BACK_ICON_SIZE: 26 },
     '../../../shared/auth/rememberedAccount': rememberedAccountModule,
     '../../auth/session/UserContext': { useUser: () => ({ user: { firstName: 'Daven' } }) },
-    '../../../../assets/serbisure_new_clean.png': 1,
+    '../../../../assets/serbisure-icon.png': 1,
     '../../../../assets/landingpage1-transparent.png': 2,
   });
 
@@ -297,7 +297,7 @@ test('LandingScreen: fresh user with no remembered account shows standard login 
     '../../../shared/components/AppHeader': { APP_HEADER_BACK_ICON_COLOR: '#2A2925', APP_HEADER_BACK_ICON_SIZE: 26 },
     '../../../shared/auth/rememberedAccount': rememberedAccountModule,
     '../../auth/session/UserContext': { useUser: () => ({ user: null }) },
-    '../../../../assets/serbisure_new_clean.png': 1,
+    '../../../../assets/serbisure-icon.png': 1,
     '../../../../assets/landingpage1-transparent.png': 2,
   });
 

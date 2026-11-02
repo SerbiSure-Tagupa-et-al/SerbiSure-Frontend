@@ -1,0 +1,101 @@
+name: Release safety
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  merge_group:
+permissions:
+  contents: read
+jobs:
+  changes:
+    if: github.event_name != 'push' || github.repository == 'SerbiSure-Tagupa-et-al/SerbiSure-Frontend'
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.plan.outputs.native }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Classify changes and validate release versions
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: node scripts/release-policy.cjs "$BASE_SHA" "$HEAD_SHA"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: release-plan
+          path: release-plan.json
+          if-no-files-found: error
+  javascript:
+    name: JavaScript and unit tests
+    if: github.event_name != 'push' || github.repository == 'SerbiSure-Tagupa-et-al/SerbiSure-Frontend'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+  android:
+    name: Native Android compile
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Install the pinned Android toolchain
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - run: npm ci
+      - name: Compile all release APKs
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease -x lint -x test --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: android-release-apks
+          path: android/app/build/outputs/apk/release/
+          if-no-files-found: error
+          retention-days: 14
+  gate:
+    name: Release safety gate
+    if: always() && (github.event_name != 'push' || github.repository == 'SerbiSure-Tagupa-et-al/SerbiSure-Frontend')
+    needs: [changes, javascript, android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful tests and every required build
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          JAVASCRIPT: ${{ needs.javascript.result }}
+          NATIVE: ${{ needs.changes.outputs.native }}
+          ANDROID: ${{ needs.android.result }}
+        run: |
+          test "$CHANGES" = success
+          test "$JAVASCRIPT" = success
+          if [ "$NATIVE" = true ]; then test "$ANDROID" = success; else test "$ANDROID" = skipped; fi

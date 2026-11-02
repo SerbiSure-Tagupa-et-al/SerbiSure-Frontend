@@ -1,148 +1,86 @@
-name: Build & Release Android APK
-
+name: Publish native Android release
 on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      create_release:
-        description: 'Publish a GitHub Release?'
-        required: true
-        type: boolean
-        default: true
-      release_tag:
-        description: 'Custom tag (e.g. v0.1.8, leave blank to use package.json version)'
-        required: false
-        type: string
-        default: ''
-      prerelease:
-        description: 'Mark as pre-release?'
-        required: false
-        type: boolean
-        default: false
-
+  workflow_run:
+    workflows: [Release safety]
+    types: [completed]
+    branches: [main]
 permissions:
   contents: write
-
+  actions: read
+concurrency:
+  group: production-native-release
+  cancel-in-progress: false
 jobs:
-  build:
-    name: Build & Release APK
+  release:
+    if: >-
+      github.repository == 'SerbiSure-Tagupa-et-al/SerbiSure-Frontend' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Setup Java (JDK 17)
-        uses: actions/setup-java@v4
+          name: release-plan
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: plan
+      - name: Validate the trusted build plan
+        id: plan
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          node -e 'const fs=require("fs"),p=require("./plan/release-plan.json");if(p.sha!==process.env.EXPECTED_SHA||typeof p.native!=="boolean"||p.ota&&p.native)throw Error("Invalid plan");fs.appendFileSync(process.env.GITHUB_OUTPUT,`native=${p.native}\n`);'
+      - uses: actions/download-artifact@v4
+        if: steps.plan.outputs.native == 'true'
         with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
-
-      - name: Accept Android SDK licenses
-        shell: bash
+          name: android-release-apks
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: apks
+      - name: Prepare the APKs compiled and tested at this exact commit
+        if: steps.plan.outputs.native == 'true'
+        id: version
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-
-      - name: Install Node dependencies
-        run: npm ci
-
-      - name: Determine App Version & Release Tag
-        id: version_info
-        shell: bash
+          node scripts/prepare-release.cjs
+          echo "tag=v$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+      - name: Refuse to overwrite an existing published release
+        if: steps.plan.outputs.native == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            TAG="${{ github.event.inputs.release_tag }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG="v${PACKAGE_VERSION}"
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > existing-release.json 2> release-error.txt; then
+            node -e 'if(require("./existing-release.json").draft!==true)throw Error("A published release cannot be overwritten")'
+          elif ! grep -q 'HTTP 404' release-error.txt; then
+            cat release-error.txt
+            exit 1
           fi
-
-          echo "APP_VERSION=${PACKAGE_VERSION}" >> $GITHUB_ENV
-          echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
-          echo "Resolved Version: ${PACKAGE_VERSION}"
-          echo "Resolved Tag: ${TAG}"
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x android/gradlew
-
-      - name: Build Android Release APKs
-        shell: bash
-        run: |
-          cd android
-          ./gradlew assembleRelease -x lint -x test --no-daemon
-
-      - name: Prepare and Label Release APK Artifacts
-        shell: bash
-        run: |
-          RELEASE_DIR="android/app/build/outputs/apk/release"
-          OUTPUT_DIR="dist/apks"
-          mkdir -p "$OUTPUT_DIR"
-
-          # Standard Developer Pattern:
-          # 1. SerbiSure-vX.Y.Z.apk        -> Universal (works on any Android device without thinking)
-          # 2. SerbiSure-vX.Y.Z-arm64.apk  -> Slim build (for 99% of modern 64-bit smartphones)
-          # 3. SerbiSure-vX.Y.Z-arm32.apk  -> Legacy build (for older 32-bit budget devices)
-          if [ -f "$RELEASE_DIR/app-universal-release.apk" ]; then
-            cp "$RELEASE_DIR/app-universal-release.apk" "$OUTPUT_DIR/SerbiSure-v${APP_VERSION}.apk"
-          elif [ -f "$RELEASE_DIR/app-release.apk" ]; then
-            cp "$RELEASE_DIR/app-release.apk" "$OUTPUT_DIR/SerbiSure-v${APP_VERSION}.apk"
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
           fi
-
-          if [ -f "$RELEASE_DIR/app-arm64-v8a-release.apk" ]; then
-            cp "$RELEASE_DIR/app-arm64-v8a-release.apk" "$OUTPUT_DIR/SerbiSure-v${APP_VERSION}-arm64.apk"
-          fi
-
-          if [ -f "$RELEASE_DIR/app-armeabi-v7a-release.apk" ]; then
-            cp "$RELEASE_DIR/app-armeabi-v7a-release.apk" "$OUTPUT_DIR/SerbiSure-v${APP_VERSION}-arm32.apk"
-          fi
-
-          echo "Generated APK files:"
-          ls -lh "$OUTPUT_DIR"
-
-      - name: Upload APKs as Workflow Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SerbiSure-v${{ env.APP_VERSION }}-APKs
-          path: dist/apks/*.apk
-          retention-days: 14
-
-      - name: Create GitHub Release with Release Notes
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true') }}
+      - name: Create a draft with complete APK assets and generated notes
+        if: steps.plan.outputs.native == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: SerbiSure ${{ env.RELEASE_TAG }}
-          body: |
-            ## SerbiSure ${{ env.RELEASE_TAG }} Release Notes
-
-            ### MediaPipe Automated Liveness and Face Verification
-            - Automated Face Landmarker Pipeline: Fully integrated Google MediaPipe face landmark detection with native hardware-accelerated pipeline and automated verification flow.
-            - Sensor Coordinate Calibration: Resolved Android front camera sensor 90-degree coordinate rotation by calculating head pose yaw through eye-axis vector projection in camera pixel aspect ratio (landmarks 33 to 263).
-            - Calibrated Turn Sensitivity: Calibrated yaw threshold to 0.22 with relaxed turning center tolerance of 0.40, cleanly differentiating natural baseline resting angles from intentional head turns.
-            - Verified Step Sequence: Set detection sequence to Look Right first, followed by Look Left, and concluding with Stay Still.
-            - Real-Time UI Progress: Synchronized circular progress rings and dual-language (Tagalog/English) prompt transitions to active landmark tracking.
-
-            ### Which APK should I install?
-            * **`SerbiSure-v${{ env.APP_VERSION }}.apk`** *(Recommended)* - Universal build. Works on **all Android devices**.
-            * **`SerbiSure-v${{ env.APP_VERSION }}-arm64.apk`** - Lightweight (~37 MB) build for modern 64-bit Android smartphones.
-            * **`SerbiSure-v${{ env.APP_VERSION }}-arm32.apk`** - Legacy build for older 32-bit devices.
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          name: SerbiSure ${{ steps.version.outputs.tag }}
           generate_release_notes: true
-          draft: false
-          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
-          files: dist/apks/*.apk
+          draft: true
+          fail_on_unmatched_files: true
+          files: dist/apks/*
+      - name: Publish only after all assets are uploaded
+        if: steps.plan.outputs.native == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName > published-releases.json
+          LATEST=$(node -e 'const {compare}=require("./scripts/release-policy.cjs"),p=require("./published-releases.json");let old=p[0]?.tagName.replace(/^v/,"");if(/^\d+\.\d+$/.test(old))old+=".0";console.log(!p.length||compare(process.env.RELEASE_TAG.replace(/^v/,""),old)>0?"true":"false")')
+          gh release edit "$RELEASE_TAG" --draft=false --latest="$LATEST"

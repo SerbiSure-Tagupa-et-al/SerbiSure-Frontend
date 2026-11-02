@@ -151,13 +151,13 @@ test('switching the live provider updates home, settings and reviews while prese
   for (const language of ['Tagalog', 'Bisaya', 'English']) {
     renderer.flushSync(() => switchLanguage(language));
     const text = content(container);
-    for (const source of ['Recent Posts', 'No Recent Posts', 'Social Links & Contacts', 'Show Contact Number', 'Positive']) assert.ok(text.includes(translateMessage(language, source)), `${language}: ${source}`);
+    for (const source of ['Recent Posts', 'No Recent Posts', 'Tags & Socials', 'Show Contact Number', 'Positive']) assert.ok(text.includes(translateMessage(language, source)), `${language}: ${source}`);
     assert.ok(text.includes('James Christopher Tagupa'));
     assert.ok(text.includes(review.unstructured_feedback));
     const childCare = nodes().find(node => node.type === 'Pressable' && node.props.accessibilityLabel === translateMessage(language, 'Filter: {category}', { category: translateMessage(language, 'Child Care') }));
     assert.ok(childCare, language); childCare.props.onPress(); assert.equal(selectedCategory, 'Child Care');
     if (language !== 'English') {
-      for (const english of ['Recent Posts', 'No Recent Posts', 'Social Links & Contacts', 'Show Contact Number', 'October']) assert.ok(!text.includes(english), `${language} leaked ${english}`);
+      for (const english of ['Recent Posts', 'No Recent Posts', 'Tags & Socials', 'Show Contact Number', 'October']) assert.ok(!text.includes(english), `${language} leaked ${english}`);
     }
   }
   assert.equal(review.nlp_sentiment, 'Positive');
@@ -169,7 +169,7 @@ test('browse counts translate without changing canonical filter values', () => {
   assert.equal(quickBrowseFilters({ categories: [] }, 'Child Care').categories[0], 'Child Care');
 });
 
-test('schedule duration choices and custom hours translate live and preserve the chosen terms', t => {
+test('schedule fields translate live and preserve wheel-selected hours and duration terms', t => {
   const container = { children: [] };
   const root = renderer.createContainer(container, 0, null, false, null, '', error => { throw error; }, null);
   const render = element => renderer.flushSync(() => renderer.updateContainer(element, root, null));
@@ -196,7 +196,7 @@ test('schedule duration choices and custom hours translate live and preserve the
   render(React.createElement(LanguageProvider, null, React.createElement(Screen)));
   for (const name of ['English', 'Tagalog', 'Bisaya']) {
     renderer.flushSync(() => language(name));
-    for (const source of ['How long will the work continue?', 'With an end date', 'No end date', 'Select daily working hours']) {
+    for (const source of ['START DATE TO END DATE', 'With an end date', 'No end date', 'Select daily working hours']) {
       assert.ok(text().includes(translateMessage(name, source)), `${name}: ${source}`);
     }
   }
@@ -209,13 +209,16 @@ test('schedule duration choices and custom hours translate live and preserve the
   assert.equal(terms.ongoing, true);
   assert.equal(terms.endDate, '');
   renderer.flushSync(() => { setType('short_term'); language('Tagalog'); });
-  press(translateMessage('Tagalog', 'Set my own time'));
-  const changeTime = (label, value) => renderer.flushSync(() => nodes().find(node => node.type === 'TextInput' && node.props.accessibilityLabel === label).props.onChangeText(value));
-  changeTime(translateMessage('Tagalog', 'Start time'), '09:00'); changeTime(translateMessage('Tagalog', 'End time'), '02:00');
-  press(translateMessage('Tagalog', 'Set Working Hours'));
+  press(translateMessage('Tagalog', 'Select daily working hours'));
+  const wheel = (column, value) => renderer.flushSync(() => {
+    const list = nodes().filter(node => node.type === 'FlatList')[column];
+    const index = list.props.data.indexOf(value); assert.ok(index >= 0);
+    list.props.renderItem({ item: value, index }).props.onPress();
+  });
+  wheel(0, '9'); press('Next'); wheel(0, '2'); wheel(2, 'PM'); press('Done');
   assert.equal(terms.shift, 'custom');
   assert.equal(terms.workHours, '09:00 AM - 02:00 PM');
   renderer.flushSync(() => language('Bisaya'));
-  assert.ok(text().includes(translateMessage('Bisaya', 'Set my own time')));
+  assert.ok(text().includes(translateMessage('Bisaya', 'WORK HOURS')));
   assert.ok(text().includes('09:00 AM - 02:00 PM'));
 });

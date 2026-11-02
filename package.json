@@ -1,6 +1,6 @@
 {
   "name": "serbisure-frontend",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "private": true,
   "main": "expo/AppEntry.js",
   "scripts": {
@@ -31,7 +31,8 @@
     "android:build:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/android-build-debug.ps1",
     "typecheck": "tsc --noEmit",
     "test:modules": "node --test tests/feature-modules.test.cjs",
-    "postinstall": "node scripts/patch-mediapipe.js"
+    "postinstall": "node scripts/patch-mediapipe.js",
+    "test": "node scripts/run-tests.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",

@@ -2,7 +2,7 @@
   "expo": {
     "name": "SerbiSure",
     "slug": "serbisure-frontend",
-    "version": "2.1.1",
+    "version": "2.1.2",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/serbisure-icon.png",
@@ -46,6 +46,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -56,8 +57,8 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.serbisure.frontend",
-      "versionCode": 22,
-      "runtimeVersion": "2.1.1"
+      "versionCode": 23,
+      "runtimeVersion": "2.1.2"
     },
     "owner": "serbisure",
     "extra": {
@@ -66,6 +67,7 @@
       }
     },
     "updates": {
+      "checkAutomatically": "ON_ERROR_RECOVERY",
       "url": "https://u.expo.dev/79f64eec-b8ec-4630-9c25-86bc5ac703a3"
     }
   }

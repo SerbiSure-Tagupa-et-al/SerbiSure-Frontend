@@ -1,0 +1,75 @@
+name: Publish JavaScript OTA update
+on:
+  workflow_run:
+    workflows: [Release safety]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: production-ota-update
+  cancel-in-progress: false
+jobs:
+  ota:
+    if: >-
+      github.repository == 'SerbiSure-Tagupa-et-al/SerbiSure-Frontend' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: plan
+      - name: Validate the trusted build plan
+        id: plan
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          node -e 'const fs=require("fs"),p=require("./plan/release-plan.json");if(p.sha!==process.env.EXPECTED_SHA||typeof p.ota!=="boolean"||p.ota&&p.native)throw Error("Invalid plan");fs.appendFileSync(process.env.GITHUB_OUTPUT,`ota=${p.ota}\n`);'
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.ota == 'true'
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+        if: steps.plan.outputs.ota == 'true'
+      - name: Require an already published compatible native release
+        if: steps.plan.outputs.ota == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          test "$(gh release view "v$VERSION" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" = false
+          node scripts/release-policy.cjs verify-ota
+      - uses: expo/expo-github-action@v8
+        if: steps.plan.outputs.ota == 'true'
+        with:
+          eas-version: 16.28.0
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Require the configured production channel to point to production
+        if: steps.plan.outputs.ota == 'true'
+        run: |
+          eas channel:view production --json --non-interactive > channel.json
+          node -e 'require("./scripts/release-policy.cjs").validateProductionChannel(require("./channel.json"))'
+      - name: Publish the Android JavaScript update
+        if: steps.plan.outputs.ota == 'true'
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          MAIN_SHA=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$MAIN_SHA" != "$EXPECTED_SHA" ]; then
+            echo "A newer main commit exists; its own checked release plan will deploy."
+            exit 0
+          fi
+          eas update --branch production --platform android --auto --non-interactive
