@@ -4,16 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
 import { type BookingItem, formatBookingAddress, cancelBooking } from '../../bookings/api/bookingApi';
-import { isScheduleExpired, postDisplayStatus } from '../../bookings/postAvailability';
-import { RepostModal } from '../../bookings/components/RepostModal';
-import { ScheduleBadge } from '../../bookings/components/ScheduleBadge';
-import { WORK_DAYS } from '../../bookings/engagementForm';
+import { postDisplayStatus } from '../../bookings/postAvailability';
 import { workSetupLabel } from '../../bookings/workSetup';
-
-function calendarDate(value?: string | null): string {
-  const stamp = Date.parse(value || '');
-  return Number.isFinite(stamp) ? new Date(stamp + 8 * 3600000).toISOString().slice(0, 10) : '';
-}
 
 function clockLabel(value?: string | null): string {
   const match = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(value || '');
@@ -42,10 +34,9 @@ export function OwnPostsSection({
   now: number;
   onRefresh: () => void;
 }) {
-  const { tr, formatDate } = useLanguage();
+  const { tr } = useLanguage();
   const insets = useSafeAreaInsets();
   const [selectedPost, setSelectedPost] = useState<BookingItem | null>(null);
-  const [repost, setRepost] = useState<BookingItem | null>(null);
   const busy = useRef(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelled, setCancelled] = useState<Set<string>>(new Set());
@@ -78,7 +69,6 @@ export function OwnPostsSection({
     Booked: '#2563EB',
     Ongoing: '#4F46E5',
     Completed: '#6B7280',
-    Expired: '#C2410C',
   };
   const statusFor = (post: BookingItem) => cancelled.has(post.booking_id) ? 'Cancelled' : postDisplayStatus(post, now);
   const confirmCancel = (post: BookingItem) => {
@@ -88,27 +78,13 @@ export function OwnPostsSection({
       { text: tr('Cancel Post'), style: 'destructive', onPress: () => { void cancel(post); } },
     ]);
   };
-  const openRepost = (post: BookingItem) => {
-    if (!token || cancelling || statusFor(post) !== 'Available' || !isScheduleExpired(post, now)) return;
-    setSelectedPost(null);
-    setRepost(post);
-  };
-
   // Read the current list record so refreshes cannot leave an outdated status in the sheet.
   const detailsPost = selectedPost ? posts.find(post => post.booking_id === selectedPost.booking_id) : null;
   const detailsStatus = detailsPost ? statusFor(detailsPost) : '';
   const [detailsWhole, detailsDecimals] = detailsPost ? rateParts(detailsPost) : [];
-  const start = calendarDate(detailsPost?.start_time);
-  const end = calendarDate(detailsPost?.end_time);
-  const startLabel = start ? formatDate(start, 'compact') : tr('Date unavailable');
-  const dates = !start ? startLabel
-    : detailsPost?.booking_type === 'long_term' && detailsPost.end_time === null ? `${startLabel} – ${tr('Ongoing (No end date)')}`
-    : start === end ? `${startLabel} (${tr('Same day')})`
-    : `${startLabel} – ${end ? formatDate(end, 'compact') : tr('Date unavailable')}`;
   const startsAt = clockLabel(detailsPost?.daily_start_time);
   const endsAt = clockLabel(detailsPost?.daily_end_time);
   const hours = startsAt && endsAt ? `${startsAt} – ${endsAt}` : tr('Not provided');
-  const days = WORK_DAYS.filter(day => detailsPost?.work_days?.includes(day.value)).map(day => tr(day.label)).join(', ');
 
   return (
     <View style={styles.container}>
@@ -134,14 +110,11 @@ export function OwnPostsSection({
           <Pressable key={post.booking_id} style={styles.card}
             accessibilityRole="button" accessibilityLabel={`${tr('Post Details')}: ${post.service_category.join(', ')}`}
             onPress={() => setSelectedPost(post)}>
-            {/* Header: Service + Date on left, Rate + Status on right */}
+            {/* Header: Service on left, Rate + Status on right */}
             <View style={styles.headerRow}>
               <View style={styles.headerLeft}>
                 <Text style={styles.serviceTitle} numberOfLines={1}>
                   {post.service_category.join(', ')}
-                </Text>
-                <Text style={styles.dateText}>
-                  {formatDate(post.start_time, 'compact')}
                 </Text>
               </View>
 
@@ -178,10 +151,6 @@ export function OwnPostsSection({
 
             {/* Bottom Actions Row */}
             {status === 'Available' && <View style={styles.actionsRow}>
-              <View style={styles.actionsLeft}>
-                {status === 'Available' && <ScheduleBadge post={post} now={now} />}
-              </View>
-
               <View style={styles.actionsRight}>
                 {status === 'Available' && token && (
                   <Pressable
@@ -197,19 +166,6 @@ export function OwnPostsSection({
                   </Pressable>
                 )}
 
-                {status === 'Available' && isScheduleExpired(post, now) && token && (
-                  <Pressable
-                    disabled={cancelling}
-                    accessibilityRole="button"
-                    accessibilityLabel={tr('Reschedule')}
-                    accessibilityState={{ disabled: cancelling }}
-                    hitSlop={6}
-                    onPress={event => { event?.stopPropagation(); openRepost(post); }}
-                    style={styles.repostBtn}
-                  >
-                    <Ionicons name="calendar-outline" size={18} color="#35220D" accessible={false} />
-                  </Pressable>
-                )}
               </View>
             </View>}
           </Pressable>
@@ -240,16 +196,10 @@ export function OwnPostsSection({
             <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} bounces={false}>
               <View style={styles.scheduleCard}>
                 <View style={styles.sectionHeading}>
-                  <Ionicons name="calendar-outline" size={18} color="#4B5563" accessible={false} />
-                  <Text style={styles.sectionTitle}>{tr('Schedule')}</Text>
+                  <Ionicons name="time-outline" size={18} color="#4B5563" accessible={false} />
+                  <Text style={styles.sectionTitle}>{tr('Work hours')}</Text>
                 </View>
-                {[{ label: 'Work Dates', value: dates }, { label: 'Work hours', value: hours }, { label: 'Work days', value: days || tr('Not provided') }].map(row => (
-                  <View key={row.label} style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>{tr(row.label)}</Text>
-                    <Text style={styles.detailsValue}>{row.value}</Text>
-                  </View>
-                ))}
-                <ScheduleBadge post={detailsPost} now={now} />
+                <Text style={styles.detailsBody}>{hours}</Text>
               </View>
               <View>
                 <View style={styles.sectionHeading}>
@@ -278,18 +228,6 @@ export function OwnPostsSection({
                 >
                   <Text style={[styles.footerText, styles.cancelModalButtonText]} numberOfLines={1}>{tr('Cancel Post')}</Text>
                 </Pressable>
-                {isScheduleExpired(detailsPost, now) && (
-                  <Pressable
-                    style={[styles.footerButton, styles.rescheduleModalButton]}
-                    accessibilityRole="button"
-                    accessibilityLabel={tr('Reschedule')}
-                    disabled={cancelling}
-                    accessibilityState={{ disabled: cancelling }}
-                    onPress={() => openRepost(detailsPost)}
-                  >
-                    <Text style={[styles.footerText, styles.rescheduleModalButtonText]} numberOfLines={1}>{tr('Reschedule')}</Text>
-                  </Pressable>
-                )}
               </>}
               <Pressable
                 style={[styles.footerButton, styles.closeButton]}
@@ -303,14 +241,6 @@ export function OwnPostsSection({
           </View>
         </View>
       </Modal>}
-      {repost && token && (
-        <RepostModal
-          post={repost}
-          token={token}
-          onClose={() => setRepost(null)}
-          onSuccess={onRefresh}
-        />
-      )}
     </View>
   );
 }
@@ -373,11 +303,6 @@ const styles = safeStyleSheet({
     fontWeight: '700',
     color: '#1A1A1A',
     marginBottom: 2,
-  },
-  dateText: {
-    fontSize: 12,
-    lineHeight: 16,
-    color: '#6B7280',
   },
   headerRight: {
     alignItems: 'flex-end',
@@ -449,11 +374,6 @@ const styles = safeStyleSheet({
     minHeight: 36,
     marginTop: 6,
   },
-  actionsLeft: {
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginRight: 8,
-  },
   actionsRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -462,12 +382,6 @@ const styles = safeStyleSheet({
     marginLeft: 'auto',
   },
   cancelBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  repostBtn: {
     width: 36,
     height: 36,
     justifyContent: 'center',
@@ -537,25 +451,6 @@ const styles = safeStyleSheet({
     fontWeight: '700',
     color: '#1A1A1A',
   },
-  detailsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  detailsLabel: {
-    maxWidth: '45%',
-    flexShrink: 1,
-    fontSize: 12,
-    lineHeight: 20,
-    color: '#6B7280',
-  },
-  detailsValue: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: 'right',
-    color: '#1A1A1A',
-  },
   detailsBody: {
     fontSize: 14,
     lineHeight: 22,
@@ -592,12 +487,6 @@ const styles = safeStyleSheet({
   },
   cancelModalButtonText: {
     color: '#DC2626',
-  },
-  rescheduleModalButton: {
-    backgroundColor: '#FFA135',
-  },
-  rescheduleModalButtonText: {
-    color: '#35220D',
   },
   closeButton: {
     backgroundColor: '#F3F4F6',

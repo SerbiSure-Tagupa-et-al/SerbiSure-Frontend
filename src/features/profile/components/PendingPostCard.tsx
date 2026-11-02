@@ -47,7 +47,7 @@ export function PendingPostCard({
   authorLocation?: string;
   children?: React.ReactNode;
 }>) {
-  const { tr: uiText, formatDate } = useUiLanguage();
+  const { tr: uiText } = useUiLanguage();
   const { isSaved, toggleSave } = useJobsActivity();
 
   // If authorName is provided, render the modern feed post card!
@@ -115,12 +115,6 @@ export function PendingPostCard({
   }
 
   // Fallback for PendingPostsSection in user's own profile screen
-  const startDate = post.start_time ? formatDate(post.start_time, 'compact') : '';
-  const safeStartDate = startDate || uiText('Date unavailable');
-  const endDate = post.end_time ? formatDate(post.end_time, 'compact') : '';
-  const safeEndDate = endDate || (post.booking_type === 'long_term'
-    ? uiText('No end date')
-    : startDate ? uiText('Same day') : uiText('Date unavailable'));
   return (
     <View style={styles.pendingPostCard}>
       <View style={styles.pendingPostTopRow}>
@@ -152,18 +146,6 @@ export function PendingPostCard({
           <Ionicons name="location-outline" size={13} color="#6B7280" style={{ marginRight: 4 }} />
           <Text style={styles.pendingPostDetailText} numberOfLines={2}>
             {formatBookingAddress(post)}
-          </Text>
-        </View>
-        <View style={styles.pendingPostDetailItem}>
-          <Ionicons name="calendar-outline" size={13} color="#6B7280" style={{ marginRight: 4 }} />
-          <Text style={styles.pendingPostDetailText}>
-            {uiText("Starts:")} {safeStartDate}
-          </Text>
-        </View>
-        <View style={styles.pendingPostDetailItem}>
-          <Ionicons name="calendar-outline" size={13} color="#6B7280" style={{ marginRight: 4 }} />
-          <Text style={styles.pendingPostDetailText}>
-            {uiText('Ends')}: {safeEndDate}
           </Text>
         </View>
       </View>

@@ -140,7 +140,7 @@ test('open screens react immediately to booking events, refresh on resume/reconn
   assert.equal(tasks.size, 0);
 });
 
-test('own history offers rescheduling only on expired unbooked posts, retaining all other states', t => {
+test('own history keeps lifecycle states and only the cancel action, with no rescheduling', t => {
   const { OwnPostsSection } = load('src/features/profile/components/OwnPostsSection.tsx', {
     '@expo/vector-icons': { Ionicons: 'Icon' },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
@@ -156,11 +156,10 @@ test('own history offers rescheduling only on expired unbooked posts, retaining 
   view.render(React.createElement(OwnPostsSection, { posts: [post, ...['Booked', 'Ongoing', 'Completed', 'Cancelled'].map((post_status, i) => ({ ...post, booking_id: String(i), post_status }))],
     token: 'token', now: Date.now(), loading: false, error: null, onRefresh() {} }));
   const buttons = view.all('Pressable').filter(node => ['Cancel Post', 'Reschedule'].includes(node.props.accessibilityLabel));
-  assert.equal(buttons.length, 2);
+  assert.equal(buttons.length, 1);
   assert.equal(buttons[0].props.accessibilityLabel || content(buttons[0]), 'Cancel Post');
-  assert.equal(buttons[1].props.accessibilityLabel || content(buttons[1]), 'Reschedule');
-  view.act(() => buttons[1].props.onPress());
-  assert.equal(view.all('RepostModal')[0].props.post.booking_id, post.booking_id);
+  assert.equal(view.all('RepostModal').length, 0);
+  assert.equal(view.all('ScheduleBadge').length, 0);
 });
 
 test('Cancel Post requires confirmation and blocks duplicate submissions before updating owner history', async t => {
@@ -242,10 +241,10 @@ test('tapping an own post opens essential details without profile or technical c
   assert.equal(view.modal().props.animationType, 'slide');
   assert.equal(view.modal().props.transparent, true);
   for (const expected of ['Cleaning', 'Available', '₱ 800.00 / day', 'Short-term', 'Stay-out',
-    'Oct 29, 2026 (Same day)', '08:00 AM – 05:00 PM', 'Thu', 'Expired', view.item.full_address, 'Please bring gloves.']) {
+    '08:00 AM – 05:00 PM', view.item.full_address, 'Please bring gloves.']) {
     assert.ok(view.text().includes(expected), expected);
   }
-  assert.doesNotMatch(view.text(), /reviews|rating|sentiment|Apply|Message|old-post|T00:00:00Z/i);
+  assert.doesNotMatch(view.text(), /reviews|rating|sentiment|Apply|Message|old-post|T00:00:00Z|Expired|Work Dates|Work days|Reschedule|Oct 29/i);
   view.act(() => view.actions().filter(node => node.props.accessibilityLabel === 'Close').at(-1).props.onPress());
   assert.equal(view.modal(), undefined);
   view.open();
@@ -253,7 +252,7 @@ test('tapping an own post opens essential details without profile or technical c
   assert.equal(view.modal(), undefined);
 });
 
-test('list action icons stop event propagation and Reschedule hands off to one modal', t => {
+test('trash stops event propagation and neither card nor details offers rescheduling', t => {
   const view = ownDetailsScreen(t);
   let stops = 0;
   const event = { stopPropagation() { stops++; } };
@@ -262,9 +261,8 @@ test('list action icons stop event propagation and Reschedule hands off to one m
   assert.equal(view.alerts.length, 1);
   assert.equal(view.modal(), undefined);
   view.open();
-  view.act(() => view.actions().find(node => node.props.accessibilityLabel === 'Reschedule').props.onPress());
-  assert.equal(view.modal(), undefined);
-  assert.equal(view.all('RepostModal')[0].props.post.booking_id, view.item.booking_id);
+  assert.equal(view.actions().some(node => node.props.accessibilityLabel === 'Reschedule'), false);
+  assert.equal(view.all('RepostModal').length, 0);
 });
 
 test('details cancellation reuses confirmation, blocks duplicates, and updates the visible status', async t => {
@@ -299,17 +297,18 @@ test('failed cancellation leaves the sheet open and allows retry; refreshed reco
   assert.equal(view.modal(), undefined);
 });
 
-test('details handle Philippine dates, ranges, ongoing work, and missing legacy data honestly', t => {
+test('own details hide legacy calendar terms and keep honest missing-hour fallbacks', t => {
   const view = ownDetailsScreen(t, { post: { start_time: '2026-10-28T16:00:00Z' } });
   view.open();
-  assert.match(view.text(), /Oct 29, 2026 \(Same day\)/);
+  assert.doesNotMatch(view.text(), /Oct 29|Same day|Work Dates|Work days|Expired/);
+  assert.match(view.text(), /08:00 AM – 05:00 PM/);
   view.render({ posts: [{ ...view.item, end_time: '2026-11-05T09:00:00Z', special_instruction: ' ' }] });
-  assert.match(view.text(), /Oct 29, 2026 – Nov 5, 2026/);
+  assert.doesNotMatch(view.text(), /Oct 29|Nov 5/);
   assert.doesNotMatch(view.text(), /About \/ Instructions/);
   view.render({ posts: [{ ...view.item, booking_type: 'long_term', end_time: null }] });
-  assert.match(view.text(), /Ongoing \(No end date\)/);
+  assert.doesNotMatch(view.text(), /Ongoing \(No end date\)/);
   view.render({ posts: [{ ...view.item, end_time: undefined, daily_start_time: null, daily_end_time: null, work_days: [] }] });
-  assert.match(view.text(), /Date unavailable/);
+  assert.doesNotMatch(view.text(), /Date unavailable/);
   assert.match(view.text(), /Not provided/);
   assert.doesNotMatch(view.text(), /Ongoing|Invalid Date|undefined|NaN/);
 });
@@ -317,8 +316,8 @@ test('details handle Philippine dates, ranges, ongoing work, and missing legacy 
 test('own post details use translated labels and omit management actions without a token', t => {
   const view = ownDetailsScreen(t, { language: 'Tagalog', props: { token: null } });
   view.open();
-  assert.match(view.text(), /Iskedyul|Mga petsa ng trabaho/);
-  assert.match(view.text(), /Huw/);
+  assert.match(view.text(), /Oras ng trabaho/);
+  assert.doesNotMatch(view.text(), /Mga petsa ng trabaho|Huw/);
   assert.match(view.text(), /Isara/);
   assert.equal(view.actions().some(node => ['Kanselahin ang post', 'I-reschedule'].includes(node.props.accessibilityLabel)), false);
 });

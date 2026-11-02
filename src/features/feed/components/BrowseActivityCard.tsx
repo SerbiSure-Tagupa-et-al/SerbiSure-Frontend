@@ -6,7 +6,6 @@ import { ProfileAvatar } from '../../../shared/ui/ProfileAvatar';
 import THEME from '../../../shared/theme/theme';
 import type { SavedJobItem } from '../../bookings/store/savedJobsStore';
 import { applicationLabel } from '../../bookings/postAvailability';
-import { ScheduleBadge } from '../../bookings/components/ScheduleBadge';
 
 interface ActivityProps {
   readonly post: SavedJobItem;
@@ -62,7 +61,6 @@ export function BrowseActivityCard({ post, applied, closed, now, onProfile, onDe
         ) : null}
       </View>
 
-      <ScheduleBadge post={post} now={now} />
       {applied && <Text style={[styles.status, (closed || applicationLabel(post, now).startsWith('Closed')) && styles.closed]}>
         {uiText(closed && applicationLabel(post, now) === 'Application sent' ? 'Closed / Not Selected' : applicationLabel(post, now))}
       </Text>}

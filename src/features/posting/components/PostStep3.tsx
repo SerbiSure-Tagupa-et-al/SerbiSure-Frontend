@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { postingStyles as styles } from '../styles';
 import type { PostFormController } from '../hooks/usePostForm';
 import { PrivacyPolicyModal } from '../../profile/components/PrivacyPolicyModal';
-import { WORK_DAYS } from '../../bookings/engagementForm';
 
 export function PostStep3({ form }: { form: PostFormController }) {
   const { tr: uiText } = useUiLanguage();
@@ -17,11 +16,7 @@ export function PostStep3({ form }: { form: PostFormController }) {
     engagementType,
     setupPreference,
     offerAmount,
-    startDate,
-    endDate,
-    ongoing,
     workHours,
-    workDays,
     agreedTerms,
     setAgreedTerms,
     getSelectedRoleLabel,
@@ -33,13 +28,7 @@ export function PostStep3({ form }: { form: PostFormController }) {
 
   if (step !== 3) return null;
 
-  const workDates = !startDate ? uiText('Date unavailable')
-    : engagementType === 'long' && ongoing ? `${startDate} – ${uiText('Ongoing (No end date)')}`
-    : engagementType === 'long' && !endDate ? `${startDate} – ${uiText('Date unavailable')}`
-    : !endDate || endDate === startDate ? `${startDate} (${uiText('Same day')})`
-    : `${startDate} – ${endDate}`;
-  const days = WORK_DAYS.filter(day => workDays.includes(day.value)).map(day => uiText(day.label)).join(', ');
-  const schedule = `${workHours.replace(/\s+-\s+/g, ' – ') || uiText('Not provided')}${days ? ` (${days})` : ''}`;
+  const hours = workHours.replace(/\s+-\s+/g, ' – ') || uiText('Not provided');
 
   const handleCheckboxPress = () => {
     if (!agreedTerms) {
@@ -104,13 +93,8 @@ export function PostStep3({ form }: { form: PostFormController }) {
 
         <View style={styles.summaryDivider} />
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{uiText('Work Dates')}</Text>
-          <Text style={[styles.summaryValue, { flex: 1, textAlign: 'right', marginLeft: 16 }]}>{workDates}</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{uiText('Work Hours & Days')}</Text>
-          <Text style={[styles.summaryValue, { flex: 1, textAlign: 'right', marginLeft: 16 }]}>{schedule}</Text>
+          <Text style={styles.summaryLabel}>{uiText('Work hours')}</Text>
+          <Text style={[styles.summaryValue, { flex: 1, textAlign: 'right', marginLeft: 16 }]}>{hours}</Text>
         </View>
       </View>
 

@@ -23,7 +23,14 @@ export interface PostingPayload {
   rate_period: 'day' | 'month';
 }
 
-export async function submitPost(token: string | null, payload: PostingPayload, idempotencyKey: string) {
+// Keep the shared contract shape above intact for ChatOfferPayload.
+export type PublicPostingPayload = Omit<PostingPayload,
+  'start_time' | 'end_time' | 'work_days' | 'daily_start_time' | 'daily_end_time'> & {
+  daily_start_time: string;
+  daily_end_time: string;
+};
+
+export async function submitPost(token: string | null, payload: PublicPostingPayload, idempotencyKey: string) {
   const response = await requestResponse('/api/v1/booking/post/', {
     token, method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(payload),
   });
