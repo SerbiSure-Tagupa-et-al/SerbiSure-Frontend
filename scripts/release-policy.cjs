@@ -1,11 +1,11 @@
 const fs = require('node:fs');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
-function classify(files) {
+function classify(files, sinceNativeRelease = []) {
   const native = files.some(file => /^(android\/|ios\/|plugins\/|modules\/|patches\/|scripts\/|\.github\/(?:workflows|actions)\/)/.test(file)
     || /^(package(?:-lock)?\.json|app\.json|app\.config\.[cm]?[jt]s|eas\.json|react-native\.config\.[cm]?js|expo-module\.config\.json|\.npmrc)$/.test(file)
     || /^assets\/.*\.(?:task|tflite)$/.test(file));
-  const javascript = files.some(file => /^(src\/|assets\/|App\.tsx$|index\.[jt]s$|(?:babel|metro)\.config\.[cm]?js$|tsconfig\.json$)/.test(file));
+  const javascript = [...files, ...sinceNativeRelease].some(file => /^(src\/|assets\/|App\.tsx$|index\.[jt]s$|(?:babel|metro)\.config\.[cm]?js$|tsconfig\.json$)/.test(file));
   return { native, ota: !native && javascript };
 }
 function changes(base, head) {
@@ -58,8 +58,22 @@ if (require.main === module) {
     }
   } else {
     const [base, head] = process.argv.slice(2);
-    const result = { ...classify(changes(base, head)), sha: head };
-    validateVersions(base, result.native);
+    const files = changes(base, head);
+    let track = classify(files);
+    const version = validateVersions(base, track.native);
+    if (!track.native) {
+      // A docs-only successor must carry any JS changes since the native release.
+      // Otherwise concurrency or the stale-main guard can silently lose an OTA.
+      const tag = `v${version}`;
+      const release = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`], { encoding: 'utf8' });
+      if (release.status === 0) {
+        git('merge-base', '--is-ancestor', tag, head);
+        track = classify(files, changes(release.stdout.trim(), head));
+      } else if (release.status !== 1) {
+        throw new Error('Unable to inspect the native release tag');
+      }
+    }
+    const result = { ...track, sha: head };
     fs.writeFileSync('release-plan.json', JSON.stringify(result));
     if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `native=${result.native}\nota=${result.ota}\n`);
     console.log(JSON.stringify(result));

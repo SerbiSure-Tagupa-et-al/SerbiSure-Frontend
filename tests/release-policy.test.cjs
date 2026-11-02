@@ -17,6 +17,13 @@ test('native versions and runtime agree, including universal APK upgrade orderin
   const gradle = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
   assert.match(gradle, /versionCodes\.get\(abi\) \?: 3/);
 });
+
+test('a docs-only successor carries pending JavaScript from the published native release', () => {
+  assert.deepEqual(classify(['README.md'], ['src/fix.ts']), { native: false, ota: true });
+  assert.deepEqual(classify(['tests/check.test.cjs'], ['App.tsx']), { native: false, ota: true });
+  assert.deepEqual(classify(['README.md'], ['README.md']), { native: false, ota: false });
+  assert.deepEqual(classify(['android/app/build.gradle'], ['src/fix.ts']), { native: true, ota: false });
+});
 test('the pinned EAS CLI channel response must be active and point only to production', () => {
   const channel = { name: 'production', isPaused: false, updateBranches: [{ name: 'production' }] };
   validateProductionChannel({ currentPage: channel });
