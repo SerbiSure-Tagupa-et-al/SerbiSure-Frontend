@@ -64,14 +64,24 @@ jobs:
           if git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
             test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
           fi
-      - name: Create a draft with complete APK assets and generated notes
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.native == 'true'
+        with:
+          node-version: 20
+      - name: Prepare friendly release notes with a safe five-second fallback
+        if: steps.plan.outputs.native == 'true'
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: node scripts/generate-release-notes.cjs
+      - name: Create a draft with complete APK assets and friendly notes
         if: steps.plan.outputs.native == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.event.workflow_run.head_sha }}
           name: SerbiSure ${{ steps.version.outputs.tag }}
-          generate_release_notes: true
+          body_path: dist/release-notes.md
+          generate_release_notes: false
           draft: true
           fail_on_unmatched_files: true
           files: dist/apks/*

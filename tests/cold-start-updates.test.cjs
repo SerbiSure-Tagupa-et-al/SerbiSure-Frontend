@@ -171,6 +171,7 @@ function ui(t, u, { app = false, fontsLoaded = true, restoreSession } = {}) {
   };
   for (const type of ['ActivityIndicator', 'Image', 'Pressable', 'SafeAreaView', 'ScrollView', 'Text', 'View']) native[type] = type;
   const gate = load('src/app/components/ColdStartUpdateGate.tsx', { 'react-native': native, 'expo-status-bar': { StatusBar: 'StatusBar' },
+    '../../shared/utils/releaseNotes': require('../src/shared/utils/releaseNotes'),
     '../services/coldStartUpdates': u.state });
   const calls = { fontLoads: 0, restores: 0 };
   const Component = app ? load('App.tsx', {
@@ -209,22 +210,22 @@ test('root gate prevents fonts, session restoration and main providers until no-
   assert.deepEqual(u.calls, ['check']);
 });
 
-test('blocking UI uses exact English messages, has only Retry on failure, and cleans up Back handling', async t => {
+test('blocking UI uses friendly English, has only Try Again on failure, and cleans up Back handling', async t => {
   const download = deferred();
   const u = updater({ api: { checkForUpdateAsync: async () => available, fetchUpdateAsync: () => download.promise } });
   const screen = ui(t, u); await tick();
   assert.match(screen.content(), /Updating SerbiSure/);
-  assert.match(screen.content(), /A new update is underway\. Please do not close or exit the app\./);
+  assert.match(screen.content(), /Getting your update ready\.\.\. Please keep SerbiSure open\./);
   assert.equal(screen.nodes().some(node => node.type === 'Main'), false);
   assert.equal([...screen.back][0](), true);
   await u.paint(); download.reject(new Error('offline')); await tick();
-  assert.match(screen.content(), /Update failed\. Please check your internet connection and try again\./);
+  assert.match(screen.content(), /We couldn't finish your update\. Please check your connection and try again\./);
   assert.equal(screen.nodes().some(node => node.type === 'ActivityIndicator'), false);
   const buttons = screen.nodes().filter(node => node.type === 'Pressable');
-  assert.deepEqual(buttons.map(node => node.props.accessibilityLabel), ['Retry']);
+  assert.deepEqual(buttons.map(node => node.props.accessibilityLabel), ['Try Again']);
   u.api.fetchUpdateAsync = async () => fetched;
   screen.act(() => buttons[0].props.onPress()); await tick(); await u.paint();
-  assert.match(screen.content(), /Update ready! Restarting app\.\.\./);
+  assert.match(screen.content(), /Your update is ready\. Opening SerbiSure\.\.\./);
   assert.equal(u.calls.includes('reload'), false);
   await u.paint(); assert.equal(u.calls.includes('reload'), true);
   assert.equal(screen.nodes().some(node => node.type === 'Main'), false);
@@ -262,17 +263,21 @@ test('a native update takes priority over OTA and a cancelled installer never un
     nativeInstall: async () => { installs++; } });
   const screen = ui(t, u); await tick();
   assert.equal(checks, 1); assert.deepEqual(u.calls, []);
-  assert.match(screen.content(), /New Version AvailableSerbiSure 9\.0\.0/);
-  const button = screen.nodes().find(node => node.props?.accessibilityLabel === 'Download & Install Update');
+  assert.match(screen.content(), /New Update Available/);
+  assert.match(screen.content(), /What's New/);
+  assert.doesNotMatch(screen.content(), /9\.0\.0|\bversion\b|\bAPK\b|\bpermission\b/i);
+  const button = screen.nodes().find(node => node.props?.accessibilityLabel === 'Update Now');
   screen.act(() => button.props.onPress()); await tick();
-  assert.match(screen.content(), /Downloading update\.\.\. Please do not close the app\./);
+  assert.match(screen.content(), /Getting your update ready\.\.\. Please keep SerbiSure open\./);
   assert.match(screen.content(), /50%/);
   void u.state.startNativeInstall(); assert.equal(downloads, 1);
   download.resolve('file:///app.apk'); await tick(); await tick();
   assert.equal(installs, 1); assert.equal(u.state.getUpdatePhase(), 'installReady');
   assert.equal(screen.nodes().some(node => node.type === 'Main'), false);
-  assert.equal(screen.nodes().some(node => node.props?.accessibilityLabel === 'Install Update'), true);
-  assert.equal(screen.nodes().some(node => node.props?.accessibilityLabel === 'Allow installation'), true);
+  assert.equal(screen.nodes().some(node => node.props?.accessibilityLabel === 'Finish Update'), true);
+  assert.equal(screen.nodes().some(node => node.props?.accessibilityLabel === 'Open phone settings'), true);
+  assert.match(screen.content(), /If your phone asks, tap 'Allow'/);
+  assert.match(screen.content(), /open phone settings below/);
   assert.deepEqual(u.calls, []);
   screen.render(false); screen.render(); await tick(); assert.equal(checks, 1);
 });
@@ -310,11 +315,13 @@ test('a stalled native check times out at six seconds, aborts and ignores late r
   t.mock.timers.tick(1); await tick();
   assert.equal(signals[0].aborted, true);
   assert.equal(u.state.getUpdatePhase(), 'checkError');
-  assert.match(screen.content(), /Connection is taking too long\. Please check your internet connection\./);
+  assert.match(screen.content(), /Connection is slow/);
+  assert.doesNotMatch(screen.content(), /Starting SerbiSure/);
+  assert.match(screen.content(), /We couldn't check for updates\. Please check your internet connection\./);
   assert.equal(screen.nodes().some(node => node.type === 'ActivityIndicator'), false);
-  assert.deepEqual(screen.nodes().filter(node => node.type === 'Pressable').map(node => node.props.accessibilityLabel), ['Retry']);
+  assert.deepEqual(screen.nodes().filter(node => node.type === 'Pressable').map(node => node.props.accessibilityLabel), ['Try Again']);
   assert.equal(screen.nodes().some(node => node.type === 'Main'), false);
-  screen.act(() => screen.nodes().find(node => node.props?.accessibilityLabel === 'Retry').props.onPress());
+  screen.act(() => screen.nodes().find(node => node.props?.accessibilityLabel === 'Try Again').props.onPress());
   assert.equal(u.state.getUpdatePhase(), 'checking');
   assert.equal(screen.nodes().some(node => node.type === 'ActivityIndicator'), true);
   void u.state.retryColdStartUpdate(); assert.equal(signals.length, 2);
@@ -371,6 +378,19 @@ test('Android keeps its existing logo background until the React startup screen 
   const theme = styles.match(/<style name="AppTheme"[\s\S]*?<\/style>/)[0];
   assert.match(theme, /name="android:windowBackground">@drawable\/splashscreen/);
   assert.ok(fs.existsSync(path.join(rootDir, 'assets/serbisure-logo.png')));
+});
+
+test('cached developer changelogs are sanitized before rendering and empty notes still show a friendly fallback', async t => {
+  for (const notes of ['', 'feat(api): adjust BookingSerializer.ts by @dev in https://github.com/org/app/pull/56\n**Full Changelog**: https://github.com/org/app/compare/v1...v2',
+    '• **SerbiSure opens more smoothly.**\n• Clearer messages help you update.']) {
+    const release = { version: '9.0.0', notes, size: 50, url: 'https://example.invalid/app.apk' };
+    const u = updater({ nativeCheck: async () => release });
+    const screen = ui(t, u); await tick();
+    assert.match(screen.content(), /What's New/);
+    assert.match(screen.content(), /• /);
+    assert.doesNotMatch(screen.content(), /feat\(|BookingSerializer|github|@dev|Full Changelog|https:|\*\*|9\.0\.0/);
+    if (!notes || notes.startsWith('feat(')) assert.match(screen.content(), /General improvements and bug fixes/);
+  }
 });
 
 test('installer permission errors keep the download; a deleted cached APK is downloaded again', async () => {
