@@ -90,13 +90,14 @@ test('network/check failure stays blocked and duplicate Retry taps share one req
   const first = u.state.startColdStartUpdate();
   assert.equal(u.state.startColdStartUpdate(), first);
   check.reject(new Error('offline')); await first;
-  assert.equal(u.state.getUpdatePhase(), 'error');
+  assert.equal(u.state.getUpdatePhase(), 'checkError');
   const retried = deferred();
   u.api.checkForUpdateAsync = () => { u.calls.push('check'); return retried.promise; };
   const retry = u.state.retryColdStartUpdate();
-  assert.equal(u.state.getUpdatePhase(), 'downloading');
+  assert.equal(u.state.getUpdatePhase(), 'checking');
   assert.equal(u.state.retryColdStartUpdate(), retry);
   assert.equal(u.state.startColdStartUpdate(), retry);
+  await tick(); // Retry checks the native version before checking Expo again.
   assert.deepEqual(u.calls, ['check', 'check']);
   retried.resolve(current); await retry;
   assert.equal(u.state.getUpdatePhase(), 'ready');
@@ -141,7 +142,7 @@ test('an Expo rollback directive uses the verified fetch/reload path', async () 
 
 test('a release with disabled native updates fails closed; a fresh JS launch checks again', async () => {
   const disabled = updater({ api: { isEnabled: false } });
-  await disabled.state.startColdStartUpdate(); assert.equal(disabled.state.getUpdatePhase(), 'error');
+  await disabled.state.startColdStartUpdate(); assert.equal(disabled.state.getUpdatePhase(), 'checkError');
   assert.deepEqual(disabled.calls, []);
   const nextLaunch = updater(); await nextLaunch.state.startColdStartUpdate();
   assert.deepEqual(nextLaunch.calls, ['check']);
@@ -162,7 +163,7 @@ const renderer = Reconciler({
   scheduleTimeout: setTimeout, cancelTimeout: clearTimeout, noTimeout: -1, detachDeletedInstance() {},
 });
 const text = node => node.text || node.children.map(text).join('');
-function ui(t, u, { app = false } = {}) {
+function ui(t, u, { app = false, fontsLoaded = true, restoreSession } = {}) {
   const back = new Set();
   const native = { StyleSheet: { create: value => value }, LogBox: { ignoreLogs() {}, ignoreAllLogs() {} },
     BackHandler: { addEventListener: (name, fn) => { assert.equal(name, 'hardwareBackPress'); back.add(fn); return { remove: () => back.delete(fn) }; } },
@@ -175,13 +176,13 @@ function ui(t, u, { app = false } = {}) {
   const Component = app ? load('App.tsx', {
     'react-native': native, 'expo-status-bar': { StatusBar: 'StatusBar' }, './src/app/components/ColdStartUpdateGate': gate,
     './src/app/providers/AppProviders': { AppProviders: props => React.createElement('Providers', props, props.children) },
-    '@expo-google-fonts/nunito': { useFonts: () => { calls.fontLoads++; return [true]; } },
+    '@expo-google-fonts/nunito': { useFonts: () => { calls.fontLoads++; return [fontsLoaded]; } },
     './src/features/auth': { LandingScreen: 'Landing', UserSelectionScreen: 'Role', RegistrationStep1: 'Registration1', RegistrationStep2: 'Registration2', RegistrationStep3: 'Registration3', SuspendedAccountScreen: 'Suspended' },
     './src/features/feed/feedCache': { clearExploreFeedCache() {} }, './src/features/chat/store/chatStore': { chatStore: { clearCache() {} } },
     './src/features/chat/supportContactsCache': { clearSupportContactsCache() {} }, './src/features/chat/threadCache': { clearThreadCache() {} },
     './src/app/AppNavigator': { AppNavigator: 'Dashboard' }, './src/app/services/preloadAssets': {}, './src/shared/realtime': { realtime: { stop() {} } },
     './src/features/verification/api/selfieUpload': {},
-    './src/shared/auth/session': { subscribeSession: () => () => {}, restoreSession: async () => { calls.restores++; }, SessionError: class extends Error {} },
+    './src/shared/auth/session': { subscribeSession: () => () => {}, restoreSession: async () => { calls.restores++; return restoreSession?.(); }, SessionError: class extends Error {} },
   }).default : () => React.createElement(gate.ColdStartUpdateGate, null, React.createElement('Main'));
   const container = { children: [] };
   const root = renderer.createContainer(container, 0, null, false, null, '', error => { throw error; }, null);
@@ -196,7 +197,10 @@ test('root gate prevents fonts, session restoration and main providers until no-
   const check = deferred(), u = updater({ api: { checkForUpdateAsync: () => { u.calls.push('check'); return check.promise; } } });
   const screen = ui(t, u, { app: true });
   assert.deepEqual(screen.calls, { fontLoads: 0, restores: 0 });
-  assert.equal(screen.content(), ''); assert.equal(screen.nodes().some(node => node.type === 'Providers'), false);
+  assert.match(screen.content(), /Starting SerbiSure/);
+  assert.equal(screen.nodes().some(node => node.type === 'Image'), true);
+  assert.equal(screen.nodes().some(node => node.type === 'ActivityIndicator'), true);
+  assert.equal(screen.nodes().some(node => node.type === 'Providers'), false);
   check.resolve(current); await tick(); await tick();
   assert.equal(screen.calls.restores, 1); assert.ok(screen.calls.fontLoads > 0);
   assert.equal(screen.nodes().some(node => node.type === 'Landing'), true);
@@ -290,9 +294,83 @@ test('native download failure offers Retry and reuses a complete file when insta
 test('failed version checks do not run OTA; Retry checks the version service again', async () => {
   let attempts = 0;
   const u = updater({ nativeCheck: async () => { if (++attempts === 1) throw Error('503'); return null; } });
-  await u.state.startColdStartUpdate(); assert.equal(u.state.getUpdatePhase(), 'error'); assert.deepEqual(u.calls, []);
+  await u.state.startColdStartUpdate(); assert.equal(u.state.getUpdatePhase(), 'checkError'); assert.deepEqual(u.calls, []);
   await u.state.retryColdStartUpdate(); assert.equal(attempts, 2); assert.equal(u.state.getUpdatePhase(), 'ready');
   assert.deepEqual(u.calls, ['check']);
+});
+
+test('a stalled native check times out at six seconds, aborts and ignores late results after Retry', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const first = deferred(), second = deferred();
+  const signals = [];
+  const u = updater({ nativeCheck: signal => { signals.push(signal); return signals.length === 1 ? first.promise : second.promise; } });
+  const screen = ui(t, u);
+  t.mock.timers.tick(5999); await tick();
+  assert.equal(u.state.getUpdatePhase(), 'checking');
+  t.mock.timers.tick(1); await tick();
+  assert.equal(signals[0].aborted, true);
+  assert.equal(u.state.getUpdatePhase(), 'checkError');
+  assert.match(screen.content(), /Connection is taking too long\. Please check your internet connection\./);
+  assert.equal(screen.nodes().some(node => node.type === 'ActivityIndicator'), false);
+  assert.deepEqual(screen.nodes().filter(node => node.type === 'Pressable').map(node => node.props.accessibilityLabel), ['Retry']);
+  assert.equal(screen.nodes().some(node => node.type === 'Main'), false);
+  screen.act(() => screen.nodes().find(node => node.props?.accessibilityLabel === 'Retry').props.onPress());
+  assert.equal(u.state.getUpdatePhase(), 'checking');
+  assert.equal(screen.nodes().some(node => node.type === 'ActivityIndicator'), true);
+  void u.state.retryColdStartUpdate(); assert.equal(signals.length, 2);
+  first.resolve({ version: '9.0.0' }); await tick();
+  assert.equal(u.state.getUpdatePhase(), 'checking'); assert.deepEqual(u.calls, []);
+  second.resolve(null); await tick();
+  assert.equal(u.state.getUpdatePhase(), 'ready');
+  assert.equal(screen.nodes().some(node => node.type === 'Main'), true);
+});
+
+test('native and OTA availability share one six-second budget; late Expo results cannot unlock or download', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const native = deferred(), ota = deferred();
+  const u = updater({ nativeCheck: () => native.promise, api: { checkForUpdateAsync: () => { u.calls.push('check'); return ota.promise; } } });
+  const run = u.state.startColdStartUpdate();
+  t.mock.timers.tick(4000); native.resolve(null); await tick();
+  assert.deepEqual(u.calls, ['check']);
+  t.mock.timers.tick(1999); await tick(); assert.equal(u.state.getUpdatePhase(), 'checking');
+  t.mock.timers.tick(1); await run;
+  assert.equal(u.state.getUpdatePhase(), 'checkError');
+  ota.resolve(available); await tick();
+  assert.equal(u.state.getUpdatePhase(), 'checkError'); assert.deepEqual(u.calls, ['check']);
+  u.api.checkForUpdateAsync = async () => current;
+  await u.state.retryColdStartUpdate(); assert.equal(u.state.getUpdatePhase(), 'ready');
+});
+
+test('the check deadline is cleared once an update is found; downloads may take longer than six seconds', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const download = deferred();
+  const u = updater({ api: { checkForUpdateAsync: async () => available, fetchUpdateAsync: () => download.promise } });
+  const run = u.state.startColdStartUpdate(); await tick(); await u.paint();
+  t.mock.timers.tick(20000); await tick();
+  assert.equal(u.state.getUpdatePhase(), 'downloading');
+  download.resolve(fetched); await tick(); await u.paint(); await run;
+  assert.equal(u.state.getUpdatePhase(), 'restarting');
+});
+
+test('fonts and saved-login restoration keep the branded loader visible after update checks', async t => {
+  for (const fontsLoaded of [false, true]) {
+    const login = deferred(), u = updater();
+    const screen = ui(t, u, { app: true, fontsLoaded, restoreSession: () => login.promise });
+    await tick();
+    assert.equal(u.state.getUpdatePhase(), 'ready');
+    assert.match(screen.content(), /Starting SerbiSure/);
+    assert.equal(screen.nodes().some(node => node.type === 'Providers'), false);
+    login.resolve(); await tick();
+    if (fontsLoaded) assert.equal(screen.nodes().some(node => node.type === 'Landing'), true);
+    else assert.match(screen.content(), /Starting SerbiSure/);
+  }
+});
+
+test('Android keeps its existing logo background until the React startup screen draws', () => {
+  const styles = fs.readFileSync(path.join(rootDir, 'android/app/src/main/res/values/styles.xml'), 'utf8');
+  const theme = styles.match(/<style name="AppTheme"[\s\S]*?<\/style>/)[0];
+  assert.match(theme, /name="android:windowBackground">@drawable\/splashscreen/);
+  assert.ok(fs.existsSync(path.join(rootDir, 'assets/serbisure-logo.png')));
 });
 
 test('installer permission errors keep the download; a deleted cached APK is downloaded again', async () => {

@@ -2,7 +2,7 @@ import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
 import { checkNativeUpdate, downloadNativeUpdate, installNativeUpdate, openInstallSettings, type NativeRelease } from './nativeAppUpdates';
 
-export type UpdatePhase = 'checking' | 'downloading' | 'restarting' | 'error' | 'ready'
+export type UpdatePhase = 'checking' | 'checkError' | 'downloading' | 'restarting' | 'error' | 'ready'
   | 'nativeAvailable' | 'apkDownloading' | 'installing' | 'installReady' | 'nativeError';
 
 const bypass = __DEV__ || Platform.OS === 'web';
@@ -11,7 +11,7 @@ let started = false;
 let downloaded = false;
 let inFlight: Promise<void> | null = null;
 const listeners = new Set<(value: UpdatePhase) => void>();
-let nativeChecked = false;
+export const UPDATE_CHECK_TIMEOUT_MS = 6000;
 let native = { release: null as NativeRelease | null, progress: null as number | null, path: null as string | null,
   action: 'download' as 'download' | 'install' | 'settings' };
 
@@ -32,22 +32,42 @@ function setPhase(value: UpdatePhase) {
 // Allow the blocking screen to paint before starting native work/reloading.
 const nextPaint = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
+async function checkAvailability() {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error('Update check timed out'));
+      controller.abort();
+    }, UPDATE_CHECK_TIMEOUT_MS);
+  });
+  const check = async () => {
+    const release = Platform.OS === 'android' ? await checkNativeUpdate(controller.signal) : null;
+    if (controller.signal.aborted) throw new Error('Update check cancelled');
+    if (release) return { release, result: null };
+    if (!Updates.isEnabled) throw new Error('OTA updates are unavailable in this release build.');
+    return { release: null, result: await Updates.checkForUpdateAsync() };
+  };
+  try {
+    // One budget covers BOTH checks, not six seconds per request. Expo's check
+    // cannot be cancelled; keeping state changes outside this race ignores late results.
+    return await Promise.race([check(), deadline]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function update() {
   try {
-    if (!nativeChecked && Platform.OS === 'android') {
-      const release = await checkNativeUpdate();
-      nativeChecked = true;
+    if (!downloaded) {
+      setPhase('checking');
+      const { release, result } = await checkAvailability();
       if (release) {
         native = { ...native, release };
         setPhase('nativeAvailable');
         return;
       }
-    }
-    if (!Updates.isEnabled) throw new Error('OTA updates are unavailable in this release build.');
-    if (!downloaded) {
-      // A user-triggered retry keeps visible feedback instead of a blank gate.
-      setPhase(phase === 'error' ? 'downloading' : 'checking');
-      const result = await Updates.checkForUpdateAsync();
+      if (!result) throw new Error('Missing update result');
       if (!result.isAvailable && !result.isRollBackToEmbedded) {
         setPhase('ready');
         return;
@@ -66,7 +86,7 @@ async function update() {
     // Do not release the gate or assume JS will continue after reload resolves.
     await Updates.reloadAsync();
   } catch {
-    setPhase('error');
+    setPhase(phase === 'checking' ? 'checkError' : 'error');
   }
 }
 
@@ -84,7 +104,7 @@ export function startColdStartUpdate(): Promise<void> {
 }
 
 export function retryColdStartUpdate(): Promise<void> {
-  if (bypass || phase !== 'error') return inFlight || Promise.resolve();
+  if (bypass || !['checkError', 'error'].includes(phase)) return inFlight || Promise.resolve();
   // A reload failure retries the already verified bundle without redownloading.
   return run();
 }

@@ -58,6 +58,17 @@ test('no release is distinct from network, HTTP and malformed responses', async 
   }
   t.mock.method(global, 'fetch', async () => { throw Error('offline'); }); await assert.rejects(api.checkNativeUpdate);
 });
+
+test('version requests use the startup deadline signal and propagate cancellation', async t => {
+  const { api } = service(), controller = new AbortController();
+  t.mock.method(global, 'fetch', async (_url, options) => {
+    assert.equal(options.signal, controller.signal);
+    return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(Error('aborted')), { once: true }));
+  });
+  const check = api.checkNativeUpdate(controller.signal);
+  controller.abort();
+  await assert.rejects(check, /aborted/);
+});
 test('only a complete successful download becomes an APK; installer uses a read-granted content URI', async () => {
   const { api, intents, moves } = service(), progress = [];
   const release = { version: '2.1.10', notes: '', url, size: 70 };

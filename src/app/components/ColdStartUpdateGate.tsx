@@ -3,20 +3,26 @@ import { ActivityIndicator, BackHandler, Image, Pressable, SafeAreaView, ScrollV
 import { StatusBar } from 'expo-status-bar';
 import { getNativeUpdateState, getUpdatePhase, retryColdStartUpdate, startColdStartUpdate, startNativeInstall, subscribeUpdatePhase, type UpdatePhase } from '../services/coldStartUpdates';
 
-export function UpdateScreen({ failed, restarting, onRetry }: {
+export function StartupScreen({ failed = false, onRetry = () => {} }: { failed?: boolean; onRetry?: () => void }) {
+  return <UpdateScreen checking failed={failed} restarting={false} onRetry={onRetry} />;
+}
+
+export function UpdateScreen({ failed, restarting, onRetry, checking = false }: {
   failed: boolean;
   restarting: boolean;
   onRetry: () => void;
+  checking?: boolean;
 }) {
   return <SafeAreaView style={styles.screen}>
     <StatusBar style="dark" />
     <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
       <View style={styles.content}>
         <Image source={require('../../../assets/serbisure-logo.png')} style={styles.logo} resizeMode="contain" accessible={false} />
-        <Text accessibilityRole="header" style={styles.title}>Updating SerbiSure</Text>
-        {!failed && <ActivityIndicator size="large" color="#B45309" accessibilityLabel="Updating SerbiSure" />}
+        <Text accessibilityRole="header" style={styles.title}>{checking ? 'Starting SerbiSure...' : 'Updating SerbiSure'}</Text>
+        {!failed && <ActivityIndicator size="large" color="#B45309" accessibilityLabel={checking ? 'Starting SerbiSure' : 'Updating SerbiSure'} />}
         <Text accessibilityLiveRegion="polite" style={styles.message}>
-          {failed ? 'Update failed. Please check your internet connection and try again.'
+          {checking ? failed ? 'Connection is taking too long. Please check your internet connection.' : 'Please wait a moment.'
+            : failed ? 'Update failed. Please check your internet connection and try again.'
             : restarting ? 'Update ready! Restarting app...'
             : 'A new update is underway. Please do not close or exit the app.'}
         </Text>
@@ -46,8 +52,8 @@ export function ColdStartUpdateGate({ children }: { children: React.ReactNode })
   }, [blocking]);
 
   if (phase === 'ready') return <>{children}</>;
-  // Do not flash an update screen while checking availability.
-  if (phase === 'checking') return null;
+  if (phase === 'checking' || phase === 'checkError') return <StartupScreen failed={phase === 'checkError'}
+    onRetry={() => { void retryColdStartUpdate(); }} />;
   if (native.release && ['nativeAvailable', 'apkDownloading', 'installing', 'installReady', 'nativeError'].includes(phase)) {
     return <NativeUpdateScreen phase={phase} native={native} />;
   }
@@ -68,6 +74,7 @@ function NativeUpdateScreen({ phase, native }: { phase: UpdatePhase; native: Ret
     <StatusBar style="dark" />
     <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
       <View style={styles.content}>
+        <Image source={require('../../../assets/serbisure-logo.png')} style={styles.logo} resizeMode="contain" accessible={false} />
         <Text accessibilityRole="header" style={styles.title}>New Version Available</Text>
         <Text style={styles.version}>SerbiSure {native.release!.version}</Text>
         <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text>
