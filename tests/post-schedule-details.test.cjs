@@ -26,7 +26,7 @@ const native = { StyleSheet: { create: styles => styles, absoluteFill: {}, absol
   Animated: { View: 'AnimatedView', spring: animation, timing: animation,
     Value: class { setValue() {} addListener() { return 'listener'; } removeListener() {} interpolate() { return 1; } } },
 };
-for (const name of ['View', 'Text', 'Pressable', 'ScrollView', 'Image', 'ActivityIndicator']) native[name] = name;
+for (const name of ['View', 'Text', 'TextInput', 'Pressable', 'ScrollView', 'Image', 'ActivityIndicator']) native[name] = name;
 native.Modal = props => props.visible ? React.createElement('Modal', props, props.children) : null;
 let language = 'English';
 function load(name) {
@@ -49,6 +49,8 @@ function load(name) {
     if (specifier.endsWith('/BottomSheetHandle')) return { BottomSheetHandle: () => null };
     if (specifier.endsWith('/LucideIcons')) return { StarIcon: 'Icon' };
     if (specifier.endsWith('/PrivacyPolicyModal')) return { PrivacyPolicyModal: () => null };
+    if (specifier.endsWith('/WorkHoursPickerModal')) return { WorkHoursPickerModal: props => props.visible ? React.createElement('HoursPicker', props) : null };
+    if (specifier.endsWith('/WorkLocationFields')) return { WorkLocationFields: 'LocationFields' };
     if (specifier === '../styles') return { postingStyles: {}, profileStyles: {} };
     if (specifier.endsWith('/savedJobsStore')) return { useJobsActivity: () => ({ isSaved: () => false, toggleSave() {} }) };
     if (specifier.endsWith('/FeedPostCard')) return { FeedPostCard: 'FeedPostCard' };
@@ -61,6 +63,8 @@ function load(name) {
 }
 const messages = load('src/shared/localization/messages.ts');
 const { PostStep3 } = load('src/features/posting/components/PostStep3.tsx');
+const { PostStep2 } = load('src/features/posting/components/PostStep2.tsx');
+const { publicPostHours } = load('src/features/posting/workingHours.ts');
 const { JobDetailSheet } = load('src/features/feed/components/JobDetailSheet.tsx');
 const { PendingPostCard } = load('src/features/profile/components/PendingPostCard.tsx');
 const mapper = load('src/features/feed/feedMapper.ts');
@@ -85,18 +89,19 @@ const dto = { booking_id: 'post-1', poster_id: 'owner-1', name: 'Poster', profil
 const detail = (t, post) => mount(t, React.createElement(JobDetailSheet, { visible: true, job: post, onClose() {}, onApply() {}, isApplied: false }));
 
 for (const role of ['homeowner', 'kasambahay']) {
-  test(`${role} posting review displays multi-day dates, daily hours and chosen weekdays`, t => {
+  test(`${role} posting review shows only daily hours, even with legacy calendar state`, t => {
     const screen = mount(t, React.createElement(PostStep3, { form: { ...form, config: { role } } }));
-    assert.match(screen.content(), /Work Dates11\/01\/2026 – 11\/05\/2026/);
-    assert.match(screen.content(), /08:00 AM – 05:00 PM \(Mon, Tue, Wed, Thu, Sun\)/);
+    assert.match(screen.content(), /Work hours08:00 AM – 05:00 PM/);
+    assert.doesNotMatch(screen.content(), /Work Dates|Work Days|11\/01\/2026|11\/05\/2026|Mon, Tue/);
   });
 }
 
-test('posting review distinguishes same-day and ongoing terms', t => {
+test('short and long-term posting reviews do not invent calendar dates', t => {
   const screen = mount(t, React.createElement(PostStep3, { form: { ...form, endDate: form.startDate, workDays: ['Su'] } }));
-  assert.match(screen.content(), /11\/01\/2026 \(Same day\)/);
+  assert.doesNotMatch(screen.content(), /Same day|11\/01\/2026/);
   screen.render(React.createElement(PostStep3, { form: { ...form, engagementType: 'long', ongoing: true, endDate: '' } }));
-  assert.match(screen.content(), /11\/01\/2026 – Ongoing \(No end date\)/);
+  assert.match(screen.content(), /Long-term/);
+  assert.doesNotMatch(screen.content(), /Ongoing|No end date|11\/01\/2026/);
 });
 
 test('feed, browse, and worker mappings preserve the complete schedule, including an open end', () => {
@@ -117,38 +122,72 @@ test('profile post Details receives all stored schedule fields', t => {
   const card = screen.nodes().find(node => node.type === 'FeedPostCard');
   card.props.onDetails();
   for (const key of ['end_time', 'daily_start_time', 'daily_end_time', 'work_days']) assert.deepEqual(opened[key], dto[key]);
-  assert.match(detail(t, opened).content(), /Nov 1, 2026 – Nov 5, 2026/);
+  assert.match(detail(t, opened).content(), /08:00 AM – 05:00 PM/);
+  assert.doesNotMatch(detail(t, opened).content(), /Nov 1|Nov 5|Work days|Work Dates/);
 });
 
-test('Details shows schedule above About and keeps the Expired notice', t => {
+test('Details keeps daily hours above About without public dates, weekdays or expiry', t => {
   t.mock.method(Date, 'now', () => Date.parse('2026-11-06T04:00:00Z'));
   const screen = detail(t, mapper.mapFeedPost(dto, 'homeowner'));
   const content = screen.content();
-  assert.match(content, /Nov 1, 2026 – Nov 5, 2026/);
   assert.match(content, /08:00 AM – 05:00 PM/);
-  assert.match(content, /Mon, Tue, Wed, Thu, Sun/);
-  assert.match(content, /Expired/);
-  assert.ok(content.indexOf('Work Dates') < content.indexOf('ABOUT THIS ROLE'));
+  assert.doesNotMatch(content, /Nov 1|Nov 5|Mon, Tue|Expired|Work Dates|Work days/);
+  assert.ok(content.indexOf('Work hours') < content.indexOf('ABOUT THIS ROLE'));
 });
 
-test('Details uses the Philippine calendar across UTC midnight and distinguishes same-day and ongoing jobs', t => {
+test('legacy same-day and open-ended calendar values are hidden from public Details', t => {
   const screen = detail(t, { ...dto, id: dto.booking_id, start_time: '2026-10-31T16:00:00Z', end_time: '2026-11-01T09:00:00Z' });
-  assert.match(screen.content(), /Nov 1, 2026 \(Same day\)/);
+  assert.doesNotMatch(screen.content(), /Nov 1|Same day/);
   screen.render(React.createElement(JobDetailSheet, { visible: true, job: { ...dto, id: dto.booking_id, booking_type: 'long_term', end_time: null }, onClose() {}, onApply() {}, isApplied: false }));
-  assert.match(screen.content(), /Nov 1, 2026 – Ongoing \(No end date\)/);
+  assert.doesNotMatch(screen.content(), /Nov 1|Ongoing|No end date/);
+  assert.match(screen.content(), /08:00 AM – 05:00 PM/);
 });
 
 test('missing legacy dates or hours show unavailable values rather than invented schedules', t => {
   const screen = detail(t, { id: 'legacy', start_time: 'bad-date', daily_start_time: '24:99:00', daily_end_time: '17:00:00' });
-  assert.match(screen.content(), /Date unavailable/);
+  assert.doesNotMatch(screen.content(), /Date unavailable|Work Dates/);
   assert.match(screen.content(), /Not provided/);
   assert.doesNotMatch(screen.content(), /Invalid Date|NaN|Ongoing|08:00 AM/);
 });
 
-test('schedule labels and weekday names follow the selected language', t => {
+test('daily hours follow the selected language without weekday/date labels', t => {
   language = 'Tagalog'; t.after(() => { language = 'English'; });
   const screen = detail(t, mapper.mapFeedPost(dto, 'homeowner'));
-  assert.match(screen.content(), /Mga petsa ng trabaho/);
   assert.match(screen.content(), /Oras ng trabaho/);
-  assert.match(screen.content(), /Lun, Mar, Miy, Huw, Lin/);
+  assert.doesNotMatch(screen.content(), /Mga petsa ng trabaho|Lun, Mar, Miy/);
 });
+
+test('public hours validate clocks without dates, weekdays, duration or current-time dependence', () => {
+  for (const [hours, start, end] of [
+    ['08:00 AM - 12:00 PM', '08:00:00', '12:00:00'],
+    ['12:00 PM - 05:00 PM', '12:00:00', '17:00:00'],
+    ['05:00 PM - 09:00 PM', '17:00:00', '21:00:00'],
+    ['12:00 AM – 11:59 PM', '00:00:00', '23:59:00'],
+  ]) {
+    assert.deepEqual(publicPostHours(hours), { daily_start_time: start, daily_end_time: end });
+  }
+  for (const invalid of ['', '08:00 AM', '25:00 AM - 05:00 PM', '08:60 AM - 05:00 PM',
+    '00:00 AM - 05:00 PM', '05:00 PM - 08:00 AM', '08:00 AM - 08:00 AM', '08:00 AM - 05:00 PM - 09:00 PM']) {
+    assert.throws(() => publicPostHours(invalid), Error, invalid);
+  }
+});
+
+for (const role of ['homeowner', 'kasambahay']) {
+  test(`${role} public Step 2 offers presets/custom hours with no calendars or weekday controls`, t => {
+    const changes = [];
+    const screen = mount(t, React.createElement(PostStep2, { form: {
+      ...form, step: 2, config: { role, instructionsPlaceholder: 'Optional instructions' }, address: {}, user: null,
+      setWorkHours: value => changes.push(value), setSelectedTime: value => changes.push(value),
+      setInstructions() {}, setOfferAmount() {}, applyUserProfileAddress() {},
+    } }));
+    assert.match(screen.content(), /Work hours|08:00 AM - 05:00 PM/);
+    assert.doesNotMatch(screen.content(), /Start Date|End Date|Work Schedule|No end date|With an end date|Mon|Tue|Wed|Thu|Fri|Sat|Sun/);
+    screen.nodes().find(node => node.type === 'Pressable' && node.props.accessibilityLabel === 'Morning').props.onPress();
+    assert.deepEqual(changes, ['08:00 AM - 12:00 PM', 'morning']);
+    renderer.flushSync(() => screen.nodes().find(node => node.type === 'Pressable' && node.props.accessibilityLabel === 'Work hours').props.onPress());
+    const picker = screen.nodes().find(node => node.type === 'HoursPicker');
+    assert.ok(picker);
+    renderer.flushSync(() => picker.props.onSelect('09:00 AM - 04:00 PM'));
+    assert.deepEqual(changes.slice(-2), ['09:00 AM - 04:00 PM', 'custom']);
+  });
+}

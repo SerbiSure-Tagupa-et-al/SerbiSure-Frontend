@@ -1,4 +1,5 @@
-import { toggleService, SERVICE_CHOICES, WORK_SHIFTS, buildEngagementSchedule, dayForDate, type WorkShift } from '../../bookings/engagementForm';
+import { toggleService, SERVICE_CHOICES, WORK_SHIFTS, type WorkShift } from '../../bookings/engagementForm';
+import { publicPostHours } from '../workingHours';
 import { fetchMinimumWage, type MinimumWageData } from '../../bookings/api/bookingApi';
 import { validatePostingRate } from '../validation';
 import { useState, useRef, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { Animated, Easing, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { POSTING_CONFIG, buildPostDescription, buildPostLocation } from '../postingConfig';
-import { submitPost, type PostingPayload } from '../api/postingApi';
+import { submitPost, type PublicPostingPayload } from '../api/postingApi';
 
 import { useUser } from '../../auth/session/UserContext';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
@@ -39,10 +40,6 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
   const [setupPreference, setSetupPreference] = useState<'stay-out' | 'stay-in' | null>(null);
   const [selectedTime, setSelectedTime] = useState<WorkShift | null>(null);
 
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [ongoing, setOngoing] = useState(false);
-  const [workDays, setWorkDays] = useState<string[]>([]);
   const [workHours, setWorkHours] = useState('');
 
   const address = useWorkLocation(visible);
@@ -73,7 +70,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
     setEngagementType(null);
     setSetupPreference(null);
     setSelectedTime(null);
-    setStartDate(''); setEndDate(''); setOngoing(false); setWorkDays([]); setWorkHours('');
+    setWorkHours('');
     address.resetWorkLocation();
     setInstructions('');
     setOfferAmount('');
@@ -176,7 +173,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
 
   const handleEngagementChange = (type: 'short' | 'long') => {
     if (type !== engagementType) {
-      setSelectedTime(null); setEndDate(''); setOngoing(false); setWorkDays([]); setWorkHours('');
+      setSelectedTime(null); setWorkHours('');
     }
     setEngagementType(type);
     if (type === 'short') setSetupPreference('stay-out');
@@ -206,24 +203,11 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
   };
 
   const scheduleTerms = () => {
-    const effectiveStart = startDate;
     const isShort = engagementType === 'short';
     const effectiveHours = isShort && selectedTime && selectedTime !== 'custom'
       ? (WORK_SHIFTS.find(s => s.value === selectedTime)?.hours || workHours)
       : workHours;
-    const effectiveDays = workDays.length > 0
-      ? workDays
-      : (isShort && effectiveStart ? [dayForDate(effectiveStart)] : []);
-
-    return buildEngagementSchedule({
-      bookingType: isShort ? 'short_term' : 'long_term',
-      startDate: effectiveStart,
-      endDate: endDate || (isShort ? effectiveStart : ''),
-      workHours: effectiveHours,
-      days: effectiveDays,
-      shift: selectedTime,
-      ongoing: isShort ? false : ongoing,
-    });
+    return publicPostHours(effectiveHours);
   };
 
   const getLocationLabel = () => buildPostLocation({
@@ -292,7 +276,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
       } catch (error) {
         errors.schedule = true;
         setFieldErrors(errors);
-        Alert.alert('Invalid Schedule', error instanceof Error ? error.message : 'Please check your schedule.');
+        Alert.alert(tr('Work hours'), tr(error instanceof Error ? error.message : 'Choose your working hours before continuing.'));
         return;
       }
 
@@ -319,7 +303,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
 
         const schedule = scheduleTerms();
 
-        const payload: PostingPayload = {
+        const payload: PublicPostingPayload = {
           booking_type: engagementType === 'short' ? 'short_term' : 'long_term',
           work_setup: engagementType === 'short' ? 'stay_out'
             : setupPreference === 'stay-in' ? 'stay_in' : 'stay_out',
@@ -422,7 +406,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
     handleSetupPreference,
     selectedTime,
     setSelectedTime,
-    startDate, setStartDate, endDate, setEndDate, ongoing, setOngoing, workDays, setWorkDays, workHours, setWorkHours,
+    workHours, setWorkHours,
     address,
     ...address,
     instructions,

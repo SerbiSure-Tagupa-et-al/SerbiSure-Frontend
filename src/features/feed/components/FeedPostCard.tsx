@@ -6,7 +6,6 @@ import { MapPinIcon } from '../../../shared/components/icons/LucideIcons';
 import { ProfileAvatar } from '../../../shared/ui/ProfileAvatar';
 import THEME from '../../../shared/theme/theme';
 import type { FeedPost } from '../types';
-import { ScheduleBadge } from '../../bookings/components/ScheduleBadge';
 
 export interface FeedPostCardProps {
   readonly post: FeedPost;
@@ -93,9 +92,6 @@ export function FeedPostCard({
       ) : null}
 
       <View style={styles.cardActionsRow}>
-        <View style={styles.cardActionsLeft}>
-          <ScheduleBadge post={post} />
-        </View>
         <View style={styles.cardActionsRight}>
           <Pressable
             accessibilityRole="button"
@@ -265,10 +261,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 38,
     marginTop: 4,
-  },
-  cardActionsLeft: {
-    justifyContent: 'center',
-    flexShrink: 0,
   },
   cardActionsRight: {
     flexDirection: 'row',

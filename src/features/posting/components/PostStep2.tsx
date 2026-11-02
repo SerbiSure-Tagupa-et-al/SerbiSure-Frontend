@@ -1,7 +1,6 @@
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { WorkLocationFields } from '../../bookings/components/WorkLocationFields';
-import { WorkScheduleFields } from '../../bookings/components/WorkScheduleFields';
-import { WORK_SHIFTS } from '../../bookings/engagementForm';
+import { PublicWorkHoursFields } from './PublicWorkHoursFields';
 import React from 'react';
 import { Text, View, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -58,18 +57,10 @@ export function PostStep2({ form }: { form: PostFormController }) {
         errors={fieldErrors}
       />
 
-      <WorkScheduleFields
-        bookingType={engagementType === 'short' ? 'short_term' : 'long_term'}
-        startDate={form.startDate} endDate={form.endDate} workHours={form.workHours}
-        days={form.workDays} shift={form.selectedTime} ongoing={form.ongoing}
-        onStartDate={form.setStartDate} onEndDate={form.setEndDate}
-        onWorkHours={form.setWorkHours} onDays={form.setWorkDays} onOngoing={form.setOngoing}
-        onShift={value => {
-          form.setSelectedTime(value);
-          const preset = WORK_SHIFTS.find(item => item.value === value);
-          if (preset) form.setWorkHours(preset.hours);
-        }}
-        errors={fieldErrors} disabled={isPosting}
+      <PublicWorkHoursFields
+        shortTerm={engagementType === 'short'} hours={form.workHours} shift={form.selectedTime}
+        onChange={(hours, shift) => { form.setWorkHours(hours); form.setSelectedTime(shift); }}
+        error={fieldErrors.schedule} disabled={isPosting}
       />
 
       {/* 2. Instructions / About You (Optional) */}

@@ -113,18 +113,17 @@ for (const kind of ['job', 'service']) {
   });
 }
 
-test('expired notice shares the action row and translations remain live', t => {
+test('old public schedules never show expired notices and action translations remain live', t => {
   const screen = card(t, { post: { ...post, start_time: '2020-01-01T00:00:00Z' } });
   const outerCard = screen.rootNode.children[0];
-  assert.match(content(outerCard), /Expired/);
+  assert.doesNotMatch(content(outerCard), /Expired/);
   const actions = outerCard.children.find(node => descendants(node).some(child => child.props?.accessibilityLabel === 'Save post'));
-  assert.equal(actions.children.length, 2);
-  assert.equal(content(actions.children[0]), 'Expired');
-  assert.equal(descendants(actions.children[1]).some(node => node.props?.accessibilityLabel === 'Save post'), true);
+  assert.equal(actions.children.length, 1);
+  assert.equal(descendants(actions.children[0]).some(node => node.props?.accessibilityLabel === 'Save post'), true);
   for (const value of ['English', 'Tagalog', 'Bisaya']) {
     language = value; screen.render();
     assert.ok(screen.nodes().some(node => node.props?.accessibilityLabel === messages.translateMessage(language, 'Details')));
-    assert.ok(content(screen.rootNode).includes(messages.translateMessage(language, 'Expired')));
+    assert.equal(content(screen.rootNode).includes(messages.translateMessage(language, 'Expired')), false);
     assert.ok(content(screen.rootNode).includes('12h'));
   }
   language = 'English';

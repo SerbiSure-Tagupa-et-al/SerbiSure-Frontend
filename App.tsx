@@ -1,5 +1,6 @@
 import { AppProviders } from './src/app/providers/AppProviders';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ColdStartUpdateGate } from './src/app/components/ColdStartUpdateGate';
 import { Alert, Animated, Image, LogBox, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
@@ -45,6 +46,10 @@ type AppFlowState =
   | 'dashboard';
 
 export default function App() {
+  return <ColdStartUpdateGate><SerbiSureApp /></ColdStartUpdateGate>;
+}
+
+function SerbiSureApp() {
   const [fontsLoaded] = useFonts({
     Nunito_400Regular,
     Nunito_600SemiBold,

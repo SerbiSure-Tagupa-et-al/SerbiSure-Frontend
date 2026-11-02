@@ -63,7 +63,7 @@ function postingScreen(t, mode = 'service') {
   const safeArea = { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) };
   const { usePostForm } = load('src/features/posting/hooks/usePostForm.ts', {
     'react-native': native, 'react-native-safe-area-context': safeArea,
-    '../../bookings/engagementForm': engagement, '../validation': validation, '../postingConfig': posting,
+    '../../bookings/engagementForm': engagement, '../workingHours': load('src/features/posting/workingHours.ts'), '../validation': validation, '../postingConfig': posting,
     '../../bookings/api/bookingApi': { fetchMinimumWage: async (_token, type) => ({ rate_period: type === 'long_term' ? 'month' : 'day', minimum_rate: type === 'long_term' ? '6500' : '600' }) },
     '../api/postingApi': { submitPost: (...args) => { const request = { ...deferred(), args }; requests.push(request); return request.promise; } },
     '../../auth/session/UserContext': { useUser: () => ({ user }) },
@@ -82,7 +82,7 @@ function postingScreen(t, mode = 'service') {
     'react-native': native, '@expo/vector-icons': { Ionicons: 'Icon' },
     '../../../shared/localization/LanguageContext': language, '../styles': { postingStyles: {} },
     '../../bookings/components/WorkLocationFields': { WorkLocationFields: () => null },
-    '../../bookings/components/WorkScheduleFields': { WorkScheduleFields: 'WorkScheduleFields' },
+    './PublicWorkHoursFields': { PublicWorkHoursFields: 'PublicWorkHoursFields' },
     '../../bookings/engagementForm': engagement,
   });
   const step3 = load('src/features/posting/components/PostStep3.tsx', {
@@ -121,10 +121,9 @@ function postingScreen(t, mode = 'service') {
       form.handleEngagementChange(duration === 'short' ? 'short' : 'long');
       form.setSetupPreference('stay-out');
       form.setOfferAmount(duration === 'short' ? '800' : '8000');
-      form.setSelectedTime('morning'); form.setStartDate('12/31/2099');
+      form.setSelectedTime('morning'); form.setWorkHours('08:00 AM - 12:00 PM');
       if (duration !== 'short') {
-        form.setOngoing(duration === 'ongoing'); form.setEndDate(duration === 'fixed' ? '01/30/2100' : '');
-        form.setWorkHours('09:00 AM - 02:00 PM'); form.setWorkDays(['Th']);
+        form.setWorkHours('09:00 AM - 02:00 PM');
       }
     });
     await next();
@@ -170,12 +169,12 @@ test(`${mode}: short-term replaces a previous Stay-in choice with Stay-out`, asy
 
 for (const mode of ['job', 'service']) {
   for (const duration of ['fixed', 'ongoing']) {
-    test(`${mode}: ${duration} long-term posts send the actual schedule`, async t => {
+    test(`${mode}: long-term ads send hours without calendar terms (${duration} legacy case)`, async t => {
       const screen = postingScreen(t, mode); await screen.ready(duration);
       await screen.submit(403, { code: 'booking_restricted' });
       const payload = screen.requests[0].args[1];
       assert.equal(payload.booking_type, 'long_term');
-      assert.equal(payload.end_time, duration === 'ongoing' ? null : '2100-01-30T06:00:00.000Z');
+      for (const field of ['start_time', 'end_time', 'work_days']) assert.equal(field in payload, false, field);
       assert.equal(payload.daily_start_time, '09:00:00');
       assert.equal(payload.daily_end_time, '14:00:00');
     });

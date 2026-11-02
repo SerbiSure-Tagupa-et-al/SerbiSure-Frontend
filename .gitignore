@@ -54,6 +54,7 @@ __pycache__/
 venv/
 .venv/
 
-# Standalone admin repo
+# Standalone backend and admin repos
+/backend/
 serbisure-admin/
 tryserbisure/

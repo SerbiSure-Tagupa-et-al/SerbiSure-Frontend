@@ -61,7 +61,7 @@ const content = node => node.text || node.children.map(content).join('');
 const participant = (id, role) => ({ id, name: id + ' Name', account_type: role, profile_link: null, rating: 0 });
 
 function bookingDetails(t, role, bookingType, ongoing = false, options = {}) {
-  const screen = mount(t), alerts = [], actions = [], closed = [];
+  const screen = mount(t), alerts = [], actions = [], closed = [], locationResets = [];
   let language = 'English';
   const native = surfaces();
   native.Platform = { OS: 'android' };
@@ -71,13 +71,20 @@ function bookingDetails(t, role, bookingType, ongoing = false, options = {}) {
   native.Animated.spring = native.Animated.timing = () => ({ start: callback => callback?.() });
   native.Alert.alert = (...args) => alerts.push(args);
   native.ScrollView = React.forwardRef((props, ref) => {
-    React.useImperativeHandle(ref, () => ({ scrollTo() {} }), []);
+    React.useImperativeHandle(ref, () => ({ scrollTo() {}, scrollToEnd() {} }), []);
     return React.createElement('ScrollView', props, props.children);
+  });
+  native.FlatList = React.forwardRef((props, ref) => {
+    React.useImperativeHandle(ref, () => ({ scrollToIndex() {} }), []);
+    return React.createElement('FlatList', props);
   });
   for (const name of ['KeyboardAvoidingView', 'TextInput']) native[name] = name;
   const address = options.edit ? { selectedRegion: { name: 'Region X' }, selectedProvince: { name: 'Misamis Oriental' },
     selectedCity: { name: 'Cagayan de Oro' }, selectedBarangay: { name: 'Agusan' }, streetAddress: 'Lot 3', floorUnit: '', zipcode: '9000' }
     : { streetAddress: '', floorUnit: '', zipcode: '' };
+  // A controlled valid-location fixture isolates schedule tests. Location/reset
+  // behavior itself uses the real hook in the locationService scenarios below.
+  address.resetWorkLocation = () => { locationResets.push(true); };
   const initialDetails = options.initialDetails === null ? null : options.initialDetails || { bookingType, startDate: '10/20/2099', endDate: ongoing ? '' : bookingType === 'short_term' ? '10/20/2099' : '11/20/2099',
     salary: bookingType === 'short_term' ? '600' : '6500', serviceCategory: ['Cleaning'], workSetup: 'stay_out', workHours: '08:00 AM - 12:00 PM', days: [], region: 'Region X', location: 'Agusan' };
   const engagement = load('src/features/bookings/engagementForm.ts');
@@ -87,8 +94,11 @@ function bookingDetails(t, role, bookingType, ongoing = false, options = {}) {
     './BookingPassQRCode': { BookingPassQRCode: 'BookingPassQRCode' },
     '../../../shared/localization/LanguageContext': languageApi, '../../../shared/theme/theme': theme,
     '../engagementForm': engagement, '../workSetup': load('src/features/bookings/workSetup.ts') });
+  const hoursPicker = load('src/shared/ui/WorkHoursPickerModal.tsx', { 'react-native': native,
+    '@expo/vector-icons': { Ionicons: 'Icon' }, '../theme/theme': theme,
+    'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) } });
   const scheduleFields = load('src/features/bookings/components/WorkScheduleFields.tsx', { 'react-native': native, '@expo/vector-icons': { Ionicons: 'Icon' },
-    '../../../shared/localization/LanguageContext': languageApi, '../engagementForm': engagement, '../../../shared/ui/WorkHoursPickerModal': { WorkHoursPickerModal: () => null } });
+    '../../../shared/localization/LanguageContext': languageApi, '../engagementForm': engagement, '../../../shared/ui/WorkHoursPickerModal': hoursPicker });
   const realLocation = options.locationService && load('src/features/bookings/hooks/useWorkLocation.ts', {
     'react-native': native, '../../../shared/services/locationService': { FALLBACK_REGIONS: [], FALLBACK_REGION_X_PROVINCES: [],
       FALLBACK_MISAMIS_ORIENTAL_CITIES: [], FALLBACK_CDO_BARANGAYS: [], ...options.locationService },
@@ -126,7 +136,23 @@ function bookingDetails(t, role, bookingType, ongoing = false, options = {}) {
     });
     renderer.flushPassiveEffects();
   };
-  return { ...screen, render, pressAccept, press, text: () => content(screen.find('Modal')), alerts, actions, closed, language(value) { language = value; render(); } };
+  const wheel = (column, value) => screen.act(() => {
+    const list = screen.all('FlatList')[column];
+    assert.ok(list, 'Missing time wheel');
+    const index = list.props.data.indexOf(value); assert.ok(index >= 0, 'Missing wheel value: ' + value);
+    list.props.renderItem({ item: value, index }).props.onPress();
+  });
+  const clockPress = label => {
+    const descend = node => [node, ...node.children.flatMap(descend)];
+    const button = descend(screen.all('Modal').at(-1)).find(node => node.type === 'Pressable' && content(node) === label);
+    assert.ok(button, 'Missing time picker button: ' + label);
+    screen.act(() => button.props.onPress()); renderer.flushPassiveEffects();
+  };
+  const agreeTerms = () => {
+    screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityRole === 'checkbox').props.onPress());
+    screen.act(() => screen.find('PrivacyPolicyModal').props.onAccept());
+  };
+  return { ...screen, render, pressAccept, press, wheel, clockPress, agreeTerms, text: () => content(screen.find('Modal')), alerts, actions, closed, locationResets, language(value) { language = value; render(); } };
 }
 
 test('ticket renders its saved signed pass immediately, keeps it offline, and refreshes on reopen', async t => {
@@ -176,7 +202,7 @@ test('short-term date range selected in Step 2 reaches Review and confirmation w
   const weekdays = ['M', 'T', 'W', 'Th', 'F'];
   const view = bookingDetails(t, 'homeowner', 'short_term', false, { edit: true, initialDetails: {
     bookingType: 'short_term', workSetup: 'stay_out', startDate: '10/31/2026', endDate: '10/31/2026',
-    workHours: '08:00 AM - 05:00 PM', days: weekdays, salary: '600', serviceCategory: ['Cleaning'],
+    workHours: '08:00 AM - 05:00 PM', days: ['S'], salary: '600', serviceCategory: ['Cleaning'],
   } });
   await tick(); view.press('Next');
   view.press('End date'); view.press('Next month'); view.press('13');
@@ -187,6 +213,10 @@ test('short-term date range selected in Step 2 reaches Review and confirmation w
   const beforeStart = view.all('Pressable').find(node => content(node) === '30');
   assert.equal(beforeStart.props.disabled, true);
   view.press('Cancel');
+  // The original one-day Saturday range correctly auto-selects Saturday. Once
+  // expanded, the user explicitly chooses the weekdays for the multi-day offer.
+  view.press('Sat');
+  for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']) view.press(day);
   view.press('Next'); view.press('Next');
   assert.match(view.text(), /Step 4 of 4/);
   assert.ok(view.text().includes('Start dateOct 31, 2026'));
@@ -285,31 +315,31 @@ test('chat offer hides the address shortcut when no profile address is saved and
 });
 
 for (const role of ['homeowner', 'kasambahay']) {
-  test(`${role}: new short-term chat offers use Stay-out without a setup choice and support custom hours`, async t => {
+  test(`${role}: new short-term offers retain dates, work days and custom hours through consent and retry`, async t => {
     const screen = bookingDetails(t, role, 'short_term', false, { edit: true, initialDetails: null }); await tick();
-    assert.doesNotMatch(screen.text(), /WORK SETUP|Stay-in|Stay-out/);
-    screen.press('Cleaning'); screen.press('Next');
-    assert.match(screen.text(), /AVAILABILITY DATE/);
-    assert.doesNotMatch(screen.text(), /With an end date|No end date|WORK SCHEDULE/);
+    assert.equal(screen.locationResets.length, 1);
+    assert.match(screen.text(), /WORK SETUP/);
+    screen.press('Cleaning'); screen.press('Stay-out'); screen.press('Next');
+    assert.match(screen.text(), /START DATE TO END DATE/);
+    assert.match(screen.text(), /WORK SCHEDULE/);
+    assert.doesNotMatch(screen.text(), /With an end date|No end date/);
     screen.press('Service date'); screen.press('Next month'); screen.press('1');
-    for (const label of ['Morning', 'Afternoon', 'Night']) {
-      screen.press(label);
-      assert.equal(screen.all('Pressable').find(node => node.children.some(child => content(child) === label)).props.accessibilityState.selected, true);
-    }
-    screen.press('Set my own time');
-    const change = (label, value) => screen.act(() => screen.all('TextInput').find(node => node.props.accessibilityLabel === label).props.onChangeText(value));
-    change('Start time', '09:00'); change('End time', '09:00');
-    screen.act(() => screen.all('Pressable').filter(node => content(node) === 'AM')[0].props.onPress());
-    screen.act(() => screen.all('Pressable').filter(node => content(node) === 'AM').at(-1).props.onPress()); screen.press('Set Working Hours');
+    screen.press('Select daily working hours');
+    // Exercise the actual wheel picker, including rejection of equal times.
+    screen.wheel(0, '9'); screen.clockPress('Next');
+    screen.wheel(0, '9'); screen.wheel(2, 'AM'); screen.clockPress('Done');
     assert.match(screen.text(), /End time must be after start time/);
-    change('End time', '02:00');
-    screen.act(() => screen.all('Pressable').filter(node => content(node) === 'PM').at(-1).props.onPress()); screen.press('Set Working Hours');
+    screen.wheel(0, '2'); screen.wheel(2, 'PM'); screen.clockPress('Done');
     assert.match(screen.text(), /09:00 AM - 02:00 PM/);
-    screen.press('Next');
-    change('Daily rate', '800'); screen.press('Review Offer');
+    screen.press('Next'); await tick();
+    const changeRate = value => screen.act(() => screen.all('TextInput').find(node => node.props.accessibilityLabel === 'Daily rate').props.onChangeText(value));
+    changeRate('800'); screen.press('Next');
+    assert.match(screen.text(), /Step 4 of 4/);
     assert.match(screen.text(), /09:00 AM - 02:00 PM/);
     assert.doesNotMatch(screen.text(), /Work setup|Stay-in|Stay-out/);
     screen.press('Send Offer'); await tick();
+    assert.equal(screen.actions.length, 0, 'sending still requires explicit terms consent');
+    screen.agreeTerms(); screen.press('Send Offer'); await tick();
     const details = screen.actions[0].details;
     assert.equal(details.workSetup, 'stay_out'); assert.equal(details.bookingType, 'short_term');
     assert.equal(details.endDate, details.startDate); assert.equal(details.ongoing, false);
@@ -321,21 +351,24 @@ for (const role of ['homeowner', 'kasambahay']) {
     assert.equal(screen.closed.length, 1);
   });
 
-  test(`${role}: switching a Stay-in chat offer to short-term clears long-term terms and sends Stay-out`, async t => {
+  test(`${role}: switching to short-term clears long-term dates, pay and hours before the new offer`, async t => {
     const screen = bookingDetails(t, role, 'long_term', false, { edit: true, initialDetails: {
       bookingType: 'long_term', startDate: '12/31/2099', endDate: '01/30/2100', salary: '8000',
       serviceCategory: ['Cleaning'], workSetup: 'stay_in', workHours: '09:00 AM - 02:00 PM', days: ['Th'],
     } }); await tick();
     assert.match(screen.text(), /WORK SETUP/);
-    screen.press('Short-term'); await tick();
-    assert.doesNotMatch(screen.text(), /WORK SETUP|Stay-in|Stay-out/);
-    screen.press('Next'); screen.press('Next');
-    assert.match(screen.text(), /Choose a preset or set your own working hours/);
-    assert.doesNotMatch(screen.text(), /No end date|WORK SCHEDULE/);
-    screen.press('Morning'); screen.press('Next');
-    assert.equal(screen.all('TextInput').find(node => node.props.accessibilityLabel === 'Daily rate').props.value, '');
-    screen.act(() => screen.all('TextInput').find(node => node.props.accessibilityLabel === 'Daily rate').props.onChangeText('800'));
-    screen.press('Review Offer'); screen.press('Send Offer'); await tick();
+    screen.press('Short-term'); screen.press('Stay-out'); await tick();
+    screen.press('Next');
+    assert.match(screen.text(), /Select daily working hours/);
+    assert.match(screen.text(), /WORK SCHEDULE/);
+    assert.doesNotMatch(screen.text(), /No end date/);
+    screen.press('Select daily working hours');
+    screen.wheel(0, '8'); screen.clockPress('Next'); screen.wheel(0, '12'); screen.wheel(2, 'PM'); screen.clockPress('Done');
+    screen.press('Next'); await tick();
+    const rate = screen.all('TextInput').find(node => node.props.accessibilityLabel === 'Daily rate');
+    assert.equal(rate.props.value, '');
+    screen.act(() => rate.props.onChangeText('800'));
+    screen.press('Next'); screen.agreeTerms(); screen.press('Send Offer'); await tick();
     assert.equal(screen.actions[0].details.workSetup, 'stay_out');
     assert.equal(screen.actions[0].details.endDate, '12/31/2099');
     assert.equal(screen.actions[0].details.ongoing, false);
@@ -343,7 +376,7 @@ for (const role of ['homeowner', 'kasambahay']) {
     screen.actions[0].resolve(); await tick();
   });
 
-  for (const ongoing of [false, true]) test(`${role}: ${ongoing ? 'ongoing' : 'fixed'} long-term chat offers share posting duration rules and review`, async t => {
+  for (const ongoing of [false, true]) test(`${role}: ${ongoing ? 'ongoing' : 'fixed'} long-term offers retain duration, work setup and review dates`, async t => {
     const screen = bookingDetails(t, role, 'long_term', false, { edit: true, initialDetails: {
       bookingType: 'long_term', startDate: '12/31/2099', endDate: '01/30/2100', salary: '8000',
       serviceCategory: ['Cleaning'], workSetup: 'stay_in', workHours: '09:00 AM - 02:00 PM', days: ['Th'],
@@ -353,22 +386,25 @@ for (const role of ['homeowner', 'kasambahay']) {
       for (const label of ['With an end date', 'No end date']) assert.ok(screen.text().includes(localization.translateMessage(language, label)));
     }
     screen.language('English'); screen.press('No end date');
-    assert.equal(screen.all('Pressable').some(node => node.props.accessibilityLabel === 'End date'), false);
+    // The current design keeps the End field visible but disabled for an ongoing contract.
+    assert.equal(screen.all('Pressable').find(node => node.props.accessibilityLabel === 'End date').props.disabled, true);
     screen.press('With an end date'); screen.press('Next');
-    assert.match(screen.text(), /Choose an end date or select No end date/);
+    assert.match(screen.text(), /Step 2 of 4/, 'an empty fixed end date must block progression');
+    assert.equal(screen.actions.length, 0);
     if (ongoing) {
       screen.press('No end date');
-      assert.doesNotMatch(screen.text(), /Choose an end date or select No end date/);
+      assert.equal(screen.all('Pressable').find(node => node.props.accessibilityLabel === 'End date').props.disabled, true);
     } else {
       screen.press('End date');
       assert.equal(screen.all('Pressable').find(node => content(node) === '29').props.disabled, true);
       assert.equal(screen.all('Pressable').find(node => content(node) === '30').props.disabled, false);
       screen.press('30');
     }
-    screen.press('Next'); screen.press('Review Offer');
+    screen.press('Next'); await tick(); screen.press('Next');
     assert.match(screen.text(), /Work setupStay-in/);
-    assert.match(screen.text(), ongoing ? /EndsNo end date/ : /Ends01\/30\/2100/);
-    screen.press('Send Offer'); await tick();
+    assert.match(screen.text(), /Start dateDec 31, 2099/);
+    assert.match(screen.text(), ongoing ? /End dateOngoing \(No end date\)/ : /End dateJan 30, 2100/);
+    screen.agreeTerms(); screen.press('Send Offer'); await tick();
     assert.equal(screen.actions[0].details.ongoing, ongoing);
     assert.equal(screen.actions[0].details.endDate, ongoing ? '' : '01/30/2100');
     assert.equal(screen.actions[0].details.workSetup, 'stay_in');

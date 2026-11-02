@@ -13,6 +13,11 @@ function loadHttpClient() {
   const module = { exports: {} };
   new Function('require', 'module', 'exports', source)(name => {
     if (name === './config') return { buildApiUrl: path => `https://api.test${path}`, DEFAULT_TIMEOUT_MS: 1000 };
+    if (name === '../auth/session') return {
+      getSession: () => null,
+      refreshSession: async () => { throw new Error('Suspension tests must not refresh a session'); },
+      SessionError: class extends Error {},
+    };
     throw new Error(`Unexpected dependency: ${name}`);
   }, module, module.exports);
   return module.exports;
