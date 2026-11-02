@@ -23,7 +23,7 @@ Branch protection, Expo credentials and actual CI runs require repository access
 
 ## Versions and Android installation
 
-This native release is **2.1.2**, base versionCode **23**, runtime **2.1.2**. The native installer permission requires a rebuilt APK. Existing users without this update system must install that APK once; JavaScript cannot inject a missing Android permission.
+This native release is **2.1.3**, base versionCode **24**, runtime **2.1.3**. The native window now keeps the existing splash logo visible until React draws; this change requires a rebuilt APK. Existing users without the native installer permission must install a compatible APK once; JavaScript cannot inject a missing Android permission.
 
 For future native changes, increase X.Y.Z in package.json, both root versions in package-lock.json, app.json version + android.runtimeVersion, Android versionName, and strings.xml expo_runtime_version. Increase the base versionCode in app.json and Gradle. CI rejects mismatches or native changes without a version increase. Do not bump for JS-only changes.
 
@@ -33,13 +33,17 @@ The existing Android release signing uses the repository's debug keystore. It is
 
 ## Phone behavior
 
-On each fresh launch, Android calls `/api/v1/app-version/` before OTA. A newer APK shows its version, release notes and Download & Install Update. A partial file is never sent to the installer: HTTP status and the published asset size are checked, then the complete file is renamed. Android validates the package/signature and the user approves installation. A size check is not a cryptographic authenticity check.
+On each fresh launch, a bundled logo, system-font "Starting SerbiSure..." message and spinner stay visible during checks. Android calls `/api/v1/app-version/` before OTA. Both availability checks share a single six-second deadline, including response parsing. Failure or timeout shows "Connection is taking too long. Please check your internet connection." and Retry, without opening the app. Retry starts a fresh check; late results from an expired check cannot unlock the app or trigger a download/reload. The native fetch is aborted; Expo's non-cancellable check can finish internally, but its late result is ignored. Actual update downloads are not limited to six seconds. Font loading and saved-login restoration also display the branded loader after the update gate succeeds.
+
+A newer APK shows its version, release notes and Download & Install Update. A partial file is never sent to the installer: HTTP status and the published asset size are checked, then the complete file is renamed. Android validates the package/signature and the user approves installation. A size check is not a cryptographic authenticity check.
 
 If installation is cancelled or permission is denied, the app remains blocked with Install Update / Allow installation. Returning from Settings does not run another cold-start check. A missing cached file can be downloaded again. Downloads restart on Retry rather than implementing complicated persistent resume state. Completed and partial files use app cache, not shared Downloads. After Android finishes the installation, the user may need to tap Open in the system installer; this is not a silent installation or a guaranteed automatic APK restart.
 
 If the native version is current, the existing mandatory OTA gate downloads and reloads through Expo. Checks are skipped in development and on web; iOS retains the OTA-only path. Network/version-service errors block startup with Retry; they do not silently claim the app is current. No available update means normal navigation without displaying an update screen, after the network check completes. Already-open sessions do not check on resume. Backend API compatibility still matters: this does not force updates onto a phone that never closes its app.
 
 ## Verification before enabling production
+
+Startup-screen fix validation (November 2, 2026): all **425 tests** pass with zero failures or skips; TypeScript and `assembleRelease -x lint -x test --no-daemon` pass. Regression checks cover the shared six-second deadline, aborted native requests, late native/Expo results, duplicate Retry taps, loading during fonts/session restoration and downloads lasting longer than the availability-check deadline. The rebuilt 2.1.3 startup experience still needs a real-phone visual check; this change has not been published.
 
 Local validation on November 2, 2026: TypeScript, 26 focused update/release tests, 12 backend tests and native APK compilation passed. The subsequent full-suite repair passes all 418 tests, with zero failures or skips. Incomplete session/image/location fixtures were supplied, and superseded booking/translation interactions were updated to the current UI. Date, pay, consent, retry and submission checks remain covered; an additional test protects the official support logo alongside worker-photo tests. No production source or release workflow was changed during that repair. No production release or hosted workflow run has been performed; repository setup and device validation are still required below.
 

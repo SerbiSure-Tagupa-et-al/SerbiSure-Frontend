@@ -19,27 +19,24 @@ export function isNewerVersion(latest: string, installed: string): boolean {
   return false;
 }
 
-export async function checkNativeUpdate(): Promise<NativeRelease | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    const response = await fetch(buildApiUrl('/api/v1/app-version/'), { signal: controller.signal });
-    if (!response.ok) throw new Error('Version check failed');
-    const data = await response.json();
-    // No published release yet is different from an unreachable version service.
-    if (data.latest_version === null && data.apk_url === null) return null;
-    if (typeof data.latest_version !== 'string' || typeof data.apk_url !== 'string'
-      || !Number.isSafeInteger(data.apk_size) || data.apk_size <= 0) throw new Error('Invalid release information');
-    const installed = Application.nativeApplicationVersion;
-    if (!installed) throw new Error('Installed app version is unavailable');
-    if (!isNewerVersion(data.latest_version, installed)) return null;
-    // Only the official universal release asset may be installed. No arbitrary download URLs.
-    const escapedVersion = data.latest_version.replace(/\./g, '\\.');
-    const urlPattern = new RegExp(`^https://github\\.com/${repository}/releases/download/v?${escapedVersion}/SerbiSure-v${escapedVersion}\\.apk$`);
-    if (!urlPattern.test(data.apk_url)) throw new Error('Invalid APK address');
-    return { version: data.latest_version, notes: typeof data.release_notes === 'string' ? data.release_notes.slice(0, 12000) : '',
-      url: data.apk_url, size: data.apk_size };
-  } finally { clearTimeout(timeout); }
+// The cold-start coordinator owns the shared six-second check deadline.
+export async function checkNativeUpdate(signal?: AbortSignal): Promise<NativeRelease | null> {
+  const response = await fetch(buildApiUrl('/api/v1/app-version/'), { signal });
+  if (!response.ok) throw new Error('Version check failed');
+  const data = await response.json();
+  // No published release yet is different from an unreachable version service.
+  if (data.latest_version === null && data.apk_url === null) return null;
+  if (typeof data.latest_version !== 'string' || typeof data.apk_url !== 'string'
+    || !Number.isSafeInteger(data.apk_size) || data.apk_size <= 0) throw new Error('Invalid release information');
+  const installed = Application.nativeApplicationVersion;
+  if (!installed) throw new Error('Installed app version is unavailable');
+  if (!isNewerVersion(data.latest_version, installed)) return null;
+  // Only the official universal release asset may be installed. No arbitrary download URLs.
+  const escapedVersion = data.latest_version.replace(/\./g, '\\.');
+  const urlPattern = new RegExp(`^https://github\\.com/${repository}/releases/download/v?${escapedVersion}/SerbiSure-v${escapedVersion}\\.apk$`);
+  if (!urlPattern.test(data.apk_url)) throw new Error('Invalid APK address');
+  return { version: data.latest_version, notes: typeof data.release_notes === 'string' ? data.release_notes.slice(0, 12000) : '',
+    url: data.apk_url, size: data.apk_size };
 }
 
 export async function downloadNativeUpdate(release: NativeRelease, onProgress: (value: number | null) => void): Promise<string> {
