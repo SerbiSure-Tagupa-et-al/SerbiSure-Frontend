@@ -2,7 +2,7 @@
   "expo": {
     "name": "SerbiSure",
     "slug": "serbisure-frontend",
-    "version": "2.1.4",
+    "version": "2.1.5",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/serbisure-icon.png",
@@ -57,8 +57,8 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.serbisure.frontend",
-      "versionCode": 25,
-      "runtimeVersion": "2.1.4"
+      "versionCode": 26,
+      "runtimeVersion": "2.1.5"
     },
     "owner": "serbisure",
     "extra": {
