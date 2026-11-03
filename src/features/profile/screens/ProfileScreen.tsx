@@ -13,7 +13,6 @@ import { ManageTagsModal } from '../components/ManageTagsModal';
 import { ManageSocialLinksModal } from '../components/ManageSocialLinksModal';
 import { AllReviewsModal } from '../../reviews/components/AllReviewsModal';
 import { AppHeader } from '../../../shared/components/AppHeader';
-import { ProfileAvatar } from '../../../shared/ui/ProfileAvatar';
 import { formatRegisteredLocation } from '../../../shared/services/locationService';
 
 import { ROLE_CONFIG } from '../../../app/roleConfig';
@@ -33,11 +32,13 @@ import { WorkerCvModal } from '../worker/WorkerCvModal';
 import { ProfileTabs } from '../components/ProfileTabs';
 import { OwnPostsSection } from '../components/OwnPostsSection';
 import { ProfilePhotoSection } from '../components/ProfilePhotoSection';
+import { ProfilePhotoAvatar } from '../components/ProfilePhotoAvatar';
 
 export function ProfileScreen(props: ProfileScreenProps) {
   const { tr: uiText } = useUiLanguage();
   const [showCv, setShowCv] = useState(false);
   const [photoRetakeOpen, setPhotoRetakeOpen] = useState(false);
+  const [photoInfoOpen, setPhotoInfoOpen] = useState(false);
   const profile = useProfile(props);
   const {
     avatarUri,
@@ -110,25 +111,23 @@ export function ProfileScreen(props: ProfileScreenProps) {
       >
 
         <ProfilePhotoSection info={verificationData} token={user.token} role={role} open={photoRetakeOpen}
-          onOpenChange={setPhotoRetakeOpen} onSaved={loadVerificationStatus} />
+          onOpenChange={setPhotoRetakeOpen} onSaved={() => loadVerificationStatus(true)}
+          infoOpen={photoInfoOpen} onInfoOpenChange={setPhotoInfoOpen}
+          documentsVisible={isVerificationModalVisible} onCloseDocuments={() => setIsVerificationModalVisible(false)}
+          documentsContent={<VerificationStatusModal embedded
+            visible={isVerificationModalVisible && !photoRetakeOpen && !photoInfoOpen}
+            onClose={() => setIsVerificationModalVisible(false)} statusData={verificationData}
+            loading={isLoadingVerification} token={user.token} onRefresh={loadVerificationStatus}
+            onRetakePhoto={() => setPhotoRetakeOpen(true)} role={role} />} />
         {currentView === 'personal_info' ? (
           <React.Fragment>
             {/* Identity Hero Card (Clean Rounded Peach Neo-Pop Card matching Ryan Gosling design) */}
             <View style={styles.personalHeroCard}>
               {/* Top row: Avatar on left, Role pill badge + View CV pill on right */}
               <View style={styles.personalHeroTopRow}>
-                <View style={styles.personalAvatarWrapper}>
-                  <ProfileAvatar uri={user.profileLink || localAvatar || avatarUri} name={getFullName()} size={90} />
-                  {isVerified ? (
-                    <View style={styles.avatarShieldBadgePersonal}>
-                      <Ionicons
-                        name="shield-checkmark"
-                        size={15}
-                        color="#FFFFFF"
-                      />
-                    </View>
-                  ) : null}
-                </View>
+                <ProfilePhotoAvatar info={verificationData} style={styles.personalAvatarWrapper}
+                  uri={user.profileLink || localAvatar || avatarUri} name={getFullName()} size={90}
+                  onPress={() => { setPhotoInfoOpen(true); void loadVerificationStatus(); }} />
 
                 <View style={styles.heroTopActions}>
                   <View style={styles.roleBadgePill}>
@@ -264,18 +263,9 @@ export function ProfileScreen(props: ProfileScreenProps) {
             {/* Settings Profile Hero Card */}
             <View style={styles.settingsHeroCard}>
               <View style={styles.settingsHeroTopRow}>
-                <View style={styles.avatarWrapper}>
-                  <ProfileAvatar uri={user.profileLink || localAvatar || avatarUri} name={getFullName()} size={68} />
-                  {isVerified ? (
-                    <View style={styles.avatarShieldBadge}>
-                      <Ionicons
-                        name="shield-checkmark"
-                        size={13}
-                        color="#FFFFFF"
-                      />
-                    </View>
-                  ) : null}
-                </View>
+                <ProfilePhotoAvatar info={verificationData} style={styles.avatarWrapper}
+                  uri={user.profileLink || localAvatar || avatarUri} name={getFullName()} size={68}
+                  onPress={() => { setPhotoInfoOpen(true); void loadVerificationStatus(); }} />
 
                 <View style={styles.heroDetails}>
                   <View style={styles.heroNameRow}>
@@ -381,18 +371,6 @@ export function ProfileScreen(props: ProfileScreenProps) {
           </React.Fragment>
         )}
       </ScrollView>
-
-      {/* Verification Status Modal */}
-      <VerificationStatusModal
-        visible={isVerificationModalVisible}
-        onClose={() => setIsVerificationModalVisible(false)}
-        statusData={verificationData}
-        loading={isLoadingVerification}
-        token={user.token}
-        onRefresh={loadVerificationStatus}
-        onRetakePhoto={() => { setIsVerificationModalVisible(false); setPhotoRetakeOpen(true); }}
-        role={role}
-      />
 
       {/* Password & Security Modal */}
       <PasswordSecurityModal

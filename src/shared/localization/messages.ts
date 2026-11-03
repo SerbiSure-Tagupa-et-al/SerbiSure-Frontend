@@ -1,6 +1,16 @@
 // English source text -> Tagalog, Bisaya. Keep stored API values in English;
 // translate only their presentation. User-authored content is never passed here.
 export const UI_MESSAGES = {
+  'Profile Photo Verified': ['Aprubado ang larawan sa profile', 'Aprobado ang litrato sa profile'],
+  'Photo Under Review': ['Sinusuri pa ang larawan', 'Gisusi pa ang litrato'],
+  'Profile Photo Needs Retake': ['Kailangang kumuha ng bagong larawan', 'Kinahanglang mokuha og bag-ong litrato'],
+  'Photo status unavailable': ['Hindi makita ang katayuan ng larawan', 'Dili makita ang kahimtang sa litrato'],
+  'Tap to check your photo status.': ['Pindutin para tingnan ang katayuan ng larawan.', 'Pislita aron makita ang kahimtang sa imong litrato.'],
+  'Your photo is approved and locked to keep your account safe. To change it, message your barangay office or the SerbiSure admin.': ['Aprubado at naka-lock ang iyong larawan para ligtas ang account mo. Para palitan ito, mag-message sa barangay office o SerbiSure admin.', 'Aprobado ug gi-lock ang imong litrato aron luwas ang imong account. Aron ilisan, pag-message sa barangay office o SerbiSure admin.'],
+  'Your photo is waiting for your barangay official to review it. We will let you know when it is approved.': ['Hinihintay na masuri ng opisyal ng barangay ang iyong larawan. Ipapaalam namin kapag aprubado na ito.', 'Naghulat pa nga susihon sa opisyal sa barangay ang imong litrato. Pahibaloon ka namo kung aprobahan na kini.'],
+  'Please take a clear photo of your face in a bright place. Use the camera to try again.': ['Kumuha ng malinaw na larawan ng mukha mo sa maliwanag na lugar. Gamitin ang camera para subukan muli.', 'Kuha og klarong litrato sa imong nawong sa hayag nga lugar. Gamita ang camera aron mosulay pag-usab.'],
+  'Note from reviewer': ['Paalala mula sa nagsuri', 'Pahinumdom gikan sa nagsusi'],
+  'Close this screen and tap your profile photo to retake it.': ['Isara ito at pindutin ang larawan sa profile para kumuha ng bago.', 'Sirad-i kini ug pislita ang litrato sa profile aron mokuha og bag-o.'],
   'Profile Photo': ['Larawan sa profile', 'Litrato sa profile'],
   'Profile Photo Rejected': ['Kailangang ulitin ang larawan', 'Kinahanglang usbon ang litrato'],
   'Retake your photo': ['Kumuha ng bagong larawan', 'Kuha og bag-ong litrato'],

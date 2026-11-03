@@ -190,7 +190,12 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
     }
   };
 
-  const loadVerificationStatus = () => {
+  const loadVerificationStatus = (photoSubmitted = false) => {
+    // A confirmed upload is Pending even if the follow-up GET loses connection.
+    if (photoSubmitted) setVerificationData(previous => previous ? { ...previous,
+      documents: previous.documents.map(doc => doc.document_type === 'profile_photo'
+        ? { ...doc, verification_status: 'Pending', rejection_reason: null } : doc),
+    } : previous);
     if (user.token) {
       setIsLoadingVerification(true);
       return refreshUserProfile()

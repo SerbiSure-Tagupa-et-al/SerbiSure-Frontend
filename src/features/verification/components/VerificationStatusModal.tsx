@@ -8,7 +8,7 @@ import { DocumentStatusItem, VerificationStatusResponse, deleteRejectedDocument 
 import { IDPhotoModal } from './IDPhotoModal';
 import { API_BASE_URL } from '../../../shared/api/config';
 import { fetchWithTimeout } from '../../../shared/api/httpClient';
-import { canReplaceDocument, currentDocuments, documentIsExpired } from '../documentStatus';
+import { canReplaceDocument, currentDocuments, documentIsExpired, documentLabel } from '../documentStatus';
 
 const logoSource = require('../../../../assets/serbisure-icon.png');
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -23,15 +23,8 @@ interface VerificationStatusModalProps {
   onOpenUpload?: (docType?: string) => void;
   role?: 'homeowner' | 'kasambahay';
   onRetakePhoto?: () => void;
+  embedded?: boolean;
 }
-
-const DOCUMENT_NAMES: Record<string, string> = {
-  nbi_clearance: 'NBI Clearance',
-  police_clearance: 'Police Clearance',
-  national_id_front: 'National ID (Front)',
-  national_id_back: 'National ID (Back)',
-  profile_photo: 'Profile Photo',
-};
 
 const EXTRACTED_FIELD_LABELS: Record<string, string> = {
   full_name: 'Full Name',
@@ -123,6 +116,7 @@ export function VerificationStatusModal({
   onRefresh,
   onOpenUpload,
   onRetakePhoto,
+  embedded = false,
   role,
 }: VerificationStatusModalProps) {
   const { tr: uiText } = useUiLanguage();
@@ -198,7 +192,10 @@ export function VerificationStatusModal({
   };
 
   const handleReupload = (docType: string) => {
-    if (docType === 'profile_photo') onRetakePhoto?.();
+    if (docType === 'profile_photo') {
+      if (onRetakePhoto) onRetakePhoto();
+      else Alert.alert(uiText('Retake Photo'), uiText('Close this screen and tap your profile photo to retake it.'));
+    }
     else if (docType === 'nbi_clearance') handleBoxPress('nbi');
     else if (docType === 'police_clearance') handleBoxPress('police');
     else if (docType === 'national_id_front') handleBoxPress('national_front');
@@ -207,7 +204,7 @@ export function VerificationStatusModal({
 
   const handleDeleteRejected = (document: DocumentStatusItem) => {
     if (!token) return;
-    const docName = DOCUMENT_NAMES[document.document_type] || document.document_type;
+    const docName = documentLabel(document.document_type);
 
     Alert.alert(
       'Remove Rejected Document',
@@ -315,7 +312,7 @@ export function VerificationStatusModal({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to upload ${DOCUMENT_NAMES[upload.type] || upload.type}`);
+          throw new Error(errorData.error || `Failed to upload ${documentLabel(upload.type)}`);
         }
         if (upload.type === 'nbi_clearance') setNbiImage(null);
         else if (upload.type === 'police_clearance') setPoliceImage(null);
@@ -502,7 +499,7 @@ export function VerificationStatusModal({
     const isPending = doc.verification_status === 'Pending';
     const isVerified = doc.verification_status === 'Verified' && !isExpired;
     const isRejected = doc.verification_status === 'Rejected' && !isExpired;
-    const docTitle = DOCUMENT_NAMES[doc.document_type] || doc.document_type;
+    const docTitle = documentLabel(doc.document_type);
     const formattedDate = doc.created_at
       ? new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       : null;
@@ -530,7 +527,7 @@ export function VerificationStatusModal({
           />
 
           <View style={styles.docItemTitleBox}>
-            <Text style={styles.docItemTitle} numberOfLines={1}>{docTitle}</Text>
+            <Text style={styles.docItemTitle} numberOfLines={1}>{uiText(docTitle)}</Text>
             {formattedDate ? (
               <Text style={styles.docItemSub} numberOfLines={1}>
                 {isVerified ? 'Verified by Barangay Official' : `Submitted on ${formattedDate}`}
@@ -585,6 +582,8 @@ export function VerificationStatusModal({
               <Pressable
                 style={styles.reuploadFullBtn}
                 onPress={() => handleReupload(doc.document_type)}
+                accessibilityRole="button"
+                accessibilityLabel={uiText(doc.document_type === 'profile_photo' ? 'Retake Photo' : 'Upload a New Photo')}
               >
                 <Ionicons name="camera-outline" size={17} color="#FFF" style={{ marginRight: 6 }} />
                 <Text style={styles.reuploadFullBtnText}>{uiText(doc.document_type === 'profile_photo' ? 'Retake Photo' : 'Upload a New Photo')}</Text>
@@ -811,15 +810,7 @@ export function VerificationStatusModal({
 
     if (!visible) return null;
 
-  return (
-    <>
-      <Modal
-        visible={visible}
-        animationType="none"
-        transparent={false}
-        statusBarTranslucent
-        onRequestClose={handleClose}
-      >
+  const content = (
         <View
           style={[
             styles.container,
@@ -870,8 +861,12 @@ export function VerificationStatusModal({
             )}
           </ScrollView>
         </View>
-      </Modal>
+  );
 
+  return (
+    <>
+      {embedded ? content : <Modal visible={visible} animationType="none" transparent={false}
+        statusBarTranslucent onRequestClose={handleClose}>{content}</Modal>}
       <IDPhotoModal
         visible={idPhotoVisible}
         onClose={() => setIdPhotoVisible(false)}

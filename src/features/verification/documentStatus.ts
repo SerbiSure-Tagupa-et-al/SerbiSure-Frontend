@@ -1,9 +1,18 @@
 import type { DocumentStatusItem } from './api/verificationApi';
 
 export function documentIsExpired(document: DocumentStatusItem, now = Date.now()): boolean {
+  if (document.document_type === 'profile_photo') return false;
   // An expiry date is valid through that day in the Philippines (UTC+8).
   const today = new Date(now + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
   return document.valid_until ? document.valid_until.slice(0, 10) < today : document.is_expired === true;
+}
+
+export function documentLabel(type: string): string {
+  const names: Record<string, string> = {
+    profile_photo: 'Profile Photo', nbi_clearance: 'NBI Clearance', police_clearance: 'Police Clearance',
+    national_id_front: 'National ID (Front)', national_id_back: 'National ID (Back)',
+  };
+  return names[type] || type.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
 export function canReplaceDocument(document: DocumentStatusItem): boolean {
