@@ -114,8 +114,8 @@ android {
         applicationId 'com.serbisure.frontend'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 25
-        versionName "2.1.4"
+        versionCode 26
+        versionName "2.1.5"
         ndk {
             abiFilters (*(findProperty('reactNativeArchitectures')?.split(',') ?: ['arm64-v8a', 'armeabi-v7a']))
         }
