@@ -1,6 +1,16 @@
 // English source text -> Tagalog, Bisaya. Keep stored API values in English;
 // translate only their presentation. User-authored content is never passed here.
 export const UI_MESSAGES = {
+  'Profile Photo': ['Larawan sa profile', 'Litrato sa profile'],
+  'Profile Photo Rejected': ['Kailangang ulitin ang larawan', 'Kinahanglang usbon ang litrato'],
+  'Retake your photo': ['Kumuha ng bagong larawan', 'Kuha og bag-ong litrato'],
+  'Add your face photo': ['Magdagdag ng larawan ng iyong mukha', 'Pagdugang og litrato sa imong nawong'],
+  'Photo waiting for review': ['Sinusuri pa ang larawan', 'Gisusi pa ang litrato'],
+  'Your photo is waiting for review. You can book and apply once your photo and documents are approved.': ['Sinusuri pa ang iyong larawan. Makakapag-book at makakapag-apply ka kapag aprubado na ang larawan at mga dokumento mo.', 'Gisusi pa ang imong litrato. Maka-book ug maka-apply ka kung aprobahan na ang imong litrato ug mga dokumento.'],
+  'Take a clear photo of your face so an official can review it.': ['Kumuha ng malinaw na larawan ng iyong mukha para masuri ng opisyal.', 'Kuha og klarong litrato sa imong nawong aron masusi sa opisyal.'],
+  'Photo submitted for review.': ['Naipasa na ang larawan para suriin.', 'Napasa na ang litrato aron susihon.'],
+  'We will let you know when your photo is approved.': ['Ipapaalam namin kapag aprubado na ang iyong larawan.', 'Pahibaloon ka namo kung aprobahan na ang imong litrato.'],
+  'Photo not saved': ['Hindi nai-save ang larawan', 'Wala ma-save ang litrato'],
   'Connect to the internet and reopen this booking to get a fresh pass.': ['Kumonekta sa internet at buksan muli ang booking para makakuha ng bagong pass.', 'Konektar sa internet ug ablihi pag-usab ang booking aron makakuha og bag-ong pass.'],
   'Digital Village Pass': ['Digital na Gate Pass', 'Digital nga Gate Pass'],
   'QR Pass will be generated once booking is sent.': ['Lalabas ang QR Pass kapag naipadala na ang booking.', 'Mogawas ang QR Pass kung mapadala na ang booking.'],

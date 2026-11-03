@@ -12,7 +12,7 @@ export interface DocumentDiscrepancy {
 
 export interface DocumentStatusItem {
   document_id: string;
-  document_type: 'nbi_clearance' | 'police_clearance' | 'national_id_front' | 'national_id_back';
+  document_type: 'nbi_clearance' | 'police_clearance' | 'national_id_front' | 'national_id_back' | 'profile_photo';
   verification_status: 'Unverified' | 'Pending' | 'Verified' | 'Rejected';
   document_image_url: string | null;
   date_issued: string | null;
@@ -36,6 +36,7 @@ export interface UserVerificationInfo {
 }
 
 export interface VerificationStatusResponse {
+  profile_link?: string | null;
   account_type: string;
   overall_status: 'Unverified' | 'Pending' | 'Verified' | 'Rejected';
   renewal_required?: boolean;

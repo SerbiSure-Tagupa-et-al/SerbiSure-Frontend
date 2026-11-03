@@ -120,6 +120,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode, token?: string 
         verificationStatus: status,
         renewalRequired: data.renewal_required === true,
         renewalPending: data.renewal_pending === true,
+        ...(data.profile_link !== undefined ? { profileLink: data.profile_link } : {}),
         ...(info?.first_name !== undefined ? { firstName: info.first_name ?? '' } : {}),
         ...(info?.middle_name !== undefined ? { middleName: info.middle_name ?? '' } : {}),
         ...(info?.last_name !== undefined ? { lastName: info.last_name ?? '' } : {}),

@@ -25,6 +25,7 @@ function discardSelfie(path: string) {
 }
 
 type LivenessScreenProps = {
+  mode?: 'registration' | 'profile';
   role?: 'homeowner' | 'kasambahay';
   token?: string | null;
   onVerified?: (result: LivenessResult) => void;
@@ -116,7 +117,7 @@ function getInstruction(state: LivenessState, showTrackerNotice: boolean, awaiti
   return state.instruction;
 }
 
-export function LivenessScreen({ role = 'homeowner', onVerified, onBack, submitting = false, submissionFailed = false, onRetrySubmission }: LivenessScreenProps) {
+export function LivenessScreen({ role = 'homeowner', mode = 'registration', onVerified, onBack, submitting = false, submissionFailed = false, onRetrySubmission }: LivenessScreenProps) {
   const { tr: uiText } = useUiLanguage();
   const insets = useSafeAreaInsets();
   const cameraRef = useRef<FaceCameraHandle | null>(null);
@@ -330,13 +331,13 @@ export function LivenessScreen({ role = 'homeowner', onVerified, onBack, submitt
 
       <View style={styles.titleBlock}>
         <Text style={styles.title}>
-          {role === 'homeowner' ? (
+          {mode === 'profile' ? uiText('Retake your photo') : role === 'homeowner' ? (
             <>Join as <Text style={styles.titleHighlight}>Homeowner</Text></>
           ) : (
             <>Join as <Text style={styles.titleHighlight}>Kasambahay</Text></>
           )}
         </Text>
-        {role !== 'homeowner' ? (
+        {mode === 'registration' && role !== 'homeowner' ? (
           <Text style={styles.subtitle}>{uiText("Join as a kasambahay to offer your trusted household services.")}</Text>
         ) : null}
       </View>
@@ -344,11 +345,11 @@ export function LivenessScreen({ role = 'homeowner', onVerified, onBack, submitt
       <View style={styles.card}>
         <View style={styles.cardContent}>
           <View>
-            <RegistrationStepper
+            {mode === 'registration' && <RegistrationStepper
               currentStep={role === 'kasambahay' ? 4 : 3}
               totalSteps={role === 'kasambahay' ? 5 : 4}
               title={role === 'kasambahay' ? uiText("Step 4: Face Verification") : uiText("Step 3: Face Verification")}
-            />
+            />}
 
             <View style={styles.verificationFrame}>
               <View style={styles.cameraCircle}>
