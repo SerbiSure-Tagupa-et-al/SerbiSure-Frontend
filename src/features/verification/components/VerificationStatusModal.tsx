@@ -22,6 +22,7 @@ interface VerificationStatusModalProps {
   onRefresh?: () => void;
   onOpenUpload?: (docType?: string) => void;
   role?: 'homeowner' | 'kasambahay';
+  onRetakePhoto?: () => void;
 }
 
 const DOCUMENT_NAMES: Record<string, string> = {
@@ -29,6 +30,7 @@ const DOCUMENT_NAMES: Record<string, string> = {
   police_clearance: 'Police Clearance',
   national_id_front: 'National ID (Front)',
   national_id_back: 'National ID (Back)',
+  profile_photo: 'Profile Photo',
 };
 
 const EXTRACTED_FIELD_LABELS: Record<string, string> = {
@@ -120,6 +122,7 @@ export function VerificationStatusModal({
   token,
   onRefresh,
   onOpenUpload,
+  onRetakePhoto,
   role,
 }: VerificationStatusModalProps) {
   const { tr: uiText } = useUiLanguage();
@@ -155,7 +158,7 @@ export function VerificationStatusModal({
     if (!visible) return;
 
     const hasProcessingDocs = statusData?.documents?.some(
-      (doc) => doc.verification_status === 'Pending' && !doc.ocr_processed_at
+      (doc) => doc.document_type !== 'profile_photo' && doc.verification_status === 'Pending' && !doc.ocr_processed_at
     );
 
     if (!hasProcessingDocs) return;
@@ -195,7 +198,8 @@ export function VerificationStatusModal({
   };
 
   const handleReupload = (docType: string) => {
-    if (docType === 'nbi_clearance') handleBoxPress('nbi');
+    if (docType === 'profile_photo') onRetakePhoto?.();
+    else if (docType === 'nbi_clearance') handleBoxPress('nbi');
     else if (docType === 'police_clearance') handleBoxPress('police');
     else if (docType === 'national_id_front') handleBoxPress('national_front');
     else if (docType === 'national_id_back') handleBoxPress('national_back');
@@ -507,7 +511,7 @@ export function VerificationStatusModal({
     const isRawExpanded = !!expandedRawDocIds[doc.document_id];
     const hasOcrData = !!(doc.extracted_data && Object.keys(doc.extracted_data).length > 0);
     const hasDiscrepancies = !!(doc.ocr_discrepancies && doc.ocr_discrepancies.length > 0);
-    const isProcessingOcr = isPending && !doc.ocr_processed_at && !hasOcrData;
+    const isProcessingOcr = doc.document_type !== 'profile_photo' && isPending && !doc.ocr_processed_at && !hasOcrData;
 
     // Filter valid non-empty entries for raw extracted data
     const validRawEntries = Object.entries(doc.extracted_data || {}).filter(
@@ -583,10 +587,10 @@ export function VerificationStatusModal({
                 onPress={() => handleReupload(doc.document_type)}
               >
                 <Ionicons name="camera-outline" size={17} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.reuploadFullBtnText}>{uiText("Upload a New Photo")}</Text>
+                <Text style={styles.reuploadFullBtnText}>{uiText(doc.document_type === 'profile_photo' ? 'Retake Photo' : 'Upload a New Photo')}</Text>
               </Pressable>
 
-              <Pressable
+              {doc.document_type !== 'profile_photo' && <Pressable
                 style={styles.removeBtn}
                 onPress={() => handleDeleteRejected(doc)}
                 disabled={deletingId === doc.document_id}
@@ -597,7 +601,7 @@ export function VerificationStatusModal({
                 ) : (
                   <Ionicons name="trash-outline" size={17} color="#DC2626" />
                 )}
-              </Pressable>
+              </Pressable>}
             </View>
           </View>
         ) : null}

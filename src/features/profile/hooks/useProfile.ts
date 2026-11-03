@@ -193,7 +193,7 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
   const loadVerificationStatus = () => {
     if (user.token) {
       setIsLoadingVerification(true);
-      refreshUserProfile()
+      return refreshUserProfile()
         .then((data) => {
           if (data) setVerificationData(data);
         })
@@ -306,13 +306,6 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
         ? Math.round((reviews.filter((r) => r.nlp_sentiment === 'Positive').length / reviews.length) * 100)
         : null;
 
-  const handlePickImage = () => {
-    Alert.alert(
-      'Biometrically Verified Photo',
-      'Your profile photo is verified via camera biometric liveness detection during onboarding. It cannot be altered manually from your photo gallery to maintain platform safety and trust.'
-    );
-  };
-
   return {
     avatarUri,
     returnToDashboard: () => { setIsMyBookingsModalVisible(false); onBack?.(); },
@@ -395,7 +388,6 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
     handleToggleContactPrivacy,
     totalReviews,
     positivePercentage,
-    handlePickImage,
     socialLinks,
     setSocialLinks,
     reloadSocialLinks,

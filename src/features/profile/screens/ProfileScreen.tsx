@@ -32,10 +32,12 @@ import { SocialIconsRow } from '../components/SocialIconsRow';
 import { WorkerCvModal } from '../worker/WorkerCvModal';
 import { ProfileTabs } from '../components/ProfileTabs';
 import { OwnPostsSection } from '../components/OwnPostsSection';
+import { ProfilePhotoSection } from '../components/ProfilePhotoSection';
 
 export function ProfileScreen(props: ProfileScreenProps) {
   const { tr: uiText } = useUiLanguage();
   const [showCv, setShowCv] = useState(false);
+  const [photoRetakeOpen, setPhotoRetakeOpen] = useState(false);
   const profile = useProfile(props);
   const {
     avatarUri,
@@ -86,7 +88,6 @@ export function ProfileScreen(props: ProfileScreenProps) {
     handleSaveTags,
     handleToggleContactPrivacy,
     positivePercentage,
-    handlePickImage,
     socialLinks,
     reloadSocialLinks,
     totalReviews,
@@ -108,14 +109,16 @@ export function ProfileScreen(props: ProfileScreenProps) {
         }
       >
 
+        <ProfilePhotoSection info={verificationData} token={user.token} role={role} open={photoRetakeOpen}
+          onOpenChange={setPhotoRetakeOpen} onSaved={loadVerificationStatus} />
         {currentView === 'personal_info' ? (
           <React.Fragment>
             {/* Identity Hero Card (Clean Rounded Peach Neo-Pop Card matching Ryan Gosling design) */}
             <View style={styles.personalHeroCard}>
               {/* Top row: Avatar on left, Role pill badge + View CV pill on right */}
               <View style={styles.personalHeroTopRow}>
-                <Pressable style={styles.personalAvatarWrapper} onPress={handlePickImage}>
-                  <ProfileAvatar uri={localAvatar || avatarUri} name={getFullName()} size={90} />
+                <View style={styles.personalAvatarWrapper}>
+                  <ProfileAvatar uri={user.profileLink || localAvatar || avatarUri} name={getFullName()} size={90} />
                   {isVerified ? (
                     <View style={styles.avatarShieldBadgePersonal}>
                       <Ionicons
@@ -125,7 +128,7 @@ export function ProfileScreen(props: ProfileScreenProps) {
                       />
                     </View>
                   ) : null}
-                </Pressable>
+                </View>
 
                 <View style={styles.heroTopActions}>
                   <View style={styles.roleBadgePill}>
@@ -261,8 +264,8 @@ export function ProfileScreen(props: ProfileScreenProps) {
             {/* Settings Profile Hero Card */}
             <View style={styles.settingsHeroCard}>
               <View style={styles.settingsHeroTopRow}>
-                <Pressable style={styles.avatarWrapper} onPress={handlePickImage}>
-                  <ProfileAvatar uri={localAvatar || avatarUri} name={getFullName()} size={68} />
+                <View style={styles.avatarWrapper}>
+                  <ProfileAvatar uri={user.profileLink || localAvatar || avatarUri} name={getFullName()} size={68} />
                   {isVerified ? (
                     <View style={styles.avatarShieldBadge}>
                       <Ionicons
@@ -272,7 +275,7 @@ export function ProfileScreen(props: ProfileScreenProps) {
                       />
                     </View>
                   ) : null}
-                </Pressable>
+                </View>
 
                 <View style={styles.heroDetails}>
                   <View style={styles.heroNameRow}>
@@ -387,6 +390,7 @@ export function ProfileScreen(props: ProfileScreenProps) {
         loading={isLoadingVerification}
         token={user.token}
         onRefresh={loadVerificationStatus}
+        onRetakePhoto={() => { setIsVerificationModalVisible(false); setPhotoRetakeOpen(true); }}
         role={role}
       />
 

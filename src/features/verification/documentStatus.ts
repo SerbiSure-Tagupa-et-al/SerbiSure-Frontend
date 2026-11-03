@@ -7,6 +7,7 @@ export function documentIsExpired(document: DocumentStatusItem, now = Date.now()
 }
 
 export function canReplaceDocument(document: DocumentStatusItem): boolean {
+  if (document.document_type === 'profile_photo') return document.verification_status === 'Rejected';
   return ['Unverified', 'Rejected'].includes(document.verification_status) ||
     (document.verification_status === 'Verified' && documentIsExpired(document));
 }
