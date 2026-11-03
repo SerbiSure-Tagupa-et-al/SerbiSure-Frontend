@@ -96,16 +96,6 @@ export function ProfilePhotoSection({ info, token, role, open, onOpenChange, onS
     </View>
   </View>;
   return <>
-    {!!info && !approved && <View style={styles.notice}>
-    <Text style={styles.title}>{tr(!submitted && photo?.verification_status === 'Rejected' ? 'Profile Photo Rejected' : photo || submitted ? 'Photo waiting for review' : 'Add your face photo')}</Text>
-    <Text style={styles.body}>{(!submitted && photo?.rejection_reason) || tr(photo || submitted
-      ? 'Your photo is waiting for review. You can book and apply once your photo and documents are approved.'
-      : 'Take a clear photo of your face so an official can review it.')}</Text>
-    {canRetake && <Pressable accessibilityRole="button" accessibilityLabel={tr(photo ? 'Retake Photo' : 'Take Photo')}
-      onPress={openCamera} style={styles.button} disabled={!token}>
-      <Text style={styles.buttonText}>{tr(photo ? 'Retake Photo' : 'Take Photo')}</Text>
-    </Pressable>}
-    </View>}
     {/* Keep one native window for documents, photo info and camera. Switching
         content avoids dismissing one Android modal while opening another. */}
     <Modal visible={open || infoOpen || documentsVisible} animationType="none" transparent statusBarTranslucent onRequestClose={close}>
@@ -118,8 +108,6 @@ export function ProfilePhotoSection({ info, token, role, open, onOpenChange, onS
 }
 
 const styles = StyleSheet.create({
-  notice: { marginHorizontal: 16, marginVertical: 12, padding: 16, borderRadius: 14, backgroundColor: '#FFF5E5', gap: 10 },
-  title: { fontSize: 16, fontWeight: '700', color: '#8A4E00' },
   body: { fontSize: 14, lineHeight: 21, color: '#66431B' },
   button: { alignSelf: 'flex-start', backgroundColor: '#FFA135', borderRadius: 10, paddingHorizontal: 18, minHeight: 44, justifyContent: 'center' },
   buttonText: { fontSize: 14, fontWeight: '700', color: '#35220D' },

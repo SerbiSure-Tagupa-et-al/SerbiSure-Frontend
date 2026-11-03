@@ -85,13 +85,14 @@ function screen(t, status = 'Rejected', documentsVisible = false) {
 
 test('verified photos are locked and pending photos cannot open a retake camera', t => {
   const verified = screen(t, 'Verified'); assert.equal(verified.text(), '');
-  const pending = screen(t, 'Pending'); assert.match(pending.text(), /waiting for review/);
+  const pending = screen(t, 'Pending'); assert.equal(pending.text(), '');
   assert.equal(pending.nodes().some(node => node.type === 'Pressable' || node.type === 'LiveCamera'), false);
 });
 
 test('rejected photo explains the reason and reuses live registration capture, without gallery selection', async t => {
   const view = screen(t);
-  assert.match(view.text(), /Profile Photo Rejected.*brighter place/);
+  view.props.infoOpen = true; view.render();
+  assert.match(view.text(), /Profile Photo Needs Retake.*brighter place/);
   renderer.flushSync(() => view.nodes().find(node => node.type === 'Pressable').props.onPress());
   const camera = view.nodes().find(node => node.type === 'LiveCamera');
   assert.equal(camera.props.mode, 'profile'); assert.equal(camera.props.onSkip, undefined);
@@ -103,11 +104,14 @@ test('rejected photo explains the reason and reuses live registration capture, w
   assert.equal(view.saved, 1); assert.equal(view.props.open, false);
   assert.equal(view.alerts[0][0], 'Photo submitted for review.');
   assert.equal(view.nodes().some(node => node.type === 'LiveCamera'), false);
-  assert.match(view.text(), /waiting for review/);
+  assert.equal(view.text(), '');
+  view.props.infoOpen = true; view.render();
+  assert.match(view.text(), /Photo Under Review/);
 });
 
 test('failed photo submission keeps the capture for retry and never claims approval', async t => {
   const view = screen(t);
+  view.props.infoOpen = true; view.render();
   renderer.flushSync(() => view.nodes().find(node => node.type === 'Pressable').props.onPress());
   view.nodes().find(node => node.type === 'LiveCamera').props.onVerified({ verified: true, selfiePath: 'retry.jpg' });
   view.reject(); await tick();
@@ -127,14 +131,17 @@ test('profile photo replacement requires rejection even if an unrelated expiry f
 test('a saved photo stays pending when the follow-up refresh fails', async t => {
   const view = screen(t);
   view.props.onSaved = async () => { throw Error('Connection lost while refreshing.'); };
+  view.props.infoOpen = true;
   view.render();
   renderer.flushSync(() => view.nodes().find(node => node.type === 'Pressable').props.onPress());
   view.nodes().find(node => node.type === 'LiveCamera').props.onVerified({ verified: true, selfiePath: 'saved.jpg' });
   view.resolve(); await tick(); await tick();
   assert.equal(view.props.open, false);
-  assert.match(view.text(), /Photo waiting for review/);
+  assert.equal(view.text(), '');
+  view.props.infoOpen = true; view.render();
+  assert.match(view.text(), /Photo Under Review/);
   assert.doesNotMatch(view.text(), /Profile Photo Rejected|brighter place/);
-  assert.equal(view.nodes().some(node => node.type === 'Pressable' || node.type === 'LiveCamera'), false);
+  assert.equal(view.nodes().some(node => node.type === 'LiveCamera' || node.props?.accessibilityLabel === 'Retake Photo'), false);
   assert.equal(view.alerts[0][0], 'Photo submitted for review.');
 });
 
@@ -157,7 +164,20 @@ test('document retake opens the live camera inside the same visible native modal
   view.resolve(); await tick(); await tick();
   assert.equal(view.props.documentsVisible, false);
   assert.equal(modal.props.visible, false);
-  assert.match(view.text(), /waiting for review/);
+  assert.equal(view.text(), '');
+  view.props.infoOpen = true; view.render();
+  assert.match(view.text(), /Photo Under Review/);
+});
+
+test('photo section renders no inline banner or retake button while its modal is closed', t => {
+  for (const status of ['Rejected', 'Pending', 'Verified']) {
+    const view = screen(t, status);
+    const roots = view.nodes().filter(node => node.type === 'Modal');
+    assert.equal(roots.length, 1);
+    assert.equal(roots[0].props.visible, false);
+    assert.equal(view.nodes().some(node => node.type === 'View' || node.type === 'Pressable'), false);
+    assert.equal(view.text(), '');
+  }
 });
 
 test('avatar info explains approved and pending states without offering photo changes', t => {

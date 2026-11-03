@@ -110,15 +110,6 @@ export function ProfileScreen(props: ProfileScreenProps) {
         }
       >
 
-        <ProfilePhotoSection info={verificationData} token={user.token} role={role} open={photoRetakeOpen}
-          onOpenChange={setPhotoRetakeOpen} onSaved={() => loadVerificationStatus(true)}
-          infoOpen={photoInfoOpen} onInfoOpenChange={setPhotoInfoOpen}
-          documentsVisible={isVerificationModalVisible} onCloseDocuments={() => setIsVerificationModalVisible(false)}
-          documentsContent={<VerificationStatusModal embedded
-            visible={isVerificationModalVisible && !photoRetakeOpen && !photoInfoOpen}
-            onClose={() => setIsVerificationModalVisible(false)} statusData={verificationData}
-            loading={isLoadingVerification} token={user.token} onRefresh={loadVerificationStatus}
-            onRetakePhoto={() => setPhotoRetakeOpen(true)} role={role} />} />
         {currentView === 'personal_info' ? (
           <React.Fragment>
             {/* Identity Hero Card (Clean Rounded Peach Neo-Pop Card matching Ryan Gosling design) */}
@@ -371,6 +362,16 @@ export function ProfileScreen(props: ProfileScreenProps) {
           </React.Fragment>
         )}
       </ScrollView>
+
+      <ProfilePhotoSection info={verificationData} token={user.token} role={role} open={photoRetakeOpen}
+        onOpenChange={setPhotoRetakeOpen} onSaved={() => loadVerificationStatus(true)}
+        infoOpen={photoInfoOpen} onInfoOpenChange={setPhotoInfoOpen}
+        documentsVisible={isVerificationModalVisible} onCloseDocuments={() => setIsVerificationModalVisible(false)}
+        documentsContent={<VerificationStatusModal embedded
+          visible={isVerificationModalVisible && !photoRetakeOpen && !photoInfoOpen}
+          onClose={() => setIsVerificationModalVisible(false)} statusData={verificationData}
+          loading={isLoadingVerification} token={user.token} onRefresh={loadVerificationStatus}
+          onRetakePhoto={() => setPhotoRetakeOpen(true)} role={role} />} />
 
       {/* Password & Security Modal */}
       <PasswordSecurityModal
