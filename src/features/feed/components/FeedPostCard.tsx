@@ -51,7 +51,13 @@ export function FeedPostCard({
         </Pressable>
         <View style={styles.workerInfo}>
           <View style={styles.workerNameRow}>
-            <Text style={styles.workerName} numberOfLines={1} ellipsizeMode="tail">
+            <Text
+              style={styles.workerName}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              accessibilityRole={onViewProfile ? 'button' : undefined}
+              onPress={onViewProfile}
+            >
               {post.employerName}
             </Text>
             {formattedPrice ? (
@@ -86,7 +92,13 @@ export function FeedPostCard({
       ) : null}
 
       {post.aboutText ? (
-        <Text style={styles.descriptionText} numberOfLines={2} ellipsizeMode="tail">
+        <Text
+          style={styles.descriptionText}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+          accessibilityRole={onDetails ? 'button' : undefined}
+          onPress={onDetails}
+        >
           {post.aboutText}
         </Text>
       ) : null}
