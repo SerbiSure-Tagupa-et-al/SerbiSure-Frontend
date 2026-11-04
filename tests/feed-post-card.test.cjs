@@ -107,6 +107,15 @@ for (const kind of ['job', 'service']) {
     const snippet = screen.nodes().find(node => node.type === 'Text' && content(node) === post.aboutText);
     assert.equal(snippet.props.numberOfLines, 2);
     assert.equal(snippet.props.ellipsizeMode, 'tail');
+    const name = screen.nodes().find(node => node.type === 'Text' && content(node) === post.employerName);
+    const avatar = screen.nodes().find(node => node.type === 'Pressable' &&
+      node.children.some(child => child.type === 'Avatar'));
+    assert.equal(name.props.accessibilityRole, 'button');
+    assert.equal(snippet.props.accessibilityRole, 'button');
+    name.props.onPress();
+    avatar.props.onPress();
+    snippet.props.onPress();
+    assert.deepEqual(screen.calls, ['save', 'profile', 'details', 'profile', 'profile', 'details']);
     screen.options.saved = true; screen.render();
     assert.ok(screen.nodes().some(node => node.type === 'Icon' && node.props.name === 'bookmark'));
     assert.ok(screen.nodes().some(node => node.props?.accessibilityLabel === 'Unsave post' && node.props.accessibilityState.selected));
