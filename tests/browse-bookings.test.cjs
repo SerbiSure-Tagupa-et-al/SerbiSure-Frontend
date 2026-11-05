@@ -605,7 +605,7 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     const booking = { booking_id: 'own', poster: participant('viewer', accountType), assigned_partner: null, recipient: null,
       service_category: ['Cleaning'], booking_type: 'short_term', booking_status: 'Pending', rate_amount: '600', rate_period: 'day', start_time: '2026-10-20', end_time: '2026-10-20' };
     const assignedBooking = { ...booking, booking_id: 'other', poster: participant('other', otherRole), recipient: participant('viewer', accountType) };
-    let initialTab = 'pending';
+    let initialTab;
     const reactNativeMock = surfaces();
     reactNativeMock.Dimensions = { get: () => ({ width: 390, height: 844 }) };
     reactNativeMock.Animated.Value = class { setValue() {} interpolate() { return 0; } addListener() { return '1'; } removeListener() {} removeAllListeners() {} };
@@ -627,6 +627,9 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     });
     const render = () => screen.render(React.createElement(MyBookingsModal, { visible: true, token: 'token', accountType, initialTab, onClose() {} }));
     render(); await tick();
+    const tabs = screen.all('Pressable').filter(node => node.props.accessibilityRole === 'tab');
+    assert.deepEqual(tabs.map(content), ['Pending', 'Active', 'Ongoing', 'Completed', 'Cancelled']);
+    assert.deepEqual(tabs.filter(node => node.props.accessibilityState.selected).map(content), ['Pending']);
     const descendants = node => [node, ...node.children.flatMap(descendants)];
     const header = name => screen.all('Pressable').find(node => content(node).includes(name));
     const stars = node => descendants(node).filter(child => child.type === 'Icon' && child.props.name === 'star-outline');

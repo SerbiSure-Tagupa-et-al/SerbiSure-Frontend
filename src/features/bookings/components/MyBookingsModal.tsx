@@ -35,8 +35,8 @@ export interface MyBookingsModalProps {
 type TabType = 'active' | 'pending' | 'ongoing' | 'completed' | 'cancelled';
 
 const TABS: { key: TabType; label: string }[] = [
-  { key: 'active', label: 'Active' },
   { key: 'pending', label: 'Pending' },
+  { key: 'active', label: 'Active' },
   { key: 'ongoing', label: 'Ongoing' },
   { key: 'completed', label: 'Completed' },
   { key: 'cancelled', label: 'Cancelled' },
@@ -48,7 +48,7 @@ export function MyBookingsModal({
   onSafetyAcknowledged,
   token,
   accountType = 'Homeowner',
-  initialTab = 'active',
+  initialTab = 'pending',
 }: MyBookingsModalProps) {
   const { tr: uiText, formatDate } = useUiLanguage();
   const insets = useSafeAreaInsets();
@@ -488,6 +488,8 @@ export function MyBookingsModal({
             return (
               <Pressable
                 key={tab.key}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isCurrent }}
                 style={[styles.tabItem, isCurrent && styles.tabItemActive]}
                 onPress={() => setActiveTab(tab.key)}
               >
