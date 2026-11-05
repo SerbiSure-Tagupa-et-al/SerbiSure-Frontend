@@ -94,9 +94,9 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
   const postsSession = useRef('');
   postsSession.current = `${user.id}:${user.token}`;
   const [activeProfileTab, setActiveProfileTab] = useState<'posts' | 'reviews'>('posts');
-  const [bookingsModalInitialTab, setBookingsModalInitialTab] = useState<'active' | 'pending' | 'completed' | 'cancelled'>('active');
+  const [bookingsModalInitialTab, setBookingsModalInitialTab] = useState<'active' | 'pending' | 'completed' | 'cancelled'>('pending');
 
-  const openMyBookings = (initialTab: 'active' | 'pending' | 'completed' | 'cancelled' = 'active') => {
+  const openMyBookings = (initialTab: 'active' | 'pending' | 'completed' | 'cancelled' = 'pending') => {
     setBookingsModalInitialTab(initialTab);
     setIsMyBookingsModalVisible(true);
   };

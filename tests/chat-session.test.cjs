@@ -548,7 +548,7 @@ test('a flagged mobile draft waits for consent, Close preserves it, and Send Any
   chat.nodes().find(node => node.type === 'TextInput').props.onChangeText('gago');
   chat.nodes().find(node => node.type === 'Pressable' && node.children.some(child => child.type === 'Icon' && child.props.name === 'send')).props.onPress();
   assert.equal(chat.sends.length, 0);
-  assert.match(chat.texts(), /This message may contain offensive content/);
+  assert.ok(chat.texts().includes('This message may contain offensive content. Please consider using different words. Offensive or inappropriate language can be reported to the Barangay or SuperAdmin, which may lead to a temporary messaging ban or account suspension.'));
   assert.equal(chat.nodes().find(node => node.type === 'TextInput').props.value, 'gago');
   renderer.flushSync(() => chat.nodes().find(node => node.props?.accessibilityLabel === 'Close').props.onPress());
   assert.equal(chat.nodes().find(node => node.type === 'TextInput').props.value, 'gago');
