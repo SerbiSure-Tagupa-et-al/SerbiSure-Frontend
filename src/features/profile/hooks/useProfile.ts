@@ -17,7 +17,7 @@ import { localizeProfileCopy } from '../profileConfig';
 import type { ProfileScreenProps } from '../types';
 import { useWorkerProfile } from '../worker/useWorkerProfile';
 
-export function useProfile({ role: requestedRole, avatarUri, initialView = 'main', onViewChange, onUpdateAvatar, onBack, onLogout, onBookingsPress }: ProfileScreenProps) {
+export function useProfile({ role: requestedRole, avatarUri, initialView = 'main', onViewChange, onUpdateAvatar, onBack, onLogout, onBookingsPress, onReplayTutorial, tutorialActive, personalInfoTargetRef, viewCvTargetRef, getVerifiedTargetRef, onTutorialTargetsLayout }: ProfileScreenProps) {
   const insets = useSafeAreaInsets();
   const { language, setLanguage, t, tr } = useLanguage();
   const { getFullName, getFirstNameOnly, user, updateUser, refreshUserProfile } = useUser();
@@ -119,14 +119,15 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
   };
 
 
-  const { now: postsNow } = usePostUpdates(pendingPosts, () => loadPendingPosts(true), currentView === 'personal_info');
+  const { now: postsNow } = usePostUpdates(pendingPosts, () => loadPendingPosts(true), currentView === 'personal_info' && !tutorialActive);
   useEffect(() => {
+    if (tutorialActive) return;
     setPendingPosts([]);
     setPendingPostsError(null);
     setIsLoadingPendingPosts(false);
     if (currentView === 'personal_info') void loadPendingPosts();
     return () => { postsRequest.current++; };
-  }, [currentView, user.id, user.token]);
+  }, [currentView, tutorialActive, user.id, user.token]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -396,6 +397,11 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
     socialLinks,
     setSocialLinks,
     reloadSocialLinks,
+    onReplayTutorial,
+    personalInfoTargetRef,
+    viewCvTargetRef,
+    getVerifiedTargetRef,
+    onTutorialTargetsLayout,
   };
 }
 

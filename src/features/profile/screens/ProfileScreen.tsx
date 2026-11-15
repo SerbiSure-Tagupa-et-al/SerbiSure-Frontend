@@ -111,9 +111,14 @@ export function ProfileScreen(props: ProfileScreenProps) {
       >
 
         {currentView === 'personal_info' ? (
-          <React.Fragment>
+          <>
             {/* Identity Hero Card (Clean Rounded Peach Neo-Pop Card matching Ryan Gosling design) */}
-            <View style={styles.personalHeroCard}>
+            <View
+              ref={!isWorker ? profile.viewCvTargetRef : undefined}
+              collapsable={false}
+              onLayout={!isWorker ? () => profile.onTutorialTargetsLayout?.() : undefined}
+              style={styles.personalHeroCard}
+            >
               {/* Top row: Avatar on left, Role pill badge + View CV pill on right */}
               <View style={styles.personalHeroTopRow}>
                 <ProfilePhotoAvatar info={verificationData} style={styles.personalAvatarWrapper}
@@ -125,15 +130,21 @@ export function ProfileScreen(props: ProfileScreenProps) {
                     <Text style={styles.roleBadgePillText}>{uiText(copy.name)}</Text>
                   </View>
                   {isWorker ? (
-                    <Pressable
-                      style={styles.viewCvTopBtn}
-                      onPress={() => setShowCv(true)}
-                      hitSlop={6}
-                      accessibilityRole="button"
-                      accessibilityLabel={uiText("View CV")}
+                    <View
+                      ref={profile.viewCvTargetRef}
+                      collapsable={false}
+                      onLayout={() => profile.onTutorialTargetsLayout?.()}
                     >
-                      <Text style={styles.viewCvTopBtnText}>{uiText("View CV")}</Text>
-                    </Pressable>
+                      <Pressable
+                        style={styles.viewCvTopBtn}
+                        onPress={() => setShowCv(true)}
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel={uiText("View CV")}
+                      >
+                        <Text style={styles.viewCvTopBtnText}>{uiText("View CV")}</Text>
+                      </Pressable>
+                    </View>
                   ) : (
                     <View style={[styles.viewCvTopBtn, { opacity: 0 }]} pointerEvents="none">
                       <Text style={styles.viewCvTopBtnText}>{uiText("View CV")}</Text>
@@ -248,9 +259,9 @@ export function ProfileScreen(props: ProfileScreenProps) {
 
             {/* Bottom padding */}
             <View style={{ height: 90 }} />
-          </React.Fragment>
+          </>
         ) : (
-          <React.Fragment>
+          <>
             {/* Settings Profile Hero Card */}
             <View style={styles.settingsHeroCard}>
               <View style={styles.settingsHeroTopRow}>
@@ -359,7 +370,7 @@ export function ProfileScreen(props: ProfileScreenProps) {
 
             {/* Bottom padding for tab bar */}
             <View style={{ height: 85 }} />
-          </React.Fragment>
+          </>
         )}
       </ScrollView>
 
