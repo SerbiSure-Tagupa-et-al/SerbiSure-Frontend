@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BookingItem, formatBookingAddress, fetchMyBookings, fetchMyAssignedBookings, startBooking, completeBooking, fetchBookingPenaltyStatus, type BookingPenaltyStatus } from '../api/bookingApi';
 import { CancelBookingModal } from './CancelBookingModal';
-import { ReviewModal } from '../../reviews/components/ReviewModal';
+import { ReviewModal, type ReviewModalHandle } from '../../reviews/components/ReviewModal';
 import { ProposalsModal } from './ProposalsModal';
 import { BookingModal } from './BookingModal';
 import { UserProfileModal } from '../../profile/components/UserProfileModal';
@@ -99,6 +99,7 @@ export function MyBookingsModal({
     revieweeName: string;
     isMandatory?: boolean;
   } | null>(null);
+  const reviewRef = useRef<ReviewModalHandle>(null);
 
   // Proposals Modal State
   const [proposalsTarget, setProposalsTarget] = useState<{
@@ -317,6 +318,8 @@ export function MyBookingsModal({
         overshootClamping: true,
         useNativeDriver: true,
       }).start();
+    } else {
+      setReviewBooking(null);
     }
   }, [visible, panY]);
 
@@ -399,7 +402,26 @@ export function MyBookingsModal({
 
   return (
     <>
-      <Modal visible={visible && !selectedBookingForDetails} animationType="none" transparent={true} onRequestClose={handleClose}>
+      <Modal
+        visible={visible && !selectedBookingForDetails}
+        animationType="none"
+        transparent={true}
+        onRequestClose={reviewBooking ? () => reviewRef.current?.requestClose() : handleClose}
+      >
+      {/* Keep a single native modal so returning from the review restores touch to bookings. */}
+      {reviewBooking ? (
+        <ReviewModal
+          ref={reviewRef}
+          visible={visible}
+          useNativeModal={false}
+          onClose={() => setReviewBooking(null)}
+          bookingId={reviewBooking.id}
+          revieweeName={reviewBooking.revieweeName}
+          isMandatory={reviewBooking.isMandatory ?? true}
+          token={token}
+          onSuccess={() => loadData()}
+        />
+      ) : (
       <View style={styles.modalOverlay}>
         <Animated.View style={[styles.modalBackdrop, { opacity: backdropOpacity }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
@@ -751,18 +773,6 @@ export function MyBookingsModal({
             if (safety) { onClose(); onSafetyAcknowledged?.(); }
             else void loadData();
           }} />}
-        {reviewBooking && (
-          <ReviewModal
-            visible={!!reviewBooking}
-            onClose={() => setReviewBooking(null)}
-            bookingId={reviewBooking.id}
-            revieweeName={reviewBooking.revieweeName}
-            isMandatory={reviewBooking.isMandatory ?? true}
-            token={token}
-            onSuccess={() => loadData()}
-          />
-        )}
-
         {proposalsTarget && (
           <ProposalsModal
             visible={!!proposalsTarget}
@@ -791,6 +801,7 @@ export function MyBookingsModal({
 
         </Animated.View>
       </View>
+      )}
     </Modal>
 
     {selectedBookingForDetails && (

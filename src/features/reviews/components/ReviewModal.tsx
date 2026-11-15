@@ -1,5 +1,5 @@
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { forwardRef, useState, useRef, useEffect, useImperativeHandle } from 'react';
 import { StyleSheet, Text, View, TextInput, Pressable, Modal, ActivityIndicator, Alert, KeyboardAvoidingView, Keyboard, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,11 @@ export interface ReviewModalProps {
   token?: string | null;
   onSuccess?: () => void;
   isMandatory?: boolean;
+  useNativeModal?: boolean;
+}
+
+export interface ReviewModalHandle {
+  requestClose: () => void;
 }
 
 const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent!'];
@@ -23,7 +28,10 @@ const SENTIMENT_COLORS = {
   Neutral: { backgroundColor: '#F3F4F6', color: '#374151' },
 };
 
-export function ReviewModal({ visible, onClose, bookingId, revieweeName = 'Service Partner', token, onSuccess, isMandatory = false }: ReviewModalProps) {
+export const ReviewModal = forwardRef<ReviewModalHandle, ReviewModalProps>(function ReviewModal({
+  visible, onClose, bookingId, revieweeName = 'Service Partner', token, onSuccess, isMandatory = false,
+  useNativeModal = true,
+}, ref) {
   const { tr: uiText } = useUiLanguage();
   const insets = useSafeAreaInsets();
   const [rating, setRating] = useState(0);
@@ -108,8 +116,9 @@ export function ReviewModal({ visible, onClose, bookingId, revieweeName = 'Servi
     } else onClose();
   };
 
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={handleAttemptClose}>
+  useImperativeHandle(ref, () => ({ requestClose: handleAttemptClose }));
+
+  const content = (
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <Pressable accessibilityLabel="Close review" disabled={isSubmitting} onPress={handleAttemptClose} style={[styles.backBtn, isSubmitting && { opacity: 0.3 }]} hitSlop={12}>
@@ -167,14 +176,20 @@ export function ReviewModal({ visible, onClose, bookingId, revieweeName = 'Servi
               </View>
             </View>
           )}
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }} style={({ pressed }) => [styles.submitBtn, (pressed || isSubmitting) && { opacity: 0.7 }]} disabled={isSubmitting} onPress={savedReview ? onClose : handleSubmit}>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }} style={({ pressed }) => [styles.submitBtn, (pressed || isSubmitting) && { opacity: 0.7 }]} disabled={isSubmitting} onPress={savedReview ? handleAttemptClose : handleSubmit}>
             <Text style={styles.submitBtnText}>{savedReview ? uiText("Done") : isSubmitting ? uiText("Please wait…") : errorMsg ? uiText("Try Again") : uiText("Submit Review")}</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+  );
+
+  if (!useNativeModal) return visible ? content : null;
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={handleAttemptClose}>
+      {content}
     </Modal>
   );
-}
+});
 
 const styles = StyleSheet.create({
   statusCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#FFF7ED', borderRadius: 16, padding: 16, marginBottom: 16 },
