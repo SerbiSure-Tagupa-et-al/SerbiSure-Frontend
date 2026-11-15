@@ -611,6 +611,18 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     reactNativeMock.Animated.Value = class { setValue() {} interpolate() { return 0; } addListener() { return '1'; } removeListener() {} removeAllListeners() {} };
     reactNativeMock.Animated.spring = reactNativeMock.Animated.timing = () => ({ start: callback => callback?.() });
     reactNativeMock.PanResponder = { create: () => ({ panHandlers: {} }) };
+    reactNativeMock.Platform = { OS: 'android' };
+    reactNativeMock.Keyboard = { dismiss() {} };
+    reactNativeMock.KeyboardAvoidingView = 'KeyboardAvoidingView';
+    reactNativeMock.TextInput = 'TextInput';
+    const submission = deferred();
+    const review = load('src/features/reviews/components/ReviewModal.tsx', {
+      'react-native': reactNativeMock, '@expo/vector-icons': { Ionicons: 'Icon' },
+      'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
+      '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: text => text }) },
+      '../../chat/api/chatApi': { generateUUID: () => 'c44113ea-6392-462f-b55b-2eed6bb9c180' },
+      '../api/reviewApi': { submitReview: () => submission.promise },
+    });
     const { MyBookingsModal } = load('src/features/bookings/components/MyBookingsModal.tsx', {
       'react-native': reactNativeMock, 'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0 }) }, '@expo/vector-icons': { Ionicons: 'Icon' },
       '../../../shared/components/BottomSheetHandle': { BottomSheetHandle: 'BottomSheetHandle' },
@@ -621,7 +633,7 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
       '../api/bookingApi': { formatBookingAddress: () => 'Agusan', fetchMyBookings: async () => [booking],
         fetchMyAssignedBookings: async () => [assignedBooking],
         fetchBookingPenaltyStatus: async () => ({ penalty_points: 0, is_restricted: false }) },
-      './CancelBookingModal': { CancelBookingModal: 'CancelBookingModal' }, '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
+      './CancelBookingModal': { CancelBookingModal: 'CancelBookingModal' }, '../../reviews/components/ReviewModal': review,
       './ProposalsModal': { ProposalsModal: 'ProposalsModal' }, '../../profile/components/UserProfileModal': { UserProfileModal: 'UserProfileModal' },
       './BookingModal': { BookingModal: 'BookingModal' },
     });
@@ -691,7 +703,27 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     language = 'English'; render();
     const feedback = screen.all('Pressable').find(node => content(node).includes('Mandatory Service Feedback'));
     assert.ok(content(feedback).includes('other Name'));
+    const bookingsModal = screen.find('Modal');
     screen.act(() => feedback.props.onPress());
-    assert.equal(screen.find('ReviewModal').props.revieweeName, 'other Name');
+    assert.deepEqual(screen.all('Modal'), [bookingsModal]);
+    assert.ok(screen.all('Text').some(node => content(node) === 'other Name?'));
+    screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Rate 5 out of 5 stars').props.onPress());
+    screen.act(() => screen.find('TextInput').props.onChangeText('Excellent service.'));
+    screen.act(() => header('Submit Review').props.onPress());
+    screen.act(() => bookingsModal.props.onRequestClose());
+    assert.ok(header('Please wait…'));
+
+    booking.has_reviewed = true;
+    submission.resolve({ data: { nlp_sentiment: 'Positive' } });
+    await tick();
+    screen.act(() => header('Done').props.onPress());
+    assert.deepEqual(screen.all('Modal'), [bookingsModal]);
+    assert.equal(header('Mandatory Service Feedback'), undefined);
+    for (const label of ['Completed', 'Active', 'Ongoing', 'Cancelled', 'Pending']) {
+      const tab = screen.all('Pressable').find(node => node.props.accessibilityRole === 'tab' && content(node) === label);
+      screen.act(() => tab.props.onPress());
+      assert.equal(tab.props.accessibilityState.selected, true);
+      await tick();
+    }
   });
 }
