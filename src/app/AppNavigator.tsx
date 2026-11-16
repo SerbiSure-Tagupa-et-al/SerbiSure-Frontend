@@ -1,5 +1,5 @@
 import { useLanguage as useUiLanguage } from '../shared/localization/LanguageContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,17 +22,34 @@ import { PostScreen } from '../features/posting/screens/PostScreen';
 import { MyBookingsModal } from '../features/bookings/components/MyBookingsModal';
 import { AppHeader } from '../shared/components/AppHeader';
 import { NotificationBell } from '../features/notifications/NotificationContext';
+import {
+  AppTutorialOverlay,
+  hasCompletedAppTutorial,
+  markAppTutorialCompleted,
+  type TargetRect,
+  type TutorialTargetId,
+} from './components/AppTutorialOverlay';
 export type Tab = 'home' | 'browse' | 'chats' | 'profile';
 
 interface AppNavigatorProps {
   role?: Role;
   avatarUri?: string | null;
   token?: string | null;
+  initialShowTutorial?: boolean;
+  onTutorialDismissed?: () => void;
   onUpdateAvatar?: (uri: string) => void;
   onLogout?: () => void;
 }
 
-export function AppNavigator({ role = 'homeowner', avatarUri: oldAvatarUri, token, onUpdateAvatar, onLogout }: AppNavigatorProps) {
+export function AppNavigator({
+  role = 'homeowner',
+  avatarUri: oldAvatarUri,
+  token,
+  initialShowTutorial = false,
+  onTutorialDismissed,
+  onUpdateAvatar,
+  onLogout,
+}: AppNavigatorProps) {
   const { tr: uiText } = useUiLanguage();
 
   const { user } = useUser();
@@ -45,10 +62,141 @@ export function AppNavigator({ role = 'homeowner', avatarUri: oldAvatarUri, toke
   const [postJobVisible, setPostJobVisible] = useState(false);
   const [bookingsModalVisible, setBookingsModalVisible] = useState(false);
   const [totalUnreadChats, setTotalUnreadChats] = useState(chatStore.getTotalUnreadCount());
+  const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [tutorialStepTarget, setTutorialStepTarget] = useState<TutorialTargetId>('browse');
+  const [tutorialRects, setTutorialRects] = useState<Partial<Record<TutorialTargetId, TargetRect>>>({});
+  const [rootSize, setRootSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  const rootRef = useRef<View>(null);
+  const browseTabRef = useRef<View>(null);
+  const postFabRef = useRef<View>(null);
+  const chatsTabRef = useRef<View>(null);
+  const bookingsBtnRef = useRef<View>(null);
+  const personalInfoRef = useRef<View>(null);
+  const viewCvRef = useRef<View>(null);
+  const getVerifiedRef = useRef<View>(null);
 
   const activeRole = resolveRole(user.accountType, role);
   const avatarUri = user.profileLink || oldAvatarUri;
   const authToken = token || user.token;
+
+  const measureSingleTarget = useCallback((id: TutorialTargetId, ref: React.RefObject<View>) => {
+    const node = ref.current;
+    const rootNode = rootRef.current;
+    if (!node || !rootNode) return;
+    rootNode.measureInWindow((rx, ry, rw, rh) => {
+      if (rw > 0 && rh > 0) {
+        setRootSize((prev) => (prev.width === rw && prev.height === rh ? prev : { width: rw, height: rh }));
+      }
+      node.measureInWindow((tx, ty, width, height) => {
+        if (width <= 0 || height <= 0) return;
+        const nextRect: TargetRect = {
+          x: Math.round(tx - (rx || 0)),
+          y: Math.round(ty - (ry || 0)),
+          width: Math.round(width),
+          height: Math.round(height),
+        };
+        setTutorialRects((prev) => {
+          const cur = prev[id];
+          if (
+            cur &&
+            Math.abs(cur.x - nextRect.x) <= 1 &&
+            Math.abs(cur.y - nextRect.y) <= 1 &&
+            Math.abs(cur.width - nextRect.width) <= 1 &&
+            Math.abs(cur.height - nextRect.height) <= 1
+          ) {
+            return prev;
+          }
+          return { ...prev, [id]: nextRect };
+        });
+      });
+    });
+  }, []);
+
+  const measureTutorialTargets = useCallback(() => {
+    const entries: Array<[TutorialTargetId, React.RefObject<View>]> = [
+      ['browse', browseTabRef],
+      ['post', postFabRef],
+      ['chats', chatsTabRef],
+      ['bookings', bookingsBtnRef],
+      ['personal_info', personalInfoRef],
+      ['view_cv_info', viewCvRef],
+      ['get_verified', getVerifiedRef],
+    ];
+    entries.forEach(([id, ref]) => {
+      measureSingleTarget(id, ref);
+    });
+  }, [measureSingleTarget]);
+
+  const handleTutorialStepChange = useCallback((targetId: TutorialTargetId) => {
+    setTutorialStepTarget(targetId);
+    if (targetId === 'browse') {
+      setActiveTab('browse');
+    } else if (targetId === 'chats') {
+      setActiveTab('chats');
+    } else if (targetId === 'personal_info' || targetId === 'get_verified') {
+      setProfileInitialView('main');
+      setProfileCurrentView('main');
+      setActiveTab('profile');
+      requestAnimationFrame(() => {
+        measureSingleTarget('personal_info', personalInfoRef);
+        measureSingleTarget('get_verified', getVerifiedRef);
+      });
+    } else if (targetId === 'view_cv_info') {
+      setProfileInitialView('personal_info');
+      setProfileCurrentView('personal_info');
+      setActiveTab('profile');
+      requestAnimationFrame(() => {
+        measureSingleTarget('view_cv_info', viewCvRef);
+      });
+    }
+  }, [measureSingleTarget]);
+
+  useEffect(() => {
+    const storageUserId = user.id || user.email || (authToken ? 'authenticated_user' : '');
+    if (initialShowTutorial) {
+      setActiveTab('home');
+      const timer = setTimeout(() => {
+        measureTutorialTargets();
+        setTutorialVisible(true);
+      }, 280);
+      return () => clearTimeout(timer);
+    }
+    if (!storageUserId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void hasCompletedAppTutorial(storageUserId).then((completed) => {
+      if (!cancelled && !completed) {
+        timer = setTimeout(() => {
+          if (!cancelled) {
+            measureTutorialTargets();
+            setTutorialVisible(true);
+          }
+        }, 280);
+      }
+    });
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [initialShowTutorial, user.id, user.email, authToken, measureTutorialTargets]);
+
+  const handleCloseTutorial = useCallback(() => {
+    const storageUserId = user.id || user.email || (authToken ? 'authenticated_user' : '');
+    setTutorialVisible(false);
+    void markAppTutorialCompleted(storageUserId);
+    onTutorialDismissed?.();
+  }, [user.id, user.email, authToken, onTutorialDismissed]);
+
+  const handleReplayTutorial = useCallback(() => {
+    setProfileInitialView('main');
+    setProfileCurrentView('main');
+    setActiveTab('home');
+    setTimeout(() => {
+      measureTutorialTargets();
+      setTutorialVisible(true);
+    }, 180);
+  }, [measureTutorialTargets]);
 
   useEffect(() => {
     setTotalUnreadChats(chatStore.getTotalUnreadCount());
@@ -78,6 +226,12 @@ export function AppNavigator({ role = 'homeowner', avatarUri: oldAvatarUri, toke
     setBookingsModalVisible(true);
   };
 
+  const handleProfileTargetsLayout = useCallback(() => {
+    measureSingleTarget('personal_info', personalInfoRef);
+    measureSingleTarget('view_cv_info', viewCvRef);
+    measureSingleTarget('get_verified', getVerifiedRef);
+  }, [measureSingleTarget]);
+
   const renderScreen = () => {
     switch (activeTab) {
       case 'home':
@@ -87,20 +241,36 @@ export function AppNavigator({ role = 'homeowner', avatarUri: oldAvatarUri, toke
       case 'chats':
         return <ChatsScreen role={activeRole} onBookingsPress={handleOpenBookings} />;
       case 'profile':
-        return <ProfileScreen key={`profile-${profileKey}`} role={activeRole} avatarUri={avatarUri} initialView={profileInitialView} onViewChange={setProfileCurrentView} onUpdateAvatar={onUpdateAvatar} onBack={() => setActiveTab('home')} onLogout={onLogout} onBookingsPress={handleOpenBookings} />;
+        return null;
     }
   };
+
+  const shouldMountProfile = activeTab === 'profile' || tutorialVisible;
 
   const topBgColor = THEME.colors.canvas;
 
   return (
-    <View style={styles.root}>
+    <View
+      ref={rootRef}
+      collapsable={false}
+      style={styles.root}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        if (width > 0 && height > 0) {
+          setRootSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+        }
+        measureTutorialTargets();
+      }}
+    >
       {/* Top Status Bar Solid Background Overlay */}
       <View style={{ height: insets.top, backgroundColor: topBgColor }} />
 
       {/* Shared fixed header across all tabs: Bookings, Logo, Notifications */}
       <AppHeader
         onBookingsPress={handleOpenBookings}
+        bookingsButtonRef={bookingsBtnRef}
+        onBookingsLayout={() => measureSingleTarget('bookings', bookingsBtnRef)}
+        highlightBookings={tutorialVisible && tutorialStepTarget === 'bookings'}
         right={<NotificationBell />}
         left={
           activeTab === 'profile' && profileCurrentView === 'personal_info' ? (
@@ -119,7 +289,37 @@ export function AppNavigator({ role = 'homeowner', avatarUri: oldAvatarUri, toke
         }
       />
 
-      <View style={styles.content}>{renderScreen()}</View>
+      <View style={styles.content}>
+        {activeTab !== 'profile' && (
+          <View style={styles.content}>{renderScreen()}</View>
+        )}
+        {shouldMountProfile && (
+          <View
+            style={[
+              styles.content,
+              activeTab !== 'profile' && { display: 'none' },
+            ]}
+          >
+            <ProfileScreen
+              key={`profile-${profileKey}`}
+              role={activeRole}
+              avatarUri={avatarUri}
+              initialView={profileInitialView}
+              tutorialActive={tutorialVisible}
+              onViewChange={setProfileCurrentView}
+              onUpdateAvatar={onUpdateAvatar}
+              onBack={() => setActiveTab('home')}
+              onLogout={onLogout}
+              onBookingsPress={handleOpenBookings}
+              onReplayTutorial={handleReplayTutorial}
+              personalInfoTargetRef={personalInfoRef}
+              viewCvTargetRef={viewCvRef}
+              getVerifiedTargetRef={getVerifiedRef}
+              onTutorialTargetsLayout={handleProfileTargetsLayout}
+            />
+          </View>
+        )}
+      </View>
 
       {/* Floating Bottom Navigation Dock */}
       <View style={[styles.navContainer, { bottom: Math.max(insets.bottom + 20, 32) }]}>
@@ -137,37 +337,41 @@ export function AppNavigator({ role = 'homeowner', avatarUri: oldAvatarUri, toke
           </View>
 
           <View style={styles.tabItem}>
-            <Pressable
-              style={[styles.tabIconBg, activeTab === 'browse' && styles.tabIconBgActive]}
-              onPress={() => setActiveTab('browse')}
-            >
-              <Ionicons
-                name="briefcase-outline"
-                size={23}
-                color={activeTab === 'browse' ? '#0D0D11' : '#71717A'}
-              />
-            </Pressable>
+            <View ref={browseTabRef} collapsable={false} onLayout={() => measureSingleTarget('browse', browseTabRef)}>
+              <Pressable
+                style={[styles.tabIconBg, activeTab === 'browse' && styles.tabIconBgActive]}
+                onPress={() => setActiveTab('browse')}
+              >
+                <Ionicons
+                  name="briefcase-outline"
+                  size={23}
+                  color={activeTab === 'browse' ? '#0D0D11' : '#71717A'}
+                />
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.tabItem}>
-            <Pressable
-              style={[styles.tabIconBg, activeTab === 'chats' && styles.tabIconBgActive]}
-              onPress={() => setActiveTab('chats')}
-            >
-              <View style={styles.tabIconWrapper}>
-                <MessageCircleIcon
-                  size={22}
-                  color={activeTab === 'chats' ? '#0D0D11' : '#71717A'}
-                />
-                {totalUnreadChats > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>
-                      {totalUnreadChats > 9 ? '9+' : totalUnreadChats}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </Pressable>
+            <View ref={chatsTabRef} collapsable={false} onLayout={() => measureSingleTarget('chats', chatsTabRef)}>
+              <Pressable
+                style={[styles.tabIconBg, activeTab === 'chats' && styles.tabIconBgActive]}
+                onPress={() => setActiveTab('chats')}
+              >
+                <View style={styles.tabIconWrapper}>
+                  <MessageCircleIcon
+                    size={22}
+                    color={activeTab === 'chats' ? '#0D0D11' : '#71717A'}
+                  />
+                  {totalUnreadChats > 0 && (
+                    <View style={styles.tabBadge}>
+                      <Text style={styles.tabBadgeText}>
+                        {totalUnreadChats > 9 ? '9+' : totalUnreadChats}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.tabItem}>
@@ -187,15 +391,17 @@ export function AppNavigator({ role = 'homeowner', avatarUri: oldAvatarUri, toke
           </View>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={uiText("Create a post")}
-          accessibilityHint={uiText("Open the form to create a new post.")}
-          style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-          onPress={() => setPostJobVisible(true)}
-        >
-          <PlusIcon size={28} color="#FFFFFF" />
-        </Pressable>
+        <View ref={postFabRef} collapsable={false} onLayout={() => measureSingleTarget('post', postFabRef)}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={uiText("Create a post")}
+            accessibilityHint={uiText("Open the form to create a new post.")}
+            style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+            onPress={() => setPostJobVisible(true)}
+          >
+            <PlusIcon size={28} color="#FFFFFF" />
+          </Pressable>
+        </View>
       </View>
 
       <PostScreen
@@ -211,6 +417,20 @@ export function AppNavigator({ role = 'homeowner', avatarUri: oldAvatarUri, toke
         onClose={() => setBookingsModalVisible(false)}
         token={authToken}
         accountType={user.accountType || (activeRole === 'homeowner' ? 'Homeowner' : 'Kasambahay')}
+      />
+
+      <AppTutorialOverlay
+        visible={tutorialVisible}
+        role={activeRole}
+        targetRects={tutorialRects}
+        containerWidth={rootSize.width}
+        containerHeight={rootSize.height}
+        topInset={insets.top}
+        bottomInset={insets.bottom}
+        onStepChange={handleTutorialStepChange}
+        onRequestMeasure={measureTutorialTargets}
+        onClose={handleCloseTutorial}
+        onFinish={handleCloseTutorial}
       />
     </View>
   );

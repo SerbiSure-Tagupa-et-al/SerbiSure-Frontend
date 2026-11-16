@@ -13,23 +13,28 @@ export const APP_HEADER_BACK_ICON_COLOR = '#1A1A1A';
 
 export interface AppHeaderProps {
   readonly onBookingsPress?: () => void;
+  readonly bookingsButtonRef?: React.RefObject<View>;
+  readonly onBookingsLayout?: () => void;
+  readonly highlightBookings?: boolean;
   readonly left?: React.ReactNode;
   readonly right?: React.ReactNode;
 }
 
-export function AppHeader({ onBookingsPress, left, right }: AppHeaderProps) {
+export function AppHeader({ onBookingsPress, bookingsButtonRef, onBookingsLayout, highlightBookings = false, left, right }: AppHeaderProps) {
   const { tr: uiText } = useUiLanguage();
 
   const renderedLeft = left !== undefined ? left : (
-    <Pressable
-      onPress={onBookingsPress}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={uiText("Bookings & Hires")}
-      style={styles.iconButton}
-    >
-      <Ionicons name="calendar-outline" size={26} color={THEME.colors.ink} />
-    </Pressable>
+    <View ref={bookingsButtonRef} collapsable={false} onLayout={onBookingsLayout}>
+      <Pressable
+        onPress={onBookingsPress}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={uiText("Bookings & Hires")}
+        style={[styles.iconButton, highlightBookings && styles.iconButtonHighlighted]}
+      >
+        <Ionicons name="calendar-outline" size={26} color={THEME.colors.ink} />
+      </Pressable>
+    </View>
   );
 
   const renderedRight = right !== undefined ? right : null;
@@ -64,10 +69,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconButton: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconButtonHighlighted: {
+    backgroundColor: '#FFAA77',
   },
   logo: {
     width: APP_HEADER_LOGO_SIZE,

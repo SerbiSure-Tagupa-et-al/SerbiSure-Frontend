@@ -36,49 +36,61 @@ export function SettingsSection({ profile }: { profile: ProfileController }) {
     {/* Group 1: ACCOUNT */}
     <Text style={styles.groupHeaderLabel}>{uiText("ACCOUNT")}</Text>
     <View style={styles.groupCard}>
-      <SettingsRow
-        icon="person"
-        title={t.personalInfo}
-        onPress={() => setCurrentView('personal_info')}
-      />
+      <View
+        ref={profile.personalInfoTargetRef}
+        collapsable={false}
+        onLayout={() => profile.onTutorialTargetsLayout?.()}
+      >
+        <SettingsRow
+          icon="person"
+          title={t.personalInfo}
+          onPress={() => setCurrentView('personal_info')}
+        />
+      </View>
       <View style={styles.rowDivider} />
-      <SettingsRow
-        icon="shield-checkmark"
-        title={t.getVerified}
-        rightComponent={
-          <View style={styles.verificationRowRight}>
-            <View
-              style={[
-                styles.verificationStatusPill,
-                effectiveVerificationStatus === 'Verified' && styles.verificationPillVerified,
-                (effectiveVerificationStatus === 'Pending' || renewalRequired) && styles.verificationPillPending,
-                effectiveVerificationStatus === 'Rejected' && !renewalRequired && styles.verificationPillRejected,
-              ]}
-            >
-              <Text
+      <View
+        ref={profile.getVerifiedTargetRef}
+        collapsable={false}
+        onLayout={() => profile.onTutorialTargetsLayout?.()}
+      >
+        <SettingsRow
+          icon="shield-checkmark"
+          title={t.getVerified}
+          rightComponent={
+            <View style={styles.verificationRowRight}>
+              <View
                 style={[
-                  styles.verificationStatusPillText,
-                  effectiveVerificationStatus === 'Verified' && styles.verificationPillTextVerified,
-                  (effectiveVerificationStatus === 'Pending' || renewalRequired) && styles.verificationPillTextPending,
-                  effectiveVerificationStatus === 'Rejected' && !renewalRequired && styles.verificationPillTextRejected,
+                  styles.verificationStatusPill,
+                  effectiveVerificationStatus === 'Verified' && styles.verificationPillVerified,
+                  (effectiveVerificationStatus === 'Pending' || renewalRequired) && styles.verificationPillPending,
+                  effectiveVerificationStatus === 'Rejected' && !renewalRequired && styles.verificationPillRejected,
                 ]}
               >
-                {uiText(
-                  renewalRequired ? 'Renewal needed' : renewalPending ? 'Renewal under review' : effectiveVerificationStatus === 'Verified'
-                    ? 'Verified'
-                    : effectiveVerificationStatus === 'Pending'
-                      ? 'Pending'
-                      : effectiveVerificationStatus === 'Rejected'
-                        ? 'Action Needed'
-                        : 'Unverified'
-                )}
-              </Text>
+                <Text
+                  style={[
+                    styles.verificationStatusPillText,
+                    effectiveVerificationStatus === 'Verified' && styles.verificationPillTextVerified,
+                    (effectiveVerificationStatus === 'Pending' || renewalRequired) && styles.verificationPillTextPending,
+                    effectiveVerificationStatus === 'Rejected' && !renewalRequired && styles.verificationPillTextRejected,
+                  ]}
+                >
+                  {uiText(
+                    renewalRequired ? 'Renewal needed' : renewalPending ? 'Renewal under review' : effectiveVerificationStatus === 'Verified'
+                      ? 'Verified'
+                      : effectiveVerificationStatus === 'Pending'
+                        ? 'Pending'
+                        : effectiveVerificationStatus === 'Rejected'
+                          ? 'Action Needed'
+                          : 'Unverified'
+                  )}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
-          </View>
-        }
-        onPress={() => setIsVerificationModalVisible(true)}
-      />
+          }
+          onPress={() => setIsVerificationModalVisible(true)}
+        />
+      </View>
       <View style={styles.rowDivider} />
       <SettingsRow
         icon="lock-closed"
@@ -160,6 +172,12 @@ export function SettingsSection({ profile }: { profile: ProfileController }) {
     {/* Group 3: SUPPORT & LEGAL */}
     <Text style={styles.groupHeaderLabel}>{uiText("SUPPORT & LEGAL")}</Text>
     <View style={[styles.groupCard, { zIndex: 1, elevation: 0 }]}>
+      <SettingsRow
+        icon="compass-outline"
+        title={uiText("App Tutorial")}
+        onPress={() => profile.onReplayTutorial?.()}
+      />
+      <View style={styles.rowDivider} />
       <SettingsRow
         icon="information-circle"
         title={t.aboutUs}

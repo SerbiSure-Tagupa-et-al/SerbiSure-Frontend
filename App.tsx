@@ -71,6 +71,7 @@ function SerbiSureApp() {
   const [restoringSession, setRestoringSession] = useState(true);
   const [restoreError, setRestoreError] = useState('');
   const [loginMessage, setLoginMessage] = useState('');
+  const [showPostRegistrationTutorial, setShowPostRegistrationTutorial] = useState(false);
 
   const clearSession = useCallback(() => {
     realtime.stop();
@@ -81,6 +82,7 @@ function SerbiSureApp() {
     setAccessToken(null);
     setAvatarUri(null);
     setSelfieUpload(undefined);
+    setShowPostRegistrationTutorial(false);
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -219,9 +221,18 @@ function SerbiSureApp() {
           token={accessToken}
           selfieUpload={selfieUpload}
           onBack={() => setFlowState('registration2')}
-          onNext={() => setFlowState('dashboard')}
-          onCancel={() => setFlowState('dashboard')}
-          onSkip={() => setFlowState('dashboard')}
+          onNext={() => {
+            setShowPostRegistrationTutorial(true);
+            setFlowState('dashboard');
+          }}
+          onCancel={() => {
+            setShowPostRegistrationTutorial(true);
+            setFlowState('dashboard');
+          }}
+          onSkip={() => {
+            setShowPostRegistrationTutorial(true);
+            setFlowState('dashboard');
+          }}
         />
       )}
 
@@ -241,6 +252,8 @@ function SerbiSureApp() {
           role={selectedRole}
           avatarUri={avatarUri}
           token={accessToken}
+          initialShowTutorial={showPostRegistrationTutorial}
+          onTutorialDismissed={() => setShowPostRegistrationTutorial(false)}
           onUpdateAvatar={(uri: string) => setAvatarUri(uri)}
           onLogout={handleLogout}
         />
