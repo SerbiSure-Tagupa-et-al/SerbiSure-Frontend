@@ -38,11 +38,28 @@ export const WORK_SHIFTS = [
 export type WorkShift = typeof WORK_SHIFTS[number]['value'] | 'custom';
 
 export const LONG_TERM_MINIMUM_MESSAGE = 'SerbiSure requires at least 30 days for long-term posts. Choose a later end date.';
+export const SHORT_TERM_MAX_DAYS = 7;
+export const SHORT_TERM_MAXIMUM_MESSAGE = 'The end date for a short-term booking can be up to 7 days after the start date.';
+const DAY_MS = 86400000;
+
+function calendarDateAfter(startDate: string, days: number): string {
+  const start = bookingSchedule(startDate, '12:00 PM');
+  const date = new Date(Date.parse(start.iso) + days * DAY_MS);
+  return `${String(date.getUTCMonth() + 1).padStart(2, '0')}/${String(date.getUTCDate()).padStart(2, '0')}/${date.getUTCFullYear()}`;
+}
 
 export function earliestLongTermEnd(startDate: string): string {
-  const start = bookingSchedule(startDate, '12:00 PM');
-  const date = new Date(Date.parse(start.iso) + 30 * 86400000);
-  return `${String(date.getUTCMonth() + 1).padStart(2, '0')}/${String(date.getUTCDate()).padStart(2, '0')}/${date.getUTCFullYear()}`;
+  return calendarDateAfter(startDate, 30);
+}
+
+export function latestShortTermEnd(startDate: string): string {
+  return calendarDateAfter(startDate, SHORT_TERM_MAX_DAYS);
+}
+
+export function calendarDaysBetween(startDate: string, endDate: string): number {
+  const start = Date.parse(bookingSchedule(startDate, '12:00 PM').iso);
+  const end = Date.parse(bookingSchedule(endDate, '12:00 PM').iso);
+  return (end - start) / DAY_MS;
 }
 
 export function bookingSchedule(date: string, clockText: string): { iso: string; clock: string } {
@@ -92,7 +109,8 @@ export function buildEngagementSchedule(form: EngagementSchedule, now = Date.now
   if (latestAllowed <= now) throw new Error('Choose a start date and shift that have not passed.');
   if (!short && !form.ongoing && bookingSchedule(form.endDate, '12:00 PM').iso < bookingSchedule(earliestLongTermEnd(form.startDate), '12:00 PM').iso) throw new Error(LONG_TERM_MINIMUM_MESSAGE);
   const days = WORK_DAYS.filter(item => form.days.includes(item.value)).map(item => item.value);
-  const daySpan = Math.round((Date.parse(bookingSchedule(endDate, '12:00 PM').iso) - Date.parse(bookingSchedule(form.startDate, '12:00 PM').iso)) / 86400000);
+  const daySpan = calendarDaysBetween(form.startDate, endDate);
+  if (short && daySpan > SHORT_TERM_MAX_DAYS) throw new Error(SHORT_TERM_MAXIMUM_MESSAGE);
   if (short && daySpan > 0) {
     if (!days.length) throw new Error('Select at least one working day.');
     const startDay = WORK_DAYS.findIndex(item => item.value === dayForDate(form.startDate));

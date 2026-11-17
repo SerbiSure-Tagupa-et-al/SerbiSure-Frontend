@@ -205,10 +205,10 @@ test('short-term date range selected in Step 2 reaches Review and confirmation w
     workHours: '08:00 AM - 05:00 PM', days: ['S'], salary: '600', serviceCategory: ['Cleaning'],
   } });
   await tick(); view.press('Next');
-  view.press('End date'); view.press('Next month'); view.press('13');
-  assert.match(view.text(), /11\/13\/2026/);
+  view.press('End date'); view.press('Next month'); view.press('7');
+  assert.match(view.text(), /11\/07\/2026/);
   view.press('Service date'); view.press('31');
-  assert.match(view.text(), /11\/13\/2026/); // Editing start must not reset a valid end date.
+  assert.match(view.text(), /11\/07\/2026/); // Editing start must not reset a valid end date.
   view.press('End date'); view.press('Previous month');
   const beforeStart = view.all('Pressable').find(node => content(node) === '30');
   assert.equal(beforeStart.props.disabled, true);
@@ -220,16 +220,16 @@ test('short-term date range selected in Step 2 reaches Review and confirmation w
   view.press('Next'); view.press('Next');
   assert.match(view.text(), /Step 4 of 4/);
   assert.ok(view.text().includes('Start dateOct 31, 2026'));
-  assert.ok(view.text().includes('End dateNov 13, 2026'));
+  assert.ok(view.text().includes('End dateNov 7, 2026'));
   assert.ok(!view.text().includes('Service date'));
   view.press('Back'); view.press('Next');
-  assert.ok(view.text().includes('End dateNov 13, 2026'));
+  assert.ok(view.text().includes('End dateNov 7, 2026'));
   view.act(() => view.all('Pressable').find(node => node.props.accessibilityRole === 'checkbox').props.onPress());
   view.act(() => view.find('PrivacyPolicyModal').props.onAccept());
   view.press('Send Offer'); await tick();
   assert.equal(view.actions.length, 1);
   assert.equal(view.actions[0].details.startDate, '10/31/2026');
-  assert.equal(view.actions[0].details.endDate, '11/13/2026');
+  assert.equal(view.actions[0].details.endDate, '11/07/2026');
   assert.deepEqual(view.actions[0].details.days, weekdays);
   view.actions[0].resolve(); await tick();
 });
