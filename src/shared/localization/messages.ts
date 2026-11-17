@@ -86,6 +86,7 @@ export const UI_MESSAGES = {
   'The work continues without a planned end date.': ['Magpapatuloy ang trabaho nang walang nakatakdang petsa ng pagtatapos.', 'Magpadayon ang trabaho nga walay gitakdang petsa sa pagtapos.'],
   'Choose dates at least 30 days apart. This is a SerbiSure posting rule.': ['Pumili ng mga petsang may pagitan na hindi bababa sa 30 araw. Patakaran ito ng SerbiSure sa pag-post.', 'Pagpili og mga petsa nga adunay labing menos 30 ka adlaw nga gilay-on. Palisiya kini sa SerbiSure sa pag-post.'],
   'SerbiSure requires at least 30 days for long-term posts. Choose a later end date.': ['Kailangan ng hindi bababa sa 30 araw para sa pangmatagalang post sa SerbiSure. Pumili ng mas huling petsa ng pagtatapos.', 'Kinahanglan og labing menos 30 ka adlaw ang dugay nga post sa SerbiSure. Pagpili og mas ulahi nga petsa sa pagtapos.'],
+  'The end date for a short-term booking can be up to 7 days after the start date.': ['Ang petsa ng pagtatapos ng panandaliang booking ay hanggang 7 araw mula sa petsa ng pagsisimula.', 'Ang petsa sa pagtapos sa hamubong booking mahimong hangtod sa 7 ka adlaw human sa petsa sa pagsugod.'],
   'Earliest end date: {date}': ['Pinakamaagang petsa ng pagtatapos: {date}', 'Labing sayong petsa sa pagtapos: {date}'],
   'Set my own time': ['Magtakda ng sariling oras', 'Magtakda sa kaugalingong oras'],
   'Working hours': ['Oras ng trabaho', 'Oras sa trabaho'],

@@ -45,10 +45,15 @@ function schedule(t, options = {}) {
     shift: 'custom', onStartDate() {}, onEndDate() {}, onWorkHours() {}, onShift() {}, ...options };
   let selected;
   const changes = [];
+  const endDates = [];
+  const startDates = [];
+  const onEndDate = value => endDates.push(value);
+  const onStartDate = value => startDates.push(value);
   function Form() {
     const [days, setDays] = React.useState(options.days || []);
     selected = days;
-    return React.createElement(WorkScheduleFields, { ...props, days, onDays: value => { changes.push(value); setDays(value); } });
+    return React.createElement(WorkScheduleFields, { ...props, days, onStartDate, onEndDate,
+      onDays: value => { changes.push(value); setDays(value); } });
   }
   const container = { children: [] };
   const root = renderer.createContainer(container, 0, null, false, null, '', error => { throw error; }, null);
@@ -57,8 +62,13 @@ function schedule(t, options = {}) {
   t.after(() => act(() => renderer.updateContainer(null, root, null)));
   const nodes = () => { const all = []; const visit = node => { all.push(node); node.children.forEach(visit); }; visit(container); return all; };
   const button = label => nodes().find(node => node.type === 'Pressable' && node.props.accessibilityLabel === label);
+  const calendarDay = day => nodes().find(node => node.type === 'Pressable' && !node.props.accessibilityLabel &&
+    node.children[0]?.type === 'Text' && node.children[0].children[0]?.text === String(day));
   render();
-  return { render, changes, button, press: label => act(() => button(label).props.onPress()),
+  return { render, changes, button, endDates, startDates, calendarDay,
+    press: label => act(() => button(label).props.onPress()),
+    pressDate: day => act(() => calendarDay(day).props.onPress()),
+    hasText: value => nodes().some(node => node.text === value),
     enabled: () => labels.filter(label => !button(label).props.disabled), get days() { return selected; } };
 }
 
@@ -102,13 +112,42 @@ test('changing dates cleans selections, auto-selects a single day, and widening 
   assert.deepEqual(form.days, ['W', 'F']);
 });
 
-test('inclusive seven-day spans and longer ranges enable every weekday', t => {
+test('short-term ranges spanning the full week enable every weekday', t => {
   const form = schedule(t, { startDate: '11/01/2026', endDate: '11/06/2026' });
   assert.deepEqual(form.enabled(), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sun']);
-  for (const endDate of ['11/07/2026', '11/08/2026', '12/31/2099']) {
+  for (const endDate of ['11/07/2026', '11/08/2026']) {
     form.render({ endDate });
     assert.deepEqual(form.enabled(), labels);
   }
+});
+
+test('short-term end calendar allows Nov 18 through Nov 25 and shades earlier and later dates', t => {
+  const form = schedule(t, { startDate: '11/18/2099', endDate: '11/18/2099' });
+  form.press('End date');
+  assert.ok(form.hasText('The end date for a short-term booking can be up to 7 days after the start date.'));
+  for (let day = 1; day <= 30; day++) {
+    const disabled = day < 18 || day > 25;
+    const props = form.calendarDay(day).props;
+    assert.equal(props.disabled, disabled);
+    assert.equal(props.accessibilityState.disabled, disabled);
+    if (disabled) assert.ok(props.style.some(style => style && style.opacity < 1));
+  }
+  form.pressDate(17);
+  form.pressDate(26);
+  assert.deepEqual(form.endDates, []);
+  form.pressDate(25);
+  assert.deepEqual(form.endDates, ['11/25/2099']);
+});
+
+test('changing the start date or switching to short-term replaces an invalid end date', t => {
+  const form = schedule(t, { startDate: '11/18/2099', endDate: '11/25/2099' });
+  form.press('Service date');
+  form.pressDate(17);
+  assert.deepEqual(form.startDates, ['11/17/2099']);
+  assert.deepEqual(form.endDates, ['11/17/2099']);
+  form.render({ bookingType: 'long_term', startDate: '11/18/2099', endDate: '12/18/2099' });
+  form.render({ bookingType: 'short_term' });
+  assert.deepEqual(form.endDates, ['11/17/2099', '']);
 });
 
 test('ongoing work enables every day without auto-selecting extras', t => {

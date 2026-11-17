@@ -3,9 +3,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WorkHoursPickerModal } from '../../../shared/ui/WorkHoursPickerModal';
-import { bookingSchedule, earliestLongTermEnd, LONG_TERM_MINIMUM_MESSAGE, WORK_DAYS, WORK_SHIFTS, type WorkShift } from '../engagementForm';
+import {
+  bookingSchedule, calendarDaysBetween, dayForDate, earliestLongTermEnd, latestShortTermEnd,
+  LONG_TERM_MINIMUM_MESSAGE, SHORT_TERM_MAX_DAYS, SHORT_TERM_MAXIMUM_MESSAGE,
+  WORK_DAYS, WORK_SHIFTS, type WorkShift,
+} from '../engagementForm';
 
 const ACCENT_PEACH = '#FFAB73';
+
+function outsideShortTermRange(startDate: string, endDate: string) {
+  const span = calendarDaysBetween(startDate, endDate);
+  return span < 0 || span > SHORT_TERM_MAX_DAYS;
+}
 
 interface Props {
   bookingType: 'short_term' | 'long_term';
@@ -37,12 +46,10 @@ export function WorkScheduleFields(props: Props) {
     if (ongoing) return WORK_DAYS.map(day => day.value);
     if (!startDate || (!short && !endDate)) return null;
     try {
-      // Noon in Philippine time keeps the calendar day stable in every device timezone.
-      const start = Date.parse(bookingSchedule(startDate, '12:00 PM').iso);
-      const end = Date.parse(bookingSchedule(endDate || startDate, '12:00 PM').iso);
-      if (end < start) return null;
-      const span = Math.min(Math.round((end - start) / 86400000) + 1, 7);
-      const first = (new Date(start).getUTCDay() + 6) % 7; // WORK_DAYS starts on Monday.
+      const daySpan = calendarDaysBetween(startDate, endDate || startDate);
+      if (daySpan < 0 || (short && daySpan > SHORT_TERM_MAX_DAYS)) return null;
+      const span = Math.min(daySpan + 1, WORK_DAYS.length);
+      const first = WORK_DAYS.findIndex(day => day.value === dayForDate(startDate));
       return Array.from({ length: span }, (_, offset) => WORK_DAYS[(first + offset) % 7]!.value);
     } catch {
       // Keep selections while the dates are incomplete or being corrected.
@@ -51,11 +58,18 @@ export function WorkScheduleFields(props: Props) {
   }, [startDate, endDate, ongoing, short]);
   const earliestEnd = startDate ? (short ? startDate : earliestLongTermEnd(startDate)) : '';
   const earliestEndStamp = earliestEnd ? bookingSchedule(earliestEnd, '12:00 PM').iso : '';
+  const latestEndStamp = short && startDate ? bookingSchedule(latestShortTermEnd(startDate), '12:00 PM').iso : '';
+  const endDateUnavailable = ongoing || (short && !startDate);
   const [target, setTarget] = useState<'start' | 'end' | null>(null);
   const [month, setMonth] = useState(() => new Date().getMonth());
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [showTime, setShowTime] = useState(false);
   useEffect(() => { if (locked) { setTarget(null); setShowTime(false); } }, [locked]);
+  useEffect(() => {
+    if (!locked && short && startDate && endDate && outsideShortTermRange(startDate, endDate)) {
+      props.onEndDate('');
+    }
+  }, [locked, short, startDate, endDate, props.onEndDate]);
   useEffect(() => {
     if (locked || !availableDays) return;
     const next = availableDays.length === 1
@@ -67,7 +81,7 @@ export function WorkScheduleFields(props: Props) {
   }, [availableDays, days, locked, props.onDays]);
 
   const openDate = (field: 'start' | 'end') => {
-    if (locked) return;
+    if (locked || (field === 'end' && endDateUnavailable)) return;
     const selected = field === 'start' ? startDate : endDate || earliestEnd || startDate;
     const todayPH = new Date(Date.now() + 8 * 3600000);
     const match = /^(\d{2})\/\d{2}\/(\d{4})$/.exec(selected);
@@ -147,14 +161,9 @@ export function WorkScheduleFields(props: Props) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={uiText('End date')}
-            disabled={locked || (!short && ongoing)}
-            onPress={() => {
-              if (ongoing) {
-                props.onOngoing?.(false);
-              }
-              openDate('end');
-            }}
-            style={[styles.dateCard, (!short && ongoing) && styles.dateCardDisabled, errors.endDate && styles.fieldError]}
+            disabled={locked || endDateUnavailable}
+            onPress={() => openDate('end')}
+            style={[styles.dateCard, endDateUnavailable && styles.dateCardDisabled, errors.endDate && styles.fieldError]}
           >
             <Text style={styles.dateSmallLabel}>{uiText("END")}</Text>
             <View style={styles.dateInnerRow}>
@@ -225,7 +234,7 @@ export function WorkScheduleFields(props: Props) {
         <Pressable style={styles.overlay} onPress={() => setTarget(null)}>
           <Pressable style={styles.picker} onPress={event => event.stopPropagation()}>
             <Text style={styles.title}>{uiText(target === 'end' ? 'End date' : short ? 'Service date' : 'Start date')}</Text>
-            {target === 'end' && !short && <Text style={styles.hint}>{uiText(LONG_TERM_MINIMUM_MESSAGE)}</Text>}
+            {target === 'end' && <Text style={styles.hint}>{uiText(short ? SHORT_TERM_MAXIMUM_MESSAGE : LONG_TERM_MINIMUM_MESSAGE)}</Text>}
             <View style={styles.navigation}>
               <Pressable accessibilityLabel={uiText('Previous month')} hitSlop={12} onPress={() => navigate(-1)}>
                 <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
@@ -246,8 +255,10 @@ export function WorkScheduleFields(props: Props) {
                 const date = `${String(month + 1).padStart(2, '0')}/${String(index + 1).padStart(2, '0')}/${year}`;
                 const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`;
                 const past = iso < today;
-                const tooEarly = target === 'end' && !!earliestEndStamp && bookingSchedule(date, '12:00 PM').iso < earliestEndStamp;
-                const unavailable = past || tooEarly;
+                const stamp = target === 'end' ? bookingSchedule(date, '12:00 PM').iso : '';
+                const outsideEndRange = target === 'end' &&
+                  ((earliestEndStamp && stamp < earliestEndStamp) || (latestEndStamp && stamp > latestEndStamp));
+                const unavailable = past || Boolean(outsideEndRange);
                 const isSelected = (target === 'end' ? endDate : startDate) === date;
                 return (
                   <Pressable
@@ -256,10 +267,11 @@ export function WorkScheduleFields(props: Props) {
                     disabled={unavailable}
                     style={[styles.cell, isSelected && styles.selectedCell, unavailable && styles.muted]}
                     onPress={() => {
+                      if (unavailable) return;
                       if (target === 'end') props.onEndDate(date);
                       else {
                         props.onStartDate(date);
-                        if (short && (!endDate || bookingSchedule(endDate, '12:00 PM').iso < bookingSchedule(date, '12:00 PM').iso)) props.onEndDate(date);
+                        if (short && (!endDate || outsideShortTermRange(date, endDate))) props.onEndDate(date);
                         else if (!short && endDate && bookingSchedule(endDate, '12:00 PM').iso < bookingSchedule(earliestLongTermEnd(date), '12:00 PM').iso) {
                           props.onEndDate('');
                         }

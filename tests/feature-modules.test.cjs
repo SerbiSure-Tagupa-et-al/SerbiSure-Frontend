@@ -589,13 +589,15 @@ test('short-term custom hours use the selected day and reject missing or reverse
   assert.throws(() => engagementForm.buildEngagementSchedule({ ...form, workHours: '05:00 PM - 08:00 AM' }, now), /end after/);
 });
 
-test('short-term multi-day schedule preserves its end date and selected weekdays', () => {
+test('short-term schedules accept seven days after the start date and reject day eight', () => {
   const now = Date.parse('2026-10-30T00:00:00Z');
-  const form = { bookingType: 'short_term', startDate: '10/31/2026', endDate: '11/13/2026',
+  const form = { bookingType: 'short_term', startDate: '10/31/2026', endDate: '11/07/2026',
     workHours: '08:00 AM - 05:00 PM', days: ['M', 'T', 'W', 'Th', 'F'], shift: 'custom' };
   const schedule = engagementForm.buildEngagementSchedule(form, now);
   assert.equal(schedule.start_time, '2026-10-31T00:00:00.000Z');
-  assert.equal(schedule.end_time, '2026-11-13T09:00:00.000Z');
+  assert.equal(schedule.end_time, '2026-11-07T09:00:00.000Z');
+  assert.equal(engagementForm.latestShortTermEnd('12/28/2026'), '01/04/2027');
+  assert.throws(() => engagementForm.buildEngagementSchedule({ ...form, endDate: '11/08/2026' }, now), /up to 7 days/);
   assert.deepEqual(schedule.work_days, form.days);
   assert.throws(() => engagementForm.buildEngagementSchedule({ ...form, endDate: '10/30/2026' }, now), /on or after/);
   assert.throws(() => engagementForm.buildEngagementSchedule({ ...form, days: [] }, now), /working day/);

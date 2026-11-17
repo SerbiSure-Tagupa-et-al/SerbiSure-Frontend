@@ -36,7 +36,7 @@ export function RepostModal({ post, token, onClose, onSuccess }: {
       onSuccess();
       onClose();
     } catch (error) {
-      Alert.alert(tr('Could not repost'), error instanceof Error ? error.message : tr('Please try again.'));
+      Alert.alert(tr('Could not repost'), tr(error instanceof Error ? error.message : 'Please try again.'));
     } finally { busy.current = false; setSaving(false); }
   };
   return <Modal visible animationType="slide" onRequestClose={() => { if (!busy.current) onClose(); }}>
