@@ -1,6 +1,6 @@
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React from 'react';
-import { Text, View, Pressable, Switch } from 'react-native';
+import { Alert, Linking, Text, View, Pressable, Switch } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -9,6 +9,8 @@ import { type Language } from '../../../shared/localization/LanguageContext';
 import { profileStyles as styles } from '../styles';
 import type { ProfileController } from '../hooks/useProfile';
 import { SettingsRow } from '../components/SettingsRow';
+
+const USER_MANUAL_URL = 'https://serbi-sure-user-manual.vercel.app/#/full-manual';
 
 export function SettingsSection({ profile }: { profile: ProfileController }) {
   const { tr: uiText } = useUiLanguage();
@@ -32,6 +34,22 @@ export function SettingsSection({ profile }: { profile: ProfileController }) {
     renewalPending,
     handleToggleContactPrivacy,
   } = profile;
+
+  const openUserManual = async () => {
+    try {
+      if (await Linking.canOpenURL(USER_MANUAL_URL)) {
+        await Linking.openURL(USER_MANUAL_URL);
+        return;
+      }
+    } catch {
+      // An available browser can still fail to open the link.
+    }
+    Alert.alert(
+      uiText("Could not open the User Manual"),
+      uiText("Please try again or check that a browser is installed."),
+    );
+  };
+
   return (<>
     {/* Group 1: ACCOUNT */}
     <Text style={styles.groupHeaderLabel}>{uiText("ACCOUNT")}</Text>
@@ -176,6 +194,12 @@ export function SettingsSection({ profile }: { profile: ProfileController }) {
         icon="compass-outline"
         title={uiText("App Tutorial")}
         onPress={() => profile.onReplayTutorial?.()}
+      />
+      <View style={styles.rowDivider} />
+      <SettingsRow
+        icon="book-outline"
+        title={uiText("User Manual")}
+        onPress={openUserManual}
       />
       <View style={styles.rowDivider} />
       <SettingsRow

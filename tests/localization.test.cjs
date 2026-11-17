@@ -21,7 +21,8 @@ const renderer = Reconciler({
   resetTextContent() {}, finalizeInitialChildren: () => false, clearContainer(parent) { parent.children = []; },
   scheduleTimeout: setTimeout, cancelTimeout: clearTimeout, noTimeout: -1, detachDeletedInstance() {},
 });
-const native = { StyleSheet: { create: value => value }, Platform: { OS: 'android' } };
+const native = { StyleSheet: { create: value => value }, Platform: { OS: 'android' },
+  Linking: { async canOpenURL() { return true; }, async openURL() {} }, Alert: { alert() {} } };
 for (const name of ['Text', 'View', 'Pressable', 'Image', 'ScrollView', 'TextInput', 'Switch', 'ActivityIndicator', 'Modal', 'KeyboardAvoidingView']) native[name] = name;
 native.FlatList = React.forwardRef((props, ref) => {
   React.useImperativeHandle(ref, () => ({ scrollToOffset() {}, scrollToIndex() {} }), []);
@@ -151,7 +152,7 @@ test('switching the live provider updates home, settings and reviews while prese
   for (const language of ['Tagalog', 'Bisaya', 'English']) {
     renderer.flushSync(() => switchLanguage(language));
     const text = content(container);
-    for (const source of ['Recent Posts', 'No Recent Posts', 'Tags & Socials', 'Show Contact Number', 'Positive']) assert.ok(text.includes(translateMessage(language, source)), `${language}: ${source}`);
+    for (const source of ['Recent Posts', 'No Recent Posts', 'Tags & Socials', 'Show Contact Number', 'User Manual', 'Positive']) assert.ok(text.includes(translateMessage(language, source)), `${language}: ${source}`);
     assert.ok(text.includes('James Christopher Tagupa'));
     assert.ok(text.includes(review.unstructured_feedback));
     const childCare = nodes().find(node => node.type === 'Pressable' && node.props.accessibilityLabel === translateMessage(language, 'Filter: {category}', { category: translateMessage(language, 'Child Care') }));
@@ -161,6 +162,54 @@ test('switching the live provider updates home, settings and reviews while prese
     }
   }
   assert.equal(review.nlp_sentiment, 'Positive');
+});
+
+test('User Manual appears after App Tutorial and opens the full manual in the browser', async t => {
+  const canOpen = t.mock.method(native.Linking, 'canOpenURL');
+  const open = t.mock.method(native.Linking, 'openURL');
+  const alert = t.mock.method(native.Alert, 'alert');
+  const container = { children: [] };
+  const root = renderer.createContainer(container, 0, null, false, null, '', error => { throw error; }, null);
+  const render = element => renderer.flushSync(() => renderer.updateContainer(element, root, null));
+  t.after(() => render(null));
+  let setLanguage;
+  function Settings() {
+    const language = useLanguage();
+    setLanguage = language.setLanguage;
+    return React.createElement(SettingsSection, { profile: { ...language,
+      copy: { bookingTitle: 'My Jobs & Contracts', bookingIcon: 'briefcase' },
+      effectiveVerificationStatus: 'Verified', isLanguageExpanded: false, showContactNumber: false,
+    } });
+  }
+  render(React.createElement(LanguageProvider, null, React.createElement(Settings)));
+  const content = node => node.text || node.children.map(content).join('');
+  const support = container.children.find(node => node.type === 'View' &&
+    node.children.some(child => child.type === 'Pressable' && content(child) === 'App Tutorial'));
+  assert.ok(support);
+  assert.deepEqual(support.children.slice(0, 5).map(node => node.type === 'Pressable' ? content(node) : node.type),
+    ['App Tutorial', 'View', 'User Manual', 'View', 'About Us']);
+  const pressManual = () => support.children[2].props.onPress();
+  const url = 'https://serbi-sure-user-manual.vercel.app/#/full-manual';
+  await pressManual();
+  assert.deepEqual(canOpen.mock.calls[0].arguments, [url]);
+  assert.deepEqual(open.mock.calls[0].arguments, [url]);
+  assert.equal(alert.mock.callCount(), 0);
+
+  renderer.flushSync(() => setLanguage('Tagalog'));
+  canOpen.mock.mockImplementation(async () => false);
+  await pressManual();
+  assert.equal(open.mock.callCount(), 1);
+  assert.deepEqual(alert.mock.calls[0].arguments, [
+    'Hindi mabuksan ang Manwal ng Gumagamit', 'Subukan muli o tiyaking may naka-install na browser.',
+  ]);
+
+  renderer.flushSync(() => setLanguage('Bisaya'));
+  canOpen.mock.mockImplementation(async () => true);
+  open.mock.mockImplementation(async () => { throw new Error('Could not launch a browser'); });
+  await pressManual();
+  assert.deepEqual(alert.mock.calls[1].arguments, [
+    'Dili maablihan ang Manwal sa Gumagamit', 'Sulayi pag-usab o siguroha nga adunay naka-install nga browser.',
+  ]);
 });
 
 test('browse counts translate without changing canonical filter values', () => {
