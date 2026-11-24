@@ -11,6 +11,7 @@ import { RegistrationStepper } from '../../auth/components/RegistrationStepper';
 import type { SelfieUploadTask } from '../api/selfieUpload';
 import { APP_HEADER_BACK_ICON_COLOR, APP_HEADER_BACK_ICON_SIZE, APP_HEADER_LOGO_SIZE, APP_HEADER_SIDE_WIDTH } from '../../../shared/components/AppHeader';
 import { canReplaceDocument, currentDocuments } from '../documentStatus';
+import { VerificationPrivacyNotice } from '../../profile/components/PrivacyPolicyModal';
 
 const noSubscription = () => () => {};
 const noSelfieUpload = () => null;
@@ -259,6 +260,7 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
           </View>
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.uploadBoxesSection} showsVerticalScrollIndicator={false}>
+            <VerificationPrivacyNotice isHomeowner={role === 'homeowner'} />
             {role === 'homeowner' ? (
               <>
                 <Pressable style={[styles.uploadBox, styles.uploadBoxHomeowner, (!!nationalFrontImage || existingDocs.has('national_id_front')) && styles.uploadBoxHasImage]} onPress={() => handleBoxPress('national_front')}>

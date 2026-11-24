@@ -140,7 +140,7 @@ function registrationForm(t, role = 'homeowner', actualCamera) {
     '../../../shared/ui/SearchablePickerModal': { SearchablePickerModal: 'LocationPicker' },
     '../../../shared/ui/DateOfBirthPickerModal': { DateOfBirthPickerModal: 'BirthPicker' },
     '../../../shared/ui/DemographicPickerModal': { DemographicPickerModal: 'DemographicPicker' },
-    '../../profile/components/PrivacyPolicyModal': { PrivacyPolicyModal: ({ visible, onAccept }) => { React.useEffect(() => { if (visible && onAccept) onAccept(); }, [visible, onAccept]); return null; } },
+    '../../profile/components/PrivacyPolicyModal': { VerificationPrivacyNotice: 'VerificationPrivacyNotice', PrivacyPolicyModal: ({ visible, onAccept }) => { React.useEffect(() => { if (visible && onAccept) onAccept(); }, [visible, onAccept]); return null; } },
     '../../profile/worker/WorkerCvForm': { WorkerCvForm: 'WorkerForm' },
     '../components/RegistrationStepper': { RegistrationStepper: () => null },
     '../components/RegistrationErrorModal': { RegistrationErrorModal: 'RegistrationError' },

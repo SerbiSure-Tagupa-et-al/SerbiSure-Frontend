@@ -9,6 +9,7 @@ import { IDPhotoModal } from './IDPhotoModal';
 import { API_BASE_URL } from '../../../shared/api/config';
 import { fetchWithTimeout } from '../../../shared/api/httpClient';
 import { canReplaceDocument, currentDocuments, documentIsExpired, documentLabel } from '../documentStatus';
+import { VerificationPrivacyNotice } from '../../profile/components/PrivacyPolicyModal';
 
 const logoSource = require('../../../../assets/serbisure-icon.png');
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -752,6 +753,7 @@ export function VerificationStatusModal({
     return (
       <View style={styles.uploadSection}>
         <Text style={styles.uploadSectionHeader}>{uiText("Upload Documents")}</Text>
+        <VerificationPrivacyNotice isHomeowner={effectiveRole === 'homeowner'} />
 
         {needsNbi ? (
           <UploadBox

@@ -54,6 +54,7 @@ function screen(t, initial) {
     '../../../shared/theme/theme': { default: { typography: { fontFamily: {} } } },
     '../api/verificationApi': {}, '../documentStatus': helpers,
     './IDPhotoModal': { IDPhotoModal: 'PhotoPicker' },
+    '../../profile/components/PrivacyPolicyModal': { VerificationPrivacyNotice: 'VerificationPrivacyNotice' },
     '../../../shared/api/config': { API_BASE_URL: 'https://test.local' },
     '../../../shared/api/httpClient': { fetchWithTimeout: (...args) => {
       let resolve; const promise = new Promise(yes => { resolve = yes; }); requests.push({ args, resolve }); return promise;

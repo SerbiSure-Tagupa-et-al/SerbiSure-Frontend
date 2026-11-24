@@ -286,6 +286,29 @@ test('reputation metrics use loaded history counts and never invent a percentage
   assert.deepEqual(analytics.all('Text').filter(node => node.props.style === metricVal).map(text), ['4.0', '0', '67%']);
 });
 
+test('pre-upload privacy notice names processors, explains homeowner ID and opens the full retention policy', t => {
+  const { VerificationPrivacyNotice } = load('src/features/profile/components/PrivacyPolicyModal.tsx');
+  const screen = mount(t, VerificationPrivacyNotice, { isHomeowner: true });
+  assert.match(screen.content(), /Data Privacy Notice \(RA 10173\)/);
+  assert.match(screen.content(), /Google Cloud Vision API and Groq AI/);
+  assert.match(screen.content(), /Other users cannot view them/);
+  assert.match(screen.content(), /deleted 30 days after approval or rejection/);
+  assert.match(screen.content(), /protect Kasambahays entering private homes/);
+  assert.equal(screen.all('Modal').length, 0);
+  screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Read Full Privacy Policy').props.onPress());
+  assert.equal(screen.all('Modal').length, 1);
+  assert.match(screen.content(), /TESDA NC II Skill Certification/);
+  assert.match(screen.content(), /Groq AI may also read the document image as a fallback/);
+  assert.match(screen.content(), /flagged for review at 30 days; unreviewed images are deleted after 60 days/);
+  assert.match(screen.content(), /Verification status, reviewer, issue and expiry dates, and audit records are retained/);
+  assert.match(screen.content(), /Retention starts on November 25, 2026/);
+  assert.doesNotMatch(screen.content(), /Cloud OCR service:/);
+  screen.act(() => screen.all('Modal')[0].props.onRequestClose());
+  assert.equal(screen.all('Modal').length, 0);
+  const worker = mount(t, VerificationPrivacyNotice, { isHomeowner: false });
+  assert.doesNotMatch(worker.content(), /Homeowners submit a PhilSys National ID/);
+});
+
 test('CV preview and exported PDF do not invent worker qualifications or personal details', t => {
   const cv = { name: 'Actual Worker', details: {}, languages: '', location: '', contact_number: '', verification_status: 'Pending' };
   const { WorkerCvPreview } = load('src/features/profile/worker/WorkerCvPreview.tsx');
