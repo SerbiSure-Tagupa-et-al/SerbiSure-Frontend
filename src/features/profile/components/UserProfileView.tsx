@@ -24,6 +24,8 @@ import { generateUUID } from '../../chat/api/chatApi';
 import { bookingSchedule } from '../../bookings/engagementForm';
 import { useJobsActivity } from '../../bookings/store/savedJobsStore';
 import { useJobApplication } from '../../bookings/hooks/useJobApplication';
+import type { PendingMandatoryReview } from '../../bookings/api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { mapFeedPost } from '../../feed/feedMapper';
 import type { FeedPost } from '../../feed/types';
 import { formatBookingAddress, formatBookingLocationShort, type PublicPendingPost } from '../../bookings/api/bookingApi';
@@ -78,7 +80,8 @@ export function UserProfileView({
   const { t } = useLanguage();
   const { isSaved, isApplied, toggleSave } = useJobsActivity();
   const effectiveToken = token || user.token;
-  const { applyJob, applyingJobId } = useJobApplication(effectiveToken, () => { void refreshPosts(); });
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
+  const { applyJob, applyingJobId } = useJobApplication(effectiveToken, () => { void refreshPosts(); }, setPendingReview);
   const { profile, reviews, summary, posts, canUsePost, loading, postsLoading, profileError, postsError, refreshPosts, markSubmitted } = usePublicProfile(visible, userId, effectiveToken);
   const [activeTab, setActiveTab] = useState<'posts' | 'reviews'>('posts');
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(false);
@@ -144,9 +147,9 @@ export function UserProfileView({
       Alert.alert(
         uiText('Booking Offer Sent'),
         result.language_warning ||
-          uiText('Your booking offer has been sent to {name}. You can track and chat with them in your messages.', {
-            name: displayName,
-          })
+        uiText('Your booking offer has been sent to {name}. You can track and chat with them in your messages.', {
+          name: displayName,
+        })
       );
     } catch (err: any) {
       void refreshPosts();
@@ -185,8 +188,8 @@ export function UserProfileView({
     const rawCategories = Array.isArray(post.service_category)
       ? post.service_category
       : post.service_category
-      ? [post.service_category]
-      : [isJob ? 'Household Service' : 'General Service'];
+        ? [post.service_category]
+        : [isJob ? 'Household Service' : 'General Service'];
     const catKey = rawCategories[0];
     const roleName = (catKey && CATEGORY_LABELS[catKey]) || catKey?.replace(/_/g, ' ') || (isJob ? 'Job Position' : 'Service');
     const formattedRate = formatRate(post.rate_amount);
@@ -444,10 +447,10 @@ export function UserProfileView({
           isApplied={
             selectedJob
               ? isApplied(selectedJob.id) || posts.some(
-                  (p) =>
-                    p.booking_id === selectedJob.id &&
-                    (p.viewer_proposal?.status === 'Pending' || p.viewer_proposal?.status === 'Accepted')
-                )
+                (p) =>
+                  p.booking_id === selectedJob.id &&
+                  (p.viewer_proposal?.status === 'Pending' || p.viewer_proposal?.status === 'Accepted')
+              )
               : false
           }
           isApplying={applyingJobId === selectedJob?.id}
@@ -494,6 +497,17 @@ export function UserProfileView({
         )}
 
         {children}
+        {pendingReview && (
+          <ReviewModal
+            visible
+            bookingId={pendingReview.booking_id}
+            revieweeName={pendingReview.reviewee_name}
+            token={effectiveToken}
+            isMandatory
+            onClose={() => setPendingReview(null)}
+            onSuccess={() => setPendingReview(null)}
+          />
+        )}
       </View>
     </Modal>
   );

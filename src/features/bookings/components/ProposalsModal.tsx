@@ -6,7 +6,8 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, Pressable, Modal, ActivityIndicator, Alert, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { BookingProposal, fetchBookingProposals, submitBookingProposal, respondToProposal, confirmPostRate } from '../api/bookingApi';
+import { BookingProposal, fetchBookingProposals, submitBookingProposal, respondToProposal, confirmPostRate, type PendingMandatoryReview } from '../api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 
 export interface ProposalsModalProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export function ProposalsModal({
   const [proposals, setProposals] = useState<BookingProposal[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
 
   // Form states for non-poster (making an offer)
   const [counterRate, setCounterRate] = useState('');
@@ -102,6 +104,12 @@ export function ProposalsModal({
       setShowOfferForm(false);
       loadProposals();
       onUpdated?.();
+    } else if (res.pendingReview) {
+      const pending = res.pendingReview;
+      Alert.alert(uiText('Review Required'), res.error || uiText('Please submit your pending review first.'), [
+        { text: uiText('Later'), style: 'cancel' },
+        { text: uiText('Write Review Now'), onPress: () => setPendingReview(pending) },
+      ]);
     } else {
       Alert.alert('Submission Failed', res.error || 'Could not submit proposal.');
     }
@@ -133,6 +141,12 @@ export function ProposalsModal({
               if (action === 'accept') {
                 onClose();
               }
+            } else if (res.pendingReview) {
+              const pending = res.pendingReview;
+              Alert.alert(uiText('Review Required'), res.error || uiText('Please submit your pending review first.'), [
+                { text: uiText('Later'), style: 'cancel' },
+                { text: uiText('Write Review Now'), onPress: () => setPendingReview(pending) },
+              ]);
             } else {
               Alert.alert('Error', res.error || 'Failed to respond.');
             }
@@ -286,6 +300,17 @@ export function ProposalsModal({
           )}
         </ScrollView>
       </View>
+      {pendingReview && (
+        <ReviewModal
+          visible
+          bookingId={pendingReview.booking_id}
+          revieweeName={pendingReview.reviewee_name}
+          token={token}
+          isMandatory
+          onClose={() => setPendingReview(null)}
+          onSuccess={() => setPendingReview(null)}
+        />
+      )}
     </Modal>
   );
 }

@@ -158,6 +158,7 @@ function screen(t, options = {}) {
     '../../bookings/hooks/useScheduleClock': { useScheduleClock: () => Date.now() },
     '../../bookings/bookingAcceptance': compile('src/features/bookings/bookingAcceptance.ts', { 'react-native': native }),
     '../../bookings/components/BookingModal': { BookingModal: props => { dialogs.push('booking'); bookingModals.push(props); return null; } },
+    '../../reviews/components/ReviewModal': { ReviewModal: () => null },
     '../../profile/components/UserProfileView': { UserProfileView: () => { dialogs.push('profile'); return null; } },
     '../../profile/components/OfficialProfileModal': { OfficialProfileModal: () => { dialogs.push('official'); return null; } },
     '../hooks/useChatSafety': { useChatSafety: () => null },

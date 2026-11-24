@@ -72,6 +72,7 @@ function profile(t) {
     '../../auth/session/UserContext': { useUser: () => ({ user: { id: ownerId, token: 'token', accountType: 'Homeowner' } }) },
     '../../bookings/store/savedJobsStore': { useJobsActivity: () => ({ isSaved: () => false, isApplied: () => false }) },
     '../../bookings/hooks/useJobApplication': { useJobApplication: () => ({}) },
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../feed/feedMapper': {}, '../styles': { profileStyles: {} },
     './ProfileTabs': { ProfileTabs: 'ProfileTabs' }, './PublicPostsSection': { PublicPostsSection: 'PublicPostsSection' },
     '../../../shared/ui/ProfileAvatar': { ProfileAvatar: 'ProfileAvatar' }, '../profileConfig': {},

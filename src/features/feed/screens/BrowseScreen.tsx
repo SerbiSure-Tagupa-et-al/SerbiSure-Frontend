@@ -6,6 +6,8 @@ import THEME from '../../../shared/theme/theme';
 import { useUser } from '../../auth/session/UserContext';
 import { useJobsActivity, type SavedJobItem } from '../../bookings/store/savedJobsStore';
 import { useJobApplication } from '../../bookings/hooks/useJobApplication';
+import type { PendingMandatoryReview } from '../../bookings/api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { ChatDetailScreen } from '../../chat/components/ChatDetailScreen';
 import { chatStore } from '../../chat/store/chatStore';
 import { UserProfileModal } from '../../profile/components/UserProfileModal';
@@ -43,7 +45,8 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
   const { tr: uiText } = useLanguage();
   const { user } = useUser();
   const effectiveToken = token || user.token;
-  const { applyJob, applyingJobId } = useJobApplication(effectiveToken, () => { void refresh(); });
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
+  const { applyJob, applyingJobId } = useJobApplication(effectiveToken, () => { void refresh(); }, setPendingReview);
   const findingJobs = role === 'kasambahay';
   const partnerRole = ROLE_CONFIG[role].partnerType;
   const mapPost = useCallback((item: BookingFeedDto) => mapBrowsePost(item, role), [role]);
@@ -122,11 +125,15 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
     const contactRole = findingJobs ? partnerRole : post.roleTag || partnerRole;
     const initialMessage = findingJobs ? '' : 'Hi! I am interested in hiring you for a service.';
     const snippet = [post.roleTag || post.title, `${post.price} ${post.unit}`.trim(), post.location, post.termTag].filter(Boolean).join(' • ');
-    chatStore.addOrUpdateChat({ id: partnerId, partnerId, name, badge: contactRole, avatar: post.avatar, time: 'Just now',
-      message: findingJobs ? 'I am interested in this job position' : initialMessage });
+    chatStore.addOrUpdateChat({
+      id: partnerId, partnerId, name, badge: contactRole, avatar: post.avatar, time: 'Just now',
+      message: findingJobs ? 'I am interested in this job position' : initialMessage
+    });
     setSelectedPost(null);
-    setActiveChat({ partnerId, name, role: contactRole, avatar: post.avatar, initialMessage,
-      initialReplyTo: findingJobs || quote ? { author: findingJobs ? 'Job Post' : 'Service Post', text: snippet } : undefined });
+    setActiveChat({
+      partnerId, name, role: contactRole, avatar: post.avatar, initialMessage,
+      initialReplyTo: findingJobs || quote ? { author: findingJobs ? 'Job Post' : 'Service Post', text: snippet } : undefined
+    });
     return true;
   };
 
@@ -189,31 +196,31 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
         {isLoading ? <View style={deckStyles.centerWrapper}><BrowseDeckSkeleton /></View>
           : feedError || !card0 ? <View style={deckStyles.emptyContainer}><BrowseDeckEmpty role={role} fetchedCount={fetchedCount}
             hasFilters={activeFilterCount > 0} error={feedError} onRefresh={() => { void fetchFeed(true); }} onClearFilters={() => applyFilters({ ...DEFAULT_FILTERS })} /></View>
-          : <View style={deckStyles.centerWrapper}><View style={deckStyles.container}>
-            {card2 && <View style={deckStyles.back}><BrowseCardBackdrop avatarUri={card2.avatar} name={card2.employerName} /></View>}
-            {card1 && <View style={deckStyles.middle}><BrowseCardBackdrop avatarUri={card1.avatar} name={card1.employerName} /></View>}
-            <Animated.View style={[deckStyles.front, { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate: rotateCard }] }]} {...panHandlers}>
-              <BrowsePostCard startTime={card0.start_time} name={card0.employerName} avatarUri={card0.avatar} authorRole={partnerRole} title={card0.title}
-                location={card0.location} description={card0.aboutText} tags={card0.tags} price={card0.price} unit={card0.unit}
-                saved={isSaved(card0.id)} applied={findingJobs && isApplied(card0.id)} onProfilePress={() => openProfile(card0)}
-                onSave={() => { void toggleSave(card0, effectiveToken); }} onDetails={() => setSelectedPost(card0)} />
-            </Animated.View>
-            <BrowseDeckSwipeControls role={role} dragX={position.x} onSkip={() => swipeCard('left')} onInterested={() => swipeCard('right')} />
-          </View></View>}
+            : <View style={deckStyles.centerWrapper}><View style={deckStyles.container}>
+              {card2 && <View style={deckStyles.back}><BrowseCardBackdrop avatarUri={card2.avatar} name={card2.employerName} /></View>}
+              {card1 && <View style={deckStyles.middle}><BrowseCardBackdrop avatarUri={card1.avatar} name={card1.employerName} /></View>}
+              <Animated.View style={[deckStyles.front, { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate: rotateCard }] }]} {...panHandlers}>
+                <BrowsePostCard startTime={card0.start_time} name={card0.employerName} avatarUri={card0.avatar} authorRole={partnerRole} title={card0.title}
+                  location={card0.location} description={card0.aboutText} tags={card0.tags} price={card0.price} unit={card0.unit}
+                  saved={isSaved(card0.id)} applied={findingJobs && isApplied(card0.id)} onProfilePress={() => openProfile(card0)}
+                  onSave={() => { void toggleSave(card0, effectiveToken); }} onDetails={() => setSelectedPost(card0)} />
+              </Animated.View>
+              <BrowseDeckSwipeControls role={role} dragX={position.x} onSkip={() => swipeCard('left')} onInterested={() => swipeCard('right')} />
+            </View></View>}
       </> : <View style={styles.activityTabContainer}>
         {loadingSaved && activityPosts.length === 0 ? <BrowseDeckSkeleton />
           : savedLoadError ? <BrowseEmptyState icon="cloud-offline-outline" title={subTab === 'applied' ? 'Unable to load applications' : 'Unable to load saved posts'}
             description={savedLoadError} action="Retry" onAction={() => { void refreshSavedFromBackend(effectiveToken || null); }} />
-          : activityPosts.length === 0 ? <View style={deckStyles.emptyContainer}><BrowseEmptyState icon={subTab === 'applied' ? 'paper-plane-outline' : 'bookmark-outline'}
-            title={subTab === 'applied' ? 'No applications yet' : findingJobs ? 'No saved jobs yet' : 'No saved services yet'}
-            description={subTab === 'applied' ? 'Jobs you apply to will appear here.' : findingJobs ? 'Save job posts to review and apply when you are ready.' : 'Save service posts to review or message the kasambahay later.'}
+            : activityPosts.length === 0 ? <View style={deckStyles.emptyContainer}><BrowseEmptyState icon={subTab === 'applied' ? 'paper-plane-outline' : 'bookmark-outline'}
+              title={subTab === 'applied' ? 'No applications yet' : findingJobs ? 'No saved jobs yet' : 'No saved services yet'}
+              description={subTab === 'applied' ? 'Jobs you apply to will appear here.' : findingJobs ? 'Save job posts to review and apply when you are ready.' : 'Save service posts to review or message the kasambahay later.'}
             /></View>
-          : <View style={styles.activityList}>{activityPosts.map(post => <BrowseActivityCard key={post.id} post={post}
-            now={now}
-            applied={findingJobs && (subTab === 'applied' || isApplied(post.id))} closed={findingJobs && (isJobClosed(post) || !canUsePost(post))}
-            onProfile={() => openProfile(post)} onDetails={() => setSelectedPost(post)}
-            onUnsave={subTab === 'saved' ? () => { void toggleSave(post, effectiveToken); } : undefined}
-            onMessage={!findingJobs ? () => contactPost(post) : undefined} />)}</View>}
+              : <View style={styles.activityList}>{activityPosts.map(post => <BrowseActivityCard key={post.id} post={post}
+                now={now}
+                applied={findingJobs && (subTab === 'applied' || isApplied(post.id))} closed={findingJobs && (isJobClosed(post) || !canUsePost(post))}
+                onProfile={() => openProfile(post)} onDetails={() => setSelectedPost(post)}
+                onUnsave={subTab === 'saved' ? () => { void toggleSave(post, effectiveToken); } : undefined}
+                onMessage={!findingJobs ? () => contactPost(post) : undefined} />)}</View>}
       </View>}
       <JobDetailSheet visible={!!selectedPost} job={selectedPost} onClose={() => setSelectedPost(null)}
         isApplying={applyingJobId === selectedPost?.id}
@@ -228,6 +235,17 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
       <FilterModal visible={filterVisible} onClose={() => setFilterVisible(false)} onApply={applyFilters} initialFilters={filters} mode={role} />
       {profilePost && <UserProfileModal visible onClose={() => setProfilePost(null)} userId={String(profilePost.partnerId)}
         prefilledName={profilePost.employerName} prefilledRole={partnerRole} prefilledAvatar={profilePost.avatar} token={effectiveToken || ''} />}
+      {pendingReview && (
+        <ReviewModal
+          visible
+          bookingId={pendingReview.booking_id}
+          revieweeName={pendingReview.reviewee_name}
+          token={effectiveToken}
+          isMandatory
+          onClose={() => setPendingReview(null)}
+          onSuccess={() => setPendingReview(null)}
+        />
+      )}
     </ScrollView>
   </View>;
 }

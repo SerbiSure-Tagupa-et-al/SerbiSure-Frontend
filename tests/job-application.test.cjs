@@ -84,6 +84,7 @@ function home(t, f) {
       refreshSavedFromBackend: async () => {},
     }) },
     '../../bookings/hooks/useJobApplication': { useJobApplication },
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../../shared/components/GreetingCard': { GreetingCard: 'GreetingCard' },
     '../../../shared/components/ScreenLayout': { ScreenLayout: 'ScreenLayout' },
     '../../../shared/ui/ErrorNotice': { ErrorNotice: 'ErrorNotice' },

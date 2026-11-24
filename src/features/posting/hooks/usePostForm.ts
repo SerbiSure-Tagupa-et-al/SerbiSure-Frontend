@@ -1,6 +1,6 @@
 import { toggleService, SERVICE_CHOICES, WORK_SHIFTS, type WorkShift } from '../../bookings/engagementForm';
 import { publicPostHours } from '../workingHours';
-import { fetchMinimumWage, type MinimumWageData } from '../../bookings/api/bookingApi';
+import { fetchMinimumWage, extractPendingReview, type MinimumWageData, type PendingMandatoryReview } from '../../bookings/api/bookingApi';
 import { validatePostingRate } from '../validation';
 import { useState, useRef, useEffect } from 'react';
 import { Animated, Easing, Alert } from 'react-native';
@@ -53,6 +53,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
   const [isPosting, setIsPosting] = useState(false);
   const [showVerificationRequired, setShowVerificationRequired] = useState(false);
   const [showBookingRestricted, setShowBookingRestricted] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<string>('Unverified');
   const requestVersion = useRef(0);
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,6 +65,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
     setPostedSuccess(false);
     setShowVerificationRequired(false);
     setShowBookingRestricted(false);
+    setPendingReview(null);
     setStep(1);
     setFieldErrors({});
     setSelectedServices([]);
@@ -342,6 +344,20 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
             return;
           }
 
+          const requiredReview = extractPendingReview(errorData);
+          if (requiredReview) {
+            setIsPosting(false);
+            Alert.alert(
+              tr('Review Required'),
+              errorData?.detail ? String(errorData.detail) : tr(`Please submit your review for your completed booking with ${requiredReview.reviewee_name} before creating, applying for, or accepting a new booking.`),
+              [
+                { text: tr('Later'), style: 'cancel' },
+                { text: tr('Write Review Now'), onPress: () => setPendingReview(requiredReview) },
+              ],
+            );
+            return;
+          }
+
           let errorMsg: string = config.errorMessage;
           if (typeof errorData === 'string') {
             errorMsg = errorData;
@@ -422,6 +438,9 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
     setShowVerificationRequired,
     showBookingRestricted,
     setShowBookingRestricted,
+    pendingReview,
+    setPendingReview,
+    effectiveToken: token || user.token,
     verificationStatus,
     applyUserProfileAddress,
     scaleAnim,

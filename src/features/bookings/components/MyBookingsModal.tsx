@@ -476,16 +476,18 @@ export function MyBookingsModal({
         {/* Mandatory Quality Feedback Banner for Completed Bookings */}
         {(() => {
           const pendingFeedback = bookings.find((b) => b.booking_status === 'Completed' && !b.has_reviewed);
-          if (!pendingFeedback) return null;
-          const target = getBookingCounterparty(pendingFeedback, user.id);
-          const targetName = target ? target.name : 'Partner';
+          const pendingFromStatus = penalty?.pending_review;
+          if (!pendingFeedback && !pendingFromStatus) return null;
+          const target = pendingFeedback ? getBookingCounterparty(pendingFeedback, user.id) : null;
+          const bookingId = pendingFeedback?.booking_id || pendingFromStatus!.booking_id;
+          const targetName = target?.name || pendingFromStatus?.reviewee_name || 'Partner';
 
           return (
             <Pressable
               style={styles.mandatoryFeedbackBanner}
               onPress={() => {
                 setReviewBooking({
-                  id: pendingFeedback.booking_id,
+                  id: bookingId,
                   revieweeName: targetName,
                   isMandatory: true,
                 });

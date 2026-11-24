@@ -12,6 +12,8 @@ import { ScreenLayout } from '../../../shared/components/ScreenLayout';
 import { NotificationBell } from '../../notifications/NotificationContext';
 import { useJobsActivity } from '../../bookings/store/savedJobsStore';
 import { useJobApplication } from '../../bookings/hooks/useJobApplication';
+import type { PendingMandatoryReview } from '../../bookings/api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { UserProfileModal } from '../../profile/components/UserProfileModal';
 import { ChatDetailScreen } from '../../chat/components/ChatDetailScreen';
 import { JobDetailSheet } from '../components/JobDetailSheet';
@@ -45,7 +47,8 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
   const role = requestedRole || resolveRole(user.accountType);
   const authToken = token || user.token;
   const { posts, isLoading, isRefreshing, error, refresh } = useFeed(role, authToken, user.id);
-  const { applyJob, applyingJobId } = useJobApplication(authToken, () => { void handleRefresh(); });
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
+  const { applyJob, applyingJobId } = useJobApplication(authToken, () => { void handleRefresh(); }, setPendingReview);
   const { canUsePost } = usePostUpdates(posts, () => { void handleRefresh(); });
   const { isSaved, isApplied, isClosed, toggleSave, refreshSavedFromBackend } = useJobsActivity();
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,6 +132,17 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
         token={authToken}
       />
       {activeChat && <ChatDetailScreen visible onClose={() => setActiveChat(null)} partnerId={activeChat.post.partnerId} token={authToken} contactName={activeChat.post.employerName} contactRole={activeChat.post.kind === 'job' ? 'Homeowner' : activeChat.post.roleTag} contactAvatar={activeChat.post.avatar} initialMessage={activeChat.initialMessage} initialReplyTo={activeChat.initialReplyTo} userRole={role} />}
+      {pendingReview && (
+        <ReviewModal
+          visible
+          bookingId={pendingReview.booking_id}
+          revieweeName={pendingReview.reviewee_name}
+          token={authToken}
+          isMandatory
+          onClose={() => setPendingReview(null)}
+          onSuccess={() => setPendingReview(null)}
+        />
+      )}
     </View>
   );
 }

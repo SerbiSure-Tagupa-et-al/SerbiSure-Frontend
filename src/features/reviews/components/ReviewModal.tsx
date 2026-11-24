@@ -110,9 +110,13 @@ export const ReviewModal = forwardRef<ReviewModalHandle, ReviewModalProps>(funct
   const handleAttemptClose = () => {
     if (busy.current) return;
     if (isMandatory && !savedReview) {
-      Alert.alert('Share Your Feedback', 'Your review helps others choose a service partner. You can return to this booking to review it later.', [
-        { text: 'Keep Writing' }, { text: 'Review Later', onPress: onClose },
-      ]);
+      Alert.alert(
+        uiText('Review Required'),
+        uiText('A review is required after every completed booking. You will not be able to create, apply for, or accept new bookings until you submit this review.'),
+        [
+          { text: uiText('Keep Writing') }, { text: uiText('Review Later'), onPress: onClose },
+        ],
+      );
     } else onClose();
   };
 

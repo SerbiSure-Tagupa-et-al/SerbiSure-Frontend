@@ -1,7 +1,7 @@
 import { formatRate } from '../../../shared/utils/rate';
 import { workSetupLabel } from '../workSetup';
 import { useState, useEffect } from 'react';
-import { toggleSavePostApi, fetchSavedPostsApi, fetchMyProposalPosts, formatBookingLocationShort, applyToJobPost } from '../api/bookingApi';
+import { toggleSavePostApi, fetchSavedPostsApi, fetchMyProposalPosts, formatBookingLocationShort, applyToJobPost, PendingReviewError } from '../api/bookingApi';
 
 export interface SavedJobItem {
   id: string | number;
@@ -210,7 +210,9 @@ class SavedJobsStore {
       const result = await applyToJobPost(token, String(job.id));
       if (version !== this.sessionVersion) return null;
       if (!result.success || !result.proposal?.proposal_id) {
-        throw new Error(result.error || 'Your application could not be confirmed. Please try again.');
+        const message = result.error || 'Your application could not be confirmed. Please try again.';
+        if (result.pendingReview) throw new PendingReviewError(message, result.pendingReview);
+        throw new Error(message);
       }
       this.applicationRevision++;
       this.appliedMap.set(job.id, { ...job, application_status: 'applied' });

@@ -4,7 +4,8 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressa
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '../../auth/session/UserContext';
-import { submitBookingProposal, type PublicPendingPost } from '../../bookings/api/bookingApi';
+import { submitBookingProposal, type PublicPendingPost, type PendingMandatoryReview } from '../../bookings/api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { PendingPostCard } from './PendingPostCard';
 import { profileStyles as styles } from '../styles';
 
@@ -43,6 +44,7 @@ export function PublicPostsSection({
   const { user, refreshVerificationStatus } = useUser();
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<PublicPendingPost | null>(null);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const [rate, setRate] = useState('');
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -122,15 +124,22 @@ export function PublicPostsSection({
         token,
         selected.booking_id,
         amount,
-        `${isJob ? 'Job application' : 'Hiring offer'}: ${
-          message.trim() ||
-          (isJob ? 'I would like to apply for this job.' : 'I would like to hire you for this service.')
+        `${isJob ? 'Job application' : 'Hiring offer'}: ${message.trim() ||
+        (isJob ? 'I would like to apply for this job.' : 'I would like to hire you for this service.')
         }`,
         selected.rate_period
       );
       if (!result.success || !result.proposal) {
-        Alert.alert('Unable to Send', result.error || 'Please try again.');
-        onRefresh();
+        if (result.pendingReview) {
+          const pending = result.pendingReview;
+          Alert.alert(uiText('Review Required'), result.error || uiText('Please submit your pending review first.'), [
+            { text: uiText('Later'), style: 'cancel' },
+            { text: uiText('Write Review Now'), onPress: () => setPendingReview(pending) },
+          ]);
+        } else {
+          Alert.alert('Unable to Send', result.error || 'Please try again.');
+          onRefresh();
+        }
         return;
       }
       onSubmitted(selected.booking_id, result.proposal);
@@ -186,10 +195,10 @@ export function PublicPostsSection({
                   ? 'Your application is awaiting a response'
                   : 'Your hiring offer is awaiting a response'
                 : status === 'Accepted'
-                ? 'Your proposal was accepted'
-                : isJob
-                ? 'Waiting for worker applications'
-                : 'Available for hiring offers';
+                  ? 'Your proposal was accepted'
+                  : isJob
+                    ? 'Waiting for worker applications'
+                    : 'Available for hiring offers';
 
             return (
               <PendingPostCard
@@ -303,6 +312,17 @@ export function PublicPostsSection({
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
+      {pendingReview && (
+        <ReviewModal
+          visible
+          bookingId={pendingReview.booking_id}
+          revieweeName={pendingReview.reviewee_name}
+          token={token}
+          isMandatory
+          onClose={() => setPendingReview(null)}
+          onSuccess={() => setPendingReview(null)}
+        />
+      )}
     </View>
   );
 }

@@ -121,6 +121,7 @@ function bookingDetails(t, role, bookingType, ongoing = false, options = {}) {
     '../hooks/useWorkLocation': realLocation || { useWorkLocation: () => address }, '../../posting/validation': load('src/features/posting/validation.ts', { './postingConfig': load('src/features/posting/postingConfig.ts') }),
     '../../../shared/ui/ProfileAvatar': { ProfileAvatar: 'ProfileAvatar' }, '../api/bookingApi': { fetchBookingDetail: options.fetchBookingDetail || (async () => null), formatBookingAddress: addressApi.formatBookingAddress, fetchMinimumWage: async (_token, type) => ({ booking_type: type, rate_period: type === 'long_term' ? 'month' : 'day', minimum_rate: type === 'long_term' ? '6500' : '600' }) },
     '../../profile/components/PrivacyPolicyModal': { PrivacyPolicyModal: props => props.visible ? React.createElement('PrivacyPolicyModal', props) : null },
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../../shared/theme/theme': theme, '../../../../assets/serbisure-logo.png': 1, '../../../../assets/serbisure-icon.png': 1,
   });
   const render = (status = {}) => screen.render(React.createElement(BookingModal, {
@@ -481,6 +482,7 @@ function browse(t, role) {
     '../../../shared/components/AppHeader': { AppHeader: 'AppHeader' }, '../../auth/session/UserContext': { useUser: () => ({ user }) },
     '../../bookings/store/savedJobsStore': { useJobsActivity: () => store }, '../../chat/components/ChatDetailScreen': { ChatDetailScreen: 'ChatDetailScreen' },
     '../../bookings/hooks/useJobApplication': { useJobApplication: () => ({ applyJob: async () => ({ created: true }), applyingJobId: null }) },
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../chat/store/chatStore': { chatStore: { addOrUpdateChat: chat => chats.push(chat) } }, '../../notifications/NotificationContext': { NotificationBell: 'NotificationBell' },
     '../../profile/components/UserProfileModal': { UserProfileModal: 'UserProfileModal' }, '../components/BrowseActivityCard': { BrowseActivityCard: 'BrowseActivityCard' },
     '../components/BrowseHeader': { BrowseHeader: 'BrowseHeader', BrowseFilters: 'BrowseFilters' }, '../components/BrowsePostCard': { BrowsePostCard: 'BrowsePostCard', BrowseCardBackdrop: 'BrowseCardBackdrop' },

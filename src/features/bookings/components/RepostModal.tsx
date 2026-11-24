@@ -3,7 +3,8 @@ import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
 import { generateUUID } from '../../chat/api/chatApi';
-import { repostBooking, type BookingItem } from '../api/bookingApi';
+import { repostBooking, getPendingReviewFromError, type BookingItem, type PendingMandatoryReview } from '../api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { buildEngagementSchedule, WORK_SHIFTS, type WorkShift } from '../engagementForm';
 import { WorkScheduleFields } from './WorkScheduleFields';
 
@@ -19,6 +20,7 @@ export function RepostModal({ post, token, onClose, onSuccess }: {
   const [shift, setShift] = useState<WorkShift | null>(null);
   const [ongoing, setOngoing] = useState(post.booking_type === 'long_term' && !post.end_time);
   const [saving, setSaving] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const busy = useRef(false);
   const draft = useRef<{ body: string; key: string } | null>(null);
   const submit = async () => {
@@ -36,7 +38,15 @@ export function RepostModal({ post, token, onClose, onSuccess }: {
       onSuccess();
       onClose();
     } catch (error) {
-      Alert.alert(tr('Could not repost'), tr(error instanceof Error ? error.message : 'Please try again.'));
+      const requiredReview = getPendingReviewFromError(error);
+      if (requiredReview) {
+        Alert.alert(tr('Review Required'), tr(error instanceof Error ? error.message : 'Please submit your pending review first.'), [
+          { text: tr('Later'), style: 'cancel' },
+          { text: tr('Write Review Now'), onPress: () => setPendingReview(requiredReview) },
+        ]);
+      } else {
+        Alert.alert(tr('Could not repost'), tr(error instanceof Error ? error.message : 'Please try again.'));
+      }
     } finally { busy.current = false; setSaving(false); }
   };
   return <Modal visible animationType="slide" onRequestClose={() => { if (!busy.current) onClose(); }}>
@@ -53,5 +63,16 @@ export function RepostModal({ post, token, onClose, onSuccess }: {
       </Pressable>
       <Pressable disabled={saving} onPress={onClose} style={{ padding: 16, alignItems: 'center' }}><Text>{tr('Cancel')}</Text></Pressable>
     </ScrollView>
+    {pendingReview && (
+      <ReviewModal
+        visible
+        bookingId={pendingReview.booking_id}
+        revieweeName={pendingReview.reviewee_name}
+        token={token}
+        isMandatory
+        onClose={() => setPendingReview(null)}
+        onSuccess={() => setPendingReview(null)}
+      />
+    )}
   </Modal>;
 }

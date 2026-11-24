@@ -70,6 +70,7 @@ function screen(t, role, withProfile = false) {
     'react-native': native, 'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) }, '@expo/vector-icons': { Ionicons: 'Icon' },
     '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: text => text }) }, '../../auth/session/UserContext': context,
     '../../bookings/api/bookingApi': { submitBookingProposal: async (...args) => { submissions.push(args); return { success: true, proposal: { proposal_id: 'proposal' } }; } },
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     './PendingPostCard': { PendingPostCard: props => React.createElement('View', {}, props.children) }, '../styles': { profileStyles: {} },
   });
   function Entry() {

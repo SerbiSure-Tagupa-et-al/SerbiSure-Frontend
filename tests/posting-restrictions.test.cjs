@@ -64,7 +64,10 @@ function postingScreen(t, mode = 'service') {
   const { usePostForm } = load('src/features/posting/hooks/usePostForm.ts', {
     'react-native': native, 'react-native-safe-area-context': safeArea,
     '../../bookings/engagementForm': engagement, '../workingHours': load('src/features/posting/workingHours.ts'), '../validation': validation, '../postingConfig': posting,
-    '../../bookings/api/bookingApi': { fetchMinimumWage: async (_token, type) => ({ rate_period: type === 'long_term' ? 'month' : 'day', minimum_rate: type === 'long_term' ? '6500' : '600' }) },
+    '../../bookings/api/bookingApi': {
+      fetchMinimumWage: async (_token, type) => ({ rate_period: type === 'long_term' ? 'month' : 'day', minimum_rate: type === 'long_term' ? '6500' : '600' }),
+      extractPendingReview: data => data?.code === 'pending_mandatory_review' && data?.pending_review?.booking_id ? data.pending_review : null,
+    },
     '../api/postingApi': { submitPost: (...args) => { const request = { ...deferred(), args }; requests.push(request); return request.promise; } },
     '../../auth/session/UserContext': { useUser: () => ({ user }) },
     '../../../shared/localization/LanguageContext': language,
@@ -97,6 +100,7 @@ function postingScreen(t, mode = 'service') {
     '../../../../assets/serbisure-logo.png': 1, '../styles': { postingStyles: {} },
     '../hooks/usePostForm': { usePostForm: props => { controller = usePostForm(props); return controller; } },
     '../../bookings/components/BookingRestrictionModal': restriction,
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../verification/components/VerificationRequiredModal': { VerificationRequiredModal: props => props.visible ? React.createElement('Text', {}, 'Account Verification Required') : null },
     '../components/PostStep1': step1,
     '../components/PostStep2': step2,

@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { VerificationRequiredModal } from '../../verification/components/VerificationRequiredModal';
 import { BookingRestrictionModal } from '../../bookings/components/BookingRestrictionModal';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 
 const logoSource = require('../../../../assets/serbisure-icon.png');
 
@@ -37,6 +38,9 @@ export function PostScreen(props: PostScreenProps) {
     setShowVerificationRequired,
     showBookingRestricted,
     setShowBookingRestricted,
+    pendingReview,
+    setPendingReview,
+    effectiveToken,
     verificationStatus,
     scaleAnim,
     spin,
@@ -212,6 +216,18 @@ export function PostScreen(props: PostScreenProps) {
             onOpenVerification?.();
           }}
         />
+
+        {pendingReview && (
+          <ReviewModal
+            visible
+            bookingId={pendingReview.booking_id}
+            revieweeName={pendingReview.reviewee_name}
+            token={effectiveToken}
+            isMandatory
+            onClose={() => setPendingReview(null)}
+            onSuccess={() => setPendingReview(null)}
+          />
+        )}
       </KeyboardAvoidingView>
     </Modal>
   );

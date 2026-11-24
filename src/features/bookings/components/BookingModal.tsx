@@ -2,7 +2,9 @@ import { useLanguage as useUiLanguage } from '../../../shared/localization/Langu
 import { useUser } from '../../auth/session/UserContext';
 import type { WorkSetup } from '../workSetup';
 import { workSetupLabel } from '../workSetup';
-import { confirmBookingAcceptance, bookingResponseMessage } from '../bookingAcceptance';
+import { confirmBookingAcceptance, bookingResponseMessage, getPendingReviewFromError, promptPendingReview } from '../bookingAcceptance';
+import type { PendingMandatoryReview } from '../api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { bookingStartTime, isAcceptanceExpired, PASSED_SCHEDULE_MESSAGE } from '../postAvailability';
 import { useScheduleClock } from '../hooks/useScheduleClock';
 import { buildEngagementSchedule, normalizeServices, toggleService, SERVICE_CHOICES, WORK_SHIFTS, type WorkShift } from '../engagementForm';
@@ -140,7 +142,7 @@ export function BookingModal({
       if (current && booking?.booking_id === ticketId) {
         setFreshPass({ key: ticketKey, source: savedPassUrl, url: booking.pass_url || null });
       }
-    }).catch(() => {});
+    }).catch(() => { });
     return () => { current = false; };
   }, [visible, readOnly, ticketId, ticketToken]);
   const insets = useSafeAreaInsets();
@@ -171,6 +173,7 @@ export function BookingModal({
   const [savedRegion, setSavedRegion] = useState('');
   const region = readOnly ? savedRegion : address.selectedRegion?.displayName || address.selectedRegion?.name || '';
   const [submitting, setSubmitting] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const submittingRef = useRef(false);
   const [minWageInfo, setMinWageInfo] = useState<MinimumWageData | null>(null);
   const [policyLoading, setPolicyLoading] = useState(false);
@@ -401,7 +404,12 @@ export function BookingModal({
       street: address.streetAddress.trim(), floorUnit: address.floorUnit.trim(), zipCode: address.zipcode.trim(),
     })).then(handleClose).catch(error => {
       submittingRef.current = false; setSubmitting(false);
-      Alert.alert(uiText('Cannot Send Offer'), uiText(bookingResponseMessage(error)));
+      const requiredReview = getPendingReviewFromError(error);
+      if (requiredReview) {
+        promptPendingReview(requiredReview, bookingResponseMessage(error), setPendingReview, uiText);
+      } else {
+        Alert.alert(uiText('Cannot Send Offer'), uiText(bookingResponseMessage(error)));
+      }
     });
 
   };
@@ -411,7 +419,12 @@ export function BookingModal({
     submittingRef.current = true; setSubmitting(true);
     void Promise.resolve().then(action).then(handleClose).catch(error => {
       submittingRef.current = false; setSubmitting(false);
-      Alert.alert(uiText('Booking not updated'), uiText(bookingResponseMessage(error)));
+      const requiredReview = getPendingReviewFromError(error);
+      if (requiredReview) {
+        promptPendingReview(requiredReview, bookingResponseMessage(error), setPendingReview, uiText);
+      } else {
+        Alert.alert(uiText('Booking not updated'), uiText(bookingResponseMessage(error)));
+      }
     });
   };
 
@@ -436,22 +449,22 @@ export function BookingModal({
         },
       ]}
     >
-        {/* Global Aligned Header Matching Chat Screen */}
-        <View style={styles.header}>
-          <Pressable onPress={handleBack} disabled={submitting} style={styles.backBtn} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
-          </Pressable>
+      {/* Global Aligned Header Matching Chat Screen */}
+      <View style={styles.header}>
+        <Pressable onPress={handleBack} disabled={submitting} style={styles.backBtn} hitSlop={12}>
+          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+        </Pressable>
 
-          <View style={styles.headerTitleCenter}>
-            <Text style={styles.headerTitle}>{readOnly ? 'Booking Details' : 'Booking Offer'}</Text>
-          </View>
-
-          <View style={styles.headerRight}>
-            <Image source={logoSource} style={styles.logo} resizeMode="contain" />
-          </View>
+        <View style={styles.headerTitleCenter}>
+          <Text style={styles.headerTitle}>{readOnly ? 'Booking Details' : 'Booking Offer'}</Text>
         </View>
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.headerRight}>
+          <Image source={logoSource} style={styles.logo} resizeMode="contain" />
+        </View>
+      </View>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {!readOnly && (
           <View style={styles.progressContainer}>
             <Text style={styles.progressText}>
@@ -905,17 +918,28 @@ export function BookingModal({
                   {submitting
                     ? 'Sending…'
                     : offerStep === 3 && policyLoading
-                    ? 'Checking pay…'
-                    : offerStep === 4
-                    ? 'Send Offer'
-                    : uiText("Next")}
+                      ? 'Checking pay…'
+                      : offerStep === 4
+                        ? 'Send Offer'
+                        : uiText("Next")}
                 </Text>
               </Pressable>
             </View>
           )}
         </View>
-        </KeyboardAvoidingView>
-      </Animated.View>
+      </KeyboardAvoidingView>
+      {pendingReview && (
+        <ReviewModal
+          visible
+          bookingId={pendingReview.booking_id}
+          revieweeName={pendingReview.reviewee_name}
+          token={token || user.token}
+          isMandatory
+          onClose={() => setPendingReview(null)}
+          onSuccess={() => setPendingReview(null)}
+        />
+      )}
+    </Animated.View>
   );
 
   if (!useNativeModal) {
