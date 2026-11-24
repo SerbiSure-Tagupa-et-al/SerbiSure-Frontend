@@ -33,6 +33,9 @@ const EXTRACTED_FIELD_LABELS: Record<string, string> = {
   last_name: 'Last Name',
   date_of_birth: 'Date of Birth',
   clearance_number: 'Clearance No.',
+  certificate_number: 'Certificate No.',
+  qualification_title: 'Qualification',
+  issuing_body: 'Issuing Body',
   philsys_number: 'PhilSys Card No.',
   document_number: 'Document No.',
   date_issued: 'Date Issued',
@@ -123,9 +126,10 @@ export function VerificationStatusModal({
   const insets = useSafeAreaInsets();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [idPhotoVisible, setIdPhotoVisible] = useState(false);
-  const [activeBox, setActiveBox] = useState<'nbi' | 'police' | 'national_front' | 'national_back' | null>(null);
+  const [activeBox, setActiveBox] = useState<'nbi' | 'police' | 'tesda' | 'national_front' | 'national_back' | null>(null);
   const [nbiImage, setNbiImage] = useState<string | null>(null);
   const [policeImage, setPoliceImage] = useState<string | null>(null);
+  const [tesdaImage, setTesdaImage] = useState<string | null>(null);
   const [nationalFrontImage, setNationalFrontImage] = useState<string | null>(null);
   const [nationalBackImage, setNationalBackImage] = useState<string | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -170,6 +174,7 @@ export function VerificationStatusModal({
   const handleClose = () => {
     setNbiImage(null);
     setPoliceImage(null);
+    setTesdaImage(null);
     setNationalFrontImage(null);
     setNationalBackImage(null);
     setActiveBox(null);
@@ -179,7 +184,7 @@ export function VerificationStatusModal({
     onClose();
   };
 
-  const handleBoxPress = (box: 'nbi' | 'police' | 'national_front' | 'national_back') => {
+  const handleBoxPress = (box: 'nbi' | 'police' | 'tesda' | 'national_front' | 'national_back') => {
     setActiveBox(box);
     setIdPhotoVisible(true);
   };
@@ -187,6 +192,7 @@ export function VerificationStatusModal({
   const handlePickedImage = (uri: string) => {
     if (activeBox === 'nbi') setNbiImage(uri);
     else if (activeBox === 'police') setPoliceImage(uri);
+    else if (activeBox === 'tesda') setTesdaImage(uri);
     else if (activeBox === 'national_front') setNationalFrontImage(uri);
     else if (activeBox === 'national_back') setNationalBackImage(uri);
   };
@@ -198,6 +204,7 @@ export function VerificationStatusModal({
     }
     else if (docType === 'nbi_clearance') handleBoxPress('nbi');
     else if (docType === 'police_clearance') handleBoxPress('police');
+    else if (docType === 'tesda_nc2') handleBoxPress('tesda');
     else if (docType === 'national_id_front') handleBoxPress('national_front');
     else if (docType === 'national_id_back') handleBoxPress('national_back');
   };
@@ -241,11 +248,12 @@ export function VerificationStatusModal({
 
   const needsNbi = effectiveRole === 'kasambahay' && (!activeTypes.has('nbi_clearance') || !!nbiImage);
   const needsPolice = effectiveRole === 'kasambahay' && (!activeTypes.has('police_clearance') || !!policeImage);
+  const needsTesda = effectiveRole === 'kasambahay' && (!activeTypes.has('tesda_nc2') || !!tesdaImage);
   const needsFront = effectiveRole === 'homeowner' && (!activeTypes.has('national_id_front') || !!nationalFrontImage);
   const needsBack = effectiveRole === 'homeowner' && (!activeTypes.has('national_id_back') || !!nationalBackImage);
 
-  const hasAnyNeeds = needsNbi || needsPolice || needsFront || needsBack;
-  const hasAnySelected = !!(nbiImage || policeImage || nationalFrontImage || nationalBackImage);
+  const hasAnyNeeds = needsNbi || needsPolice || needsTesda || needsFront || needsBack;
+  const hasAnySelected = !!(nbiImage || policeImage || tesdaImage || nationalFrontImage || nationalBackImage);
 
   const handleUploadAll = async () => {
     if (uploading.current) return;
@@ -268,12 +276,9 @@ export function VerificationStatusModal({
       if (nationalFrontImage && !activeTypes.has('national_id_front')) uploads.push({ type: 'national_id_front', uri: nationalFrontImage });
       if (nationalBackImage && !activeTypes.has('national_id_back')) uploads.push({ type: 'national_id_back', uri: nationalBackImage });
     } else {
-      if (needsNbi && !nbiImage && needsPolice && !policeImage) {
-        Alert.alert('Missing Documents', 'Please upload at least one clearance document.');
-        return;
-      }
       if (nbiImage && !activeTypes.has('nbi_clearance')) uploads.push({ type: 'nbi_clearance', uri: nbiImage });
       if (policeImage && !activeTypes.has('police_clearance')) uploads.push({ type: 'police_clearance', uri: policeImage });
+      if (tesdaImage && !activeTypes.has('tesda_nc2')) uploads.push({ type: 'tesda_nc2', uri: tesdaImage });
     }
 
     if (uploads.length === 0) {
@@ -316,6 +321,7 @@ export function VerificationStatusModal({
         }
         if (upload.type === 'nbi_clearance') setNbiImage(null);
         else if (upload.type === 'police_clearance') setPoliceImage(null);
+        else if (upload.type === 'tesda_nc2') setTesdaImage(null);
         else if (upload.type === 'national_id_front') setNationalFrontImage(null);
         else setNationalBackImage(null);
       }
@@ -323,6 +329,7 @@ export function VerificationStatusModal({
       Alert.alert(uiText('Success'), uiText("Your documents are submitted. We'll notify you after review."));
       setNbiImage(null);
       setPoliceImage(null);
+      setTesdaImage(null);
       setNationalFrontImage(null);
       setNationalBackImage(null);
     } catch (error: any) {
@@ -377,7 +384,7 @@ export function VerificationStatusModal({
                 : isRejected
                   ? uiText("Action Required")
                   : isUnderReview
-                    ? uiText("Under Review")
+                    ? hasAnyNeeds ? uiText('Complete your verification') : uiText("Under Review")
                     : uiText("Verify Your Identity")}
             </Text>
             <Text style={styles.bannerSubtitle}>
@@ -387,7 +394,9 @@ export function VerificationStatusModal({
                 : isRejected
                   ? uiText("One of your documents was not accepted. Please check the notes below.")
                   : isUnderReview
-                    ? uiText("Your documents are currently being reviewed by Barangay Officials.")
+                    ? hasAnyNeeds
+                      ? uiText('Upload your remaining required documents below to complete verification.')
+                      : uiText("Your documents are currently being reviewed by Barangay Officials.")
                     : uiText("Upload your valid identity documents to unlock verified credentials.")}
             </Text>
           </View>
@@ -527,7 +536,7 @@ export function VerificationStatusModal({
           />
 
           <View style={styles.docItemTitleBox}>
-            <Text style={styles.docItemTitle} numberOfLines={1}>{uiText(docTitle)}</Text>
+            <Text style={styles.docItemTitle} numberOfLines={2}>{uiText(docTitle)}</Text>
             {formattedDate ? (
               <Text style={styles.docItemSub} numberOfLines={1}>
                 {isVerified ? 'Verified by Barangay Official' : `Submitted on ${formattedDate}`}
@@ -763,6 +772,17 @@ export function VerificationStatusModal({
             defaultFilename="police_clearance.jpg"
             onPress={() => handleBoxPress('police')}
             onRemove={() => setPoliceImage(null)}
+          />
+        ) : null}
+
+        {needsTesda ? (
+          <UploadBox
+            title={uiText("TESDA NC II")}
+            subtitle={uiText('Tap to take or choose a photo')}
+            image={tesdaImage}
+            defaultFilename="tesda_nc2.jpg"
+            onPress={() => handleBoxPress('tesda')}
+            onRemove={() => setTesdaImage(null)}
           />
         ) : null}
 

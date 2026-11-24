@@ -12,7 +12,7 @@ export interface DocumentDiscrepancy {
 
 export interface DocumentStatusItem {
   document_id: string;
-  document_type: 'nbi_clearance' | 'police_clearance' | 'national_id_front' | 'national_id_back' | 'profile_photo';
+  document_type: 'nbi_clearance' | 'police_clearance' | 'tesda_nc2' | 'national_id_front' | 'national_id_back' | 'profile_photo';
   verification_status: 'Unverified' | 'Pending' | 'Verified' | 'Rejected';
   document_image_url: string | null;
   date_issued: string | null;

@@ -1,6 +1,10 @@
 // English source text -> Tagalog, Bisaya. Keep stored API values in English;
 // translate only their presentation. User-authored content is never passed here.
 export const UI_MESSAGES = {
+  'TESDA NC II': ['TESDA NC II', 'TESDA NC II'],
+  'Complete your verification': ['Kumpletuhin ang iyong beripikasyon', 'Kompletoha ang imong beripikasyon'],
+  'Upload your remaining required documents below to complete verification.': ['I-upload sa ibaba ang mga natitirang kailangang dokumento upang makumpleto ang beripikasyon.', 'I-upload sa ubos ang nahibiling gikinahanglang mga dokumento aron makompleto ang beripikasyon.'],
+  'Please upload your NBI Clearance, Police Clearance, and TESDA NC II.': ['I-upload ang iyong NBI Clearance, Police Clearance, at TESDA NC II.', 'I-upload ang imong NBI Clearance, Police Clearance, ug TESDA NC II.'],
   'Profile Photo Verified': ['Aprubado ang larawan sa profile', 'Aprobado ang litrato sa profile'],
   'Photo Under Review': ['Sinusuri pa ang larawan', 'Gisusi pa ang litrato'],
   'Profile Photo Needs Retake': ['Kailangang kumuha ng bagong larawan', 'Kinahanglang mokuha og bag-ong litrato'],

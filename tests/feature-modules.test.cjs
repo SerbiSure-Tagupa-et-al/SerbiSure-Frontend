@@ -148,7 +148,7 @@ test('account roles select the correct posting mode and verification documents',
   assert.deepEqual(roles.ROLE_CONFIG.homeowner.requiredDocuments, ['national_id_front', 'national_id_back']);
   assert.equal(roles.ROLE_CONFIG.kasambahay.postingMode, 'service');
   assert.equal(roles.ROLE_CONFIG.kasambahay.workerProfile, true);
-  assert.deepEqual(roles.ROLE_CONFIG.kasambahay.requiredDocuments, ['nbi_clearance', 'police_clearance']);
+  assert.deepEqual(roles.ROLE_CONFIG.kasambahay.requiredDocuments, ['nbi_clearance', 'police_clearance', 'tesda_nc2']);
 });
 
 test('public-profile posts use the requested author and preserve pending proposal state', async () => {

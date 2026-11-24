@@ -110,6 +110,7 @@ test('only current submissions are displayed; historical expired approval cannot
   const app = screen(t, { overall_status: 'Pending', renewal_pending: true, documents: [
     doc('police_clearance', 'Verified', '2000-01-01', 'old'),
     doc('police_clearance', 'Pending', null, 'renewed', '2026-10-02T00:00:00Z'), doc('nbi_clearance'),
+    doc('tesda_nc2'),
   ] });
   assert.ok(app.text().includes('Renewal under review'));
   assert.ok(!app.text().includes('Upload renewed clearance'));
@@ -126,4 +127,30 @@ test('a concurrent submission conflict refreshes the screen and never reports up
   assert.equal(app.alerts.at(-1)[0], 'Upload Failed');
   assert.ok(app.alerts.at(-1)[1].includes('already submitted'));
   assert.ok(app.refreshed > 0);
+});
+
+test('existing worker keeps all three approvals and can upload only the missing skill certificate', async t => {
+  const app = screen(t, { overall_status: 'Pending', documents: [
+    doc('profile_photo'), doc('police_clearance'), doc('nbi_clearance'),
+  ] });
+  assert.ok(app.text().includes('Complete your verification'));
+  assert.ok(app.text().includes('Upload your remaining required documents below'));
+  assert.equal(app.nodes().filter(node => node.type === 'Text' && content(node) === 'Approved').length, 3);
+  assert.equal(app.nodes().filter(node => node.type === 'Pressable' && content(node).includes('Tap to take or choose a photo')).length, 1);
+  app.press('TESDA NC II');
+  app.act(() => app.nodes().find(node => node.type === 'PhotoPicker').props.onPickedImage('file://tesda_nc2.jpg'));
+  app.press('Submit Documents');
+  assert.equal(app.requests.length, 1);
+  assert.deepEqual(app.requests[0].args[1].body.values[0], ['document_type', 'tesda_nc2']);
+  app.requests[0].resolve({ ok: true, status: 201 }); await tick();
+  assert.equal(app.alerts.at(-1)[0], 'Success');
+  app.render({ overall_status: 'Pending', documents: [doc('profile_photo'), doc('police_clearance'), doc('nbi_clearance'), doc('tesda_nc2', 'Pending', null)] });
+  assert.ok(!app.text().includes('Complete your verification'));
+  assert.ok(!app.text().includes('Upload Documents'));
+});
+
+test('skill certificate renewals respect expiry dates; equivalent certificates can have no expiry', () => {
+  assert.equal(helpers.documentLabel('tesda_nc2'), 'TESDA NC II');
+  assert.equal(helpers.canReplaceDocument(doc('tesda_nc2', 'Verified', null)), false);
+  assert.equal(helpers.canReplaceDocument(doc('tesda_nc2', 'Verified', '2000-01-01')), true);
 });

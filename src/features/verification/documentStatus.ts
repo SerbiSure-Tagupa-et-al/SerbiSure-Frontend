@@ -10,6 +10,7 @@ export function documentIsExpired(document: DocumentStatusItem, now = Date.now()
 export function documentLabel(type: string): string {
   const names: Record<string, string> = {
     profile_photo: 'Profile Photo', nbi_clearance: 'NBI Clearance', police_clearance: 'Police Clearance',
+    tesda_nc2: 'TESDA NC II',
     national_id_front: 'National ID (Front)', national_id_back: 'National ID (Back)',
   };
   return names[type] || type.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());

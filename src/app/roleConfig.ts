@@ -14,6 +14,6 @@ export const ROLE_CONFIG = {
   kasambahay: {
     accountType: 'Kasambahay', partnerType: 'Homeowner', postingMode: 'service',
     searchKey: 'searchJobs', browseLabelKey: 'tabJobs',
-    workerProfile: true, requiredDocuments: ['nbi_clearance', 'police_clearance'],
+    workerProfile: true, requiredDocuments: ['nbi_clearance', 'police_clearance', 'tesda_nc2'],
   },
 } as const;
