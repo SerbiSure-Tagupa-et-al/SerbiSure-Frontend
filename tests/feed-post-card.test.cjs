@@ -72,14 +72,21 @@ function card(t, props = {}) {
   return { rootNode, calls, options, render, nodes: () => descendants(rootNode) };
 }
 
-test('compact timestamps cover minute/hour/day boundaries and omit unknown dates', t => {
+test('compact timestamps cover minute/hour/day/month/year boundaries and omit unknown dates', t => {
   const now = Date.parse('2026-10-30T12:00:00Z');
   t.mock.method(Date, 'now', () => now);
-  for (const [minutes, expected] of [[0, 'Now'], [1, '1m'], [59, '59m'], [60, '1h'], [540, '9h'], [720, '12h'], [1440, '1d'], [4320, '3d']]) {
+  for (const [minutes, expected] of [[0, 'Now'], [1, '1m'], [59, '59m'], [60, '1h'], [540, '9h'], [720, '12h'], [1439, '23h'], [1440, '1d'], [4320, '3d']]) {
     assert.equal(dates.formatCompactTimeAgo(new Date(now - minutes * 60000).toISOString()), expected);
   }
-  assert.equal(dates.formatCompactTimeAgo('invalid'), '');
-  assert.equal(dates.formatCompactTimeAgo(), '');
+  for (const [days, expected] of [[29, '29d'], [30, '1mo'], [43, '1mo'], [359, '11mo'], [360, '1y'], [367, '1y'], [730, '2y']]) {
+    const date = new Date(now - days * 1440 * 60000).toISOString();
+    assert.equal(dates.formatCompactTimeAgo(date), expected);
+    assert.equal(dates.formatTimeAgo(date), `Posted ${expected} ago`);
+  }
+  for (const input of [undefined, null, '', 'invalid']) {
+    assert.equal(dates.formatCompactTimeAgo(input), '');
+    assert.equal(dates.formatTimeAgo(input), 'Recently');
+  }
 });
 
 for (const kind of ['job', 'service']) {

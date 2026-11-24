@@ -1,5 +1,6 @@
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { formatRate } from '../../../shared/utils/rate';
+import { formatCompactTimeAgo } from '../../../shared/utils/date';
 import { realtime } from '../../../shared/realtime';
 import { AppState } from 'react-native';
 import { workSetupLabel } from '../workSetup';
@@ -560,6 +561,7 @@ export function MyBookingsModal({
             </View>
           ) : bookings.length > 0 ? (
             bookings.map((booking) => {
+              const postedAgo = formatCompactTimeAgo(booking.createdAt);
               const counterparty = getBookingCounterparty(booking, user.id);
               const partnerInfo = counterparty || (booking.poster?.id !== user.id ? booking.poster : null);
               const displayName = partnerInfo?.name || uiText("Waiting for Kasambahay");
@@ -626,6 +628,12 @@ export function MyBookingsModal({
                             <Text style={styles.newBadgeText}>{uiText('New')}</Text>
                           </View>
                         ))}
+                        {postedAgo ? (
+                          <>
+                            <Text style={styles.ratingSeparator}>·</Text>
+                            <Text style={styles.cardRoleText}>{postedAgo}</Text>
+                          </>
+                        ) : null}
                       </View>
                     </View>
                   </Pressable>

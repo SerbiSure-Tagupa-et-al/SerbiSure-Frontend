@@ -14,6 +14,7 @@ function load(file, mocks = {}, timers = global) {
   const module = { exports: {} };
   new Function('require', 'module', 'exports', 'setTimeout', 'clearTimeout', source)(name => {
     if (name === 'react') return { ...React, default: React };
+    if (name === '../../../shared/utils/date') return load('src/shared/utils/date.ts');
     if (name in mocks) return mocks[name];
     throw new Error('Unexpected dependency: ' + name);
   }, module, module.exports, timers.setTimeout, timers.clearTimeout);

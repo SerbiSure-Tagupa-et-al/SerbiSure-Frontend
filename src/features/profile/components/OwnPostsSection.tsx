@@ -6,6 +6,7 @@ import { useLanguage } from '../../../shared/localization/LanguageContext';
 import { type BookingItem, formatBookingAddress, cancelBooking } from '../../bookings/api/bookingApi';
 import { postDisplayStatus } from '../../bookings/postAvailability';
 import { workSetupLabel } from '../../bookings/workSetup';
+import { formatCompactTimeAgo } from '../../../shared/utils/date';
 
 function clockLabel(value?: string | null): string {
   const match = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(value || '');
@@ -100,6 +101,7 @@ export function OwnPostsSection({
         </View>
       )}
       {posts.map(post => {
+        const postedAgo = formatCompactTimeAgo(post.createdAt);
         const status = statusFor(post);
         const statusColor = statusColors[status] || '#6B7280';
         const [whole, decimals] = rateParts(post);
@@ -128,6 +130,9 @@ export function OwnPostsSection({
                   <Text style={[styles.statusText, { color: statusColor }]}>
                     {tr(status)}
                   </Text>
+                  {postedAgo ? (
+                    <Text style={[styles.statusText, { fontSize: 12, fontWeight: '500', color: '#6B7280' }]}>{`· ${postedAgo}`}</Text>
+                  ) : null}
                 </View>
               </View>
             </View>
