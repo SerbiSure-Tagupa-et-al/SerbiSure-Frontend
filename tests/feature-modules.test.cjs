@@ -192,15 +192,15 @@ test('Home maps the same DTO into distinct job and worker cards', () => {
   assert.equal(job.location, 'Nazareth, Cagayan de Oro');
   assert.equal(job.aboutText, 'I am looking for Cleaning & Child Care at Test Street, Brgy. Nazareth, Cagayan de Oro, on a stay-out setup.');
   assert.equal(worker.aboutText, 'Available for Cleaner & Child Care work in Nazareth, Cagayan de Oro.');
-  assert.deepEqual(job.tags, ['Verified Employer', 'Short-term', 'Stay-out', 'Cleaning', 'Child Care']);
+  assert.deepEqual(job.tags, ['Verified Employer', 'Part-time', 'Stay-out', 'Cleaning', 'Child Care']);
 });
 
 test('Home preserves long-term labels, explicit setup, and partial response fallbacks', () => {
   const item = { ...dto, booking_type: 'long_term', service_category: 'Laundry', special_instruction: '  Stay-out laundry help  ' };
   const job = mapper.mapFeedPost(item, 'kasambahay');
   const worker = mapper.mapFeedPost(item, 'homeowner');
-  assert.equal(job.termTag, 'Long-term');
-  assert.equal(worker.termTag, 'Long-term');
+  assert.equal(job.termTag, 'Full-time');
+  assert.equal(worker.termTag, 'Full-time');
   assert.equal(job.unit, '/ month');
   assert.equal(job.setupTag, 'Stay-out');
   assert.equal(job.aboutText, 'Stay-out laundry help');
@@ -215,14 +215,14 @@ test('Explore keeps its own card wording and rate units', () => {
   const job = mapper.mapJobPreview({ ...dto, booking_type: 'long_term' });
   assert.equal(worker.name, 'Test User');
   assert.equal(worker.role, 'Cleaning, Child Care');
-  assert.equal(worker.years, 'Short-term');
+  assert.equal(worker.years, 'Part-time');
   assert.equal(worker.price, '₱800');
   assert.equal(worker.unit, 'per day');
   assert.equal(mapper.mapWorkerPreview({ ...dto, booking_type: 'long_term' }).unit, 'per month');
   assert.equal(job.price, '₱800');
   assert.equal(job.title, 'Cleaning & Child Care');
   assert.equal(job.unit, 'per month');
-  assert.equal(job.termTag, 'Long-term');
+  assert.equal(job.termTag, 'Full-time');
   assert.equal(job.image, dto.profile_link);
 });
 
@@ -234,7 +234,7 @@ test('setup labels use the stored field and never infer from duration or descrip
   assert.equal(mapper.mapWorkerPreview(item).setupTag, 'Stay-out');
   const unknown = { ...item, work_setup: null };
   assert.equal(mapper.mapFeedPost(unknown, 'kasambahay').setupTag, 'Not specified');
-  assert.equal(mapper.mapFeedPost(unknown, 'homeowner').termTag, 'Long-term');
+  assert.equal(mapper.mapFeedPost(unknown, 'homeowner').termTag, 'Full-time');
   assert.ok(!mapper.mapWorkerPreview(unknown).tags.includes('Stay-in'));
 });
 
@@ -338,7 +338,10 @@ test('Browse quick filters work identically for jobs and services and preserve a
   assert.equal(stayIn.bookingType, null);
   assert.equal(stayIn.workSetup, 'stay_in');
   assert.equal(browse.quickBrowseFilters(advanced, 'Stay-out').workSetup, 'stay_out');
-  assert.equal(browse.quickBrowseFilters(advanced, 'Long-term').bookingType, 'long_term');
+  assert.equal(browse.quickBrowseFilters(advanced, 'Full-time').bookingType, 'long_term');
+  assert.equal(browse.quickBrowseFilters(advanced, 'Part-time').bookingType, 'short_term');
+  assert.equal(browse.activeBrowseChip({ ...emptyFilters, bookingType: 'long_term' }), 'Full-time');
+  assert.equal(browse.activeBrowseChip({ ...emptyFilters, bookingType: 'short_term' }), 'Part-time');
   assert.deepEqual(stayIn.categories, []);
   assert.equal(stayIn.location, 'Nazareth');
   assert.equal(stayIn.maxRate, 900);
@@ -366,7 +369,7 @@ test('generated descriptions preserve role and engagement wording', () => {
   const input = { service: 'Cleaning', location: 'Nazareth', setup: 'stay-out', time: '8 AM to 5 PM', shortTerm: true, instructions: '  Pet-friendly  ' };
   assert.equal(posting.buildPostDescription('job', input), 'I am looking for Cleaning at Nazareth, available 8 AM to 5 PM.\n\nSpecific instructions:\nPet-friendly');
   assert.equal(posting.buildPostDescription('service', input), 'I am offering Cleaning service in Nazareth, available 8 AM to 5 PM.\n\nAbout my experience:\nPet-friendly');
-  assert.equal(posting.buildPostDescription('service', { ...input, shortTerm: false, instructions: '' }), 'I am looking for long-term Cleaning work in Nazareth on a stay-out arrangement.');
+  assert.equal(posting.buildPostDescription('service', { ...input, shortTerm: false, instructions: '' }), 'I am looking for full-time Cleaning work in Nazareth on a stay-out arrangement.');
   const location = posting.buildPostLocation({ street: 'Lot 3', floorUnit: '5', barangay: 'Brgy. Agusan', city: 'City of Cagayan De Oro', zipcode: '9000' });
   assert.equal(location, 'Lot 3, Floor/Unit 5, Brgy. Agusan, City of Cagayan De Oro (9000)');
   assert.equal(posting.buildPostDescription('service', { ...input, location, rate: '₱600' }), 'I am offering Cleaning service in Lot 3, Floor/Unit 5, Brgy. Agusan, City of Cagayan De Oro (9000), available 8 AM to 5 PM with an expected rate of ₱600 / day.\n\nAbout my experience:\nPet-friendly');

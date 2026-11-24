@@ -12,7 +12,7 @@ const remove = (parent, child) => { parent.children = parent.children.filter(ite
 const renderer = Reconciler({
   supportsMutation: true, isPrimaryRenderer: true, now: Date.now,
   getRootHostContext: () => null, getChildHostContext: () => null, getCurrentEventPriority: () => DefaultEventPriority,
-  prepareForCommit: () => null, resetAfterCommit() {}, shouldSetTextContent: () => false,
+  prepareForCommit: () => null, resetAfterCommit() { }, shouldSetTextContent: () => false,
   createInstance: (type, props) => ({ type, props, children: [] }),
   createTextInstance: text => ({ text, children: [] }), getPublicInstance: instance => instance,
   appendInitialChild: append, appendChild: append, appendChildToContainer: append,
@@ -20,9 +20,9 @@ const renderer = Reconciler({
   insertBefore(parent, child, before) { remove(parent, child); parent.children.splice(parent.children.indexOf(before), 0, child); },
   insertInContainerBefore(parent, child, before) { remove(parent, child); parent.children.splice(parent.children.indexOf(before), 0, child); },
   prepareUpdate: () => true, commitUpdate(instance, _payload, _type, _old, props) { instance.props = props; },
-  commitTextUpdate(instance, _old, text) { instance.text = text; }, resetTextContent() {},
+  commitTextUpdate(instance, _old, text) { instance.text = text; }, resetTextContent() { },
   finalizeInitialChildren: () => false, clearContainer(container) { container.children = []; },
-  scheduleTimeout: setTimeout, cancelTimeout: clearTimeout, noTimeout: -1, detachDeletedInstance() {},
+  scheduleTimeout: setTimeout, cancelTimeout: clearTimeout, noTimeout: -1, detachDeletedInstance() { },
 });
 
 function harness(t, extraMocks = {}) {
@@ -31,7 +31,7 @@ function harness(t, extraMocks = {}) {
   for (const type of ['View', 'Text', 'Pressable', 'Image', 'ActivityIndicator', 'TextInput', 'KeyboardAvoidingView', 'ScrollView', 'Modal']) native[type] = type;
   native.Platform = { OS: 'android', select: values => values.android || values.default };
   native.ScrollView = React.forwardRef((props, ref) => {
-    React.useImperativeHandle(ref, () => ({ scrollTo() {} }));
+    React.useImperativeHandle(ref, () => ({ scrollTo() { } }));
     return React.createElement('ScrollView', props);
   });
   const mocks = {
@@ -41,7 +41,7 @@ function harness(t, extraMocks = {}) {
     '../../verification/components/LivenessScreen': { LivenessScreen: 'Liveness' },
     '../../../shared/theme/theme': { default: { colors: { ink: '#0D0D11', brand: '#FFB380', white: '#FFF', divider: '#E5E7EB' }, roundness: { pill: 9999 }, typography: { fontFamily: {}, tracking: {} } } },
     '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: value => value }) },
-    '../session/UserContext': { useUser: () => ({ updateUser: () => {} }) },
+    '../session/UserContext': { useUser: () => ({ updateUser: () => { } }) },
     '../../../shared/ui/SearchablePickerModal': { SearchablePickerModal: () => null },
     '../../../shared/ui/DateOfBirthPickerModal': { DateOfBirthPickerModal: (props) => React.createElement('BirthPicker', props) },
     '../../../shared/ui/DemographicPickerModal': { DemographicPickerModal: () => null },
@@ -65,8 +65,10 @@ function harness(t, extraMocks = {}) {
   function load(filename) {
     filename = path.resolve(__dirname, '..', filename);
     if (cache.has(filename)) return cache.get(filename);
-    const source = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { fileName: filename,
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+    const source = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+      fileName: filename,
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }
+    }).outputText;
     const module = { exports: {} };
     new Function('require', 'module', 'exports', source)(name => {
       if (name in mocks) return mocks[name];
@@ -132,6 +134,7 @@ test('Step 2: Kasambahay registration displays "Step 2: Worker Profile" and vali
   assert.ok(allTexts.includes('Please choose the work you are looking for.'));
   assert.ok(allTexts.includes('Please choose at least one language.'));
   assert.ok(allTexts.includes('Please choose your household work experience.'));
+  assert.ok(allTexts.includes('Please select your TESDA NC II certification status.'));
   assert.ok(allTexts.includes('Please choose your civil status.'));
   assert.ok(allTexts.includes('Please choose the number of children.'));
 });
@@ -155,12 +158,12 @@ test('Step 2: Interactive dropdown selections, conditional fields, and advancing
   assert.ok(childcareOpt);
   h.act(() => childcareOpt.props.onPress());
 
-  // 2. WORK YOU ARE LOOKING FOR: Select "Short-term & stay-out"
+  // 2. WORK YOU ARE LOOKING FOR: Select "Part-time / Daily (1–7 days) · Stay-out (Goes home)"
   const workTrigger = h.nodes().find(n => n.type === 'Pressable' && h.text(n) === 'Choose');
   assert.ok(workTrigger);
   h.act(() => workTrigger.props.onPress());
 
-  const shortTermStayOut = h.nodes().find(n => n.type === 'Pressable' && h.text(n) === 'Short-term, Stay-out');
+  const shortTermStayOut = h.nodes().find(n => n.type === 'Pressable' && h.text(n) === 'Part-time / Daily (1–7 days) · Stay-out (Goes home)');
   assert.ok(shortTermStayOut);
   h.act(() => shortTermStayOut.props.onPress());
 
@@ -211,6 +214,15 @@ test('Step 2: Interactive dropdown selections, conditional fields, and advancing
   assert.ok(oneToThreeOpt);
   h.act(() => oneToThreeOpt.props.onPress());
 
+  // 5b. TESDA NC II CERTIFICATION: Select "TESDA NC II – Housekeeping"
+  const tesdaTrigger = h.nodes().find(n => n.type === 'Pressable' && h.text(n) === 'Choose');
+  assert.ok(tesdaTrigger);
+  h.act(() => tesdaTrigger.props.onPress());
+
+  const tesdaOpt = h.nodes().find(n => n.type === 'Pressable' && h.text(n) === 'TESDA NC II – Housekeeping');
+  assert.ok(tesdaOpt);
+  h.act(() => tesdaOpt.props.onPress());
+
   // 6. CIVIL STATUS: Select "Single"
   const civilTrigger = h.nodes().find(n => n.type === 'Pressable' && h.text(n) === 'Choose');
   assert.ok(civilTrigger);
@@ -235,4 +247,34 @@ test('Step 2: Interactive dropdown selections, conditional fields, and advancing
   const stepper = h.nodes().find(n => n.type === 'RegistrationStepper');
   assert.equal(stepper.props.currentStep, 3);
   assert.equal(stepper.props.title, 'Step 3: Where do you live?');
+});
+
+test('Step 2: TESDA NC II helpers map selected certificate to training and WorkerCvForm shows Practical Skills label', t => {
+  const h = harness(t);
+  const workerCv = h.load('src/features/profile/worker/workerCv.ts');
+  const base = [{ name: 'First Aid Workshop', provider: 'Red Cross', year: '2024' }];
+  const withTesda = workerCv.applyTesdaCertSelection(base, 'TESDA NC II – Caregiving');
+  assert.equal(workerCv.getTesdaCertSelection(withTesda), 'TESDA NC II – Caregiving');
+  assert.equal(withTesda.length, 2);
+  assert.deepEqual(withTesda[0], { name: 'TESDA NC II – Caregiving', provider: 'TESDA', year: '' });
+  const cleared = workerCv.applyTesdaCertSelection(withTesda, workerCv.TESDA_NOT_YET_CERTIFIED);
+  assert.equal(workerCv.getTesdaCertSelection(cleared), '');
+  assert.deepEqual(cleared, base);
+  assert.equal(workerCv.TESDA_NC2_DROPDOWN_OPTIONS.length, 5);
+  assert.ok(!workerCv.TESDA_NC2_DROPDOWN_OPTIONS.some(o => /Other Equivalent/i.test(o)));
+
+  const { WorkerCvForm } = h.load('src/features/profile/worker/WorkerCvForm.tsx');
+  h.render(React.createElement(WorkerCvForm, { value: workerCv.emptyWorkerDraft(), onChange: () => { } }));
+  const labels = h.nodes().filter(n => n.type === 'Text').map(n => h.text(n));
+  assert.equal(labels.filter(label => label === 'APPROXIMATE EXPERIENCE').length, 1);
+  assert.ok(labels.includes('PRACTICAL SKILLS'));
+  assert.ok(labels.includes('TESDA NC II CERTIFICATION'));
+
+  const payload = workerCv.workerPayload({
+    ...workerCv.emptyWorkerDraft(),
+    available_days: ['M', 'T', 'W', 'TH', 'F', 'SA', 'SU'],
+    practical_skills: ['Senior assistance', 'Ironing'],
+  });
+  assert.deepEqual(payload.available_days, ['M', 'T', 'W', 'Th', 'F', 'S', 'Su']);
+  assert.deepEqual(payload.practical_skills, ['Older adult assistance', 'Ironing']);
 });

@@ -102,7 +102,7 @@ export function BookingOfferReview(props: Props) {
           <View style={styles.participantInfo}>
             <Text style={styles.participantName} numberOfLines={1}>{displayName}</Text>
             <Text style={styles.participantSubtitle}>
-              {props.contactRole || uiText("Kasambahay")} · {short ? uiText("Short-term") : uiText("Long-term")}
+              {props.contactRole || uiText("Kasambahay")} · {short ? uiText("Part-time") : uiText("Full-time")}
             </Text>
           </View>
           <View style={styles.rateHighlight}>
@@ -165,7 +165,7 @@ export function BookingOfferReview(props: Props) {
           <View style={styles.gridCol}>
             <Text style={styles.fieldLabel}>{short ? uiText("Engagement") : uiText("Work setup")}</Text>
             <Text style={styles.fieldValue}>
-              {short ? uiText("Short-term") : uiText(workSetupLabel(props.workSetup))}
+              {short ? uiText("Part-time") : uiText(workSetupLabel(props.workSetup))}
             </Text>
           </View>
           <View style={styles.gridCol}>

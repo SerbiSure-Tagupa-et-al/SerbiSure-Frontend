@@ -100,7 +100,7 @@ test('short and long-term posting reviews do not invent calendar dates', t => {
   const screen = mount(t, React.createElement(PostStep3, { form: { ...form, endDate: form.startDate, workDays: ['Su'] } }));
   assert.doesNotMatch(screen.content(), /Same day|11\/01\/2026/);
   screen.render(React.createElement(PostStep3, { form: { ...form, engagementType: 'long', ongoing: true, endDate: '' } }));
-  assert.match(screen.content(), /Long-term/);
+  assert.match(screen.content(), /Full-time \/ Monthly \(30\+ days\)/);
   assert.doesNotMatch(screen.content(), /Ongoing|No end date|11\/01\/2026/);
 });
 

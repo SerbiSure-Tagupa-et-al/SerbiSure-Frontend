@@ -509,7 +509,7 @@ export function BookingModal({
                 <Text style={styles.workerName} numberOfLines={1}>{contactName}</Text>
                 <Text style={styles.kasambahaySub}>
                   {contactRole}
-                  {selectedBookingType ? ` · ${selectedBookingType === 'short_term' ? uiText("Short-term") : uiText("Long-term")}` : ''}
+                  {selectedBookingType ? ` · ${selectedBookingType === 'short_term' ? uiText("Part-time") : uiText("Full-time")}` : ''}
                 </Text>
               </View>
             </View>
@@ -573,6 +573,7 @@ export function BookingModal({
                 <View style={styles.typeSelectorRow}>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={uiText("Part-time / Daily")}
                     accessibilityState={{ selected: selectedBookingType === 'short_term' }}
                     disabled={submitting}
                     style={[
@@ -588,13 +589,19 @@ export function BookingModal({
                       }
                     }}
                   >
-                    <Ionicons name="time-outline" size={19} color="#1A1A1A" />
-                    <Text style={[styles.termChoiceText, selectedBookingType === 'short_term' && styles.choiceTextActive]}>
-                      {uiText("Short-term")}
+                    <View style={styles.choiceHeaderRow}>
+                      <Ionicons name="time-outline" size={18} color="#1A1A1A" />
+                      <Text style={[styles.termChoiceText, selectedBookingType === 'short_term' && styles.choiceTextActive]}>
+                        {uiText("Part-time / Daily")}
+                      </Text>
+                    </View>
+                    <Text style={[styles.choiceSubtext, selectedBookingType === 'short_term' && styles.choiceSubtextActive]}>
+                      {uiText("1–7 days · Daily pay")}
                     </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={uiText("Full-time / Monthly")}
                     accessibilityState={{ selected: selectedBookingType === 'long_term' }}
                     disabled={submitting}
                     style={[
@@ -610,9 +617,14 @@ export function BookingModal({
                       }
                     }}
                   >
-                    <Ionicons name="calendar-outline" size={19} color="#1A1A1A" />
-                    <Text style={[styles.termChoiceText, selectedBookingType === 'long_term' && styles.choiceTextActive]}>
-                      {uiText("Long-term")}
+                    <View style={styles.choiceHeaderRow}>
+                      <Ionicons name="calendar-outline" size={18} color="#1A1A1A" />
+                      <Text style={[styles.termChoiceText, selectedBookingType === 'long_term' && styles.choiceTextActive]}>
+                        {uiText("Full-time / Monthly")}
+                      </Text>
+                    </View>
+                    <Text style={[styles.choiceSubtext, selectedBookingType === 'long_term' && styles.choiceSubtextActive]}>
+                      {uiText("30+ days · Monthly pay")}
                     </Text>
                   </Pressable>
                 </View>
@@ -627,6 +639,7 @@ export function BookingModal({
                       <Pressable
                         key={value}
                         accessibilityRole="button"
+                        accessibilityLabel={uiText(workSetupLabel(value))}
                         accessibilityState={{ selected }}
                         disabled={submitting}
                         style={[
@@ -639,13 +652,18 @@ export function BookingModal({
                           setFieldErrors(prev => ({ ...prev, workSetup: false }));
                         }}
                       >
-                        <Ionicons
-                          name={value === 'stay_in' ? 'home-outline' : 'footsteps-outline'}
-                          size={19}
-                          color="#1A1A1A"
-                        />
-                        <Text style={[styles.setupChoiceText, selected && styles.choiceTextActive]}>
-                          {uiText(workSetupLabel(value))}
+                        <View style={styles.choiceHeaderRow}>
+                          <Ionicons
+                            name={value === 'stay_in' ? 'home-outline' : 'footsteps-outline'}
+                            size={18}
+                            color="#1A1A1A"
+                          />
+                          <Text style={[styles.setupChoiceText, selected && styles.choiceTextActive]}>
+                            {uiText(workSetupLabel(value))}
+                          </Text>
+                        </View>
+                        <Text style={[styles.choiceSubtext, selected && styles.choiceSubtextActive]}>
+                          {value === 'stay_in' ? uiText("Live-in") : uiText("Goes home")}
                         </Text>
                       </Pressable>
                     );
@@ -1165,15 +1183,17 @@ const styles = StyleSheet.create({
   },
   termChoice: {
     flex: 1,
-    height: 46,
+    minHeight: 58,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: 'transparent',
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
@@ -1182,20 +1202,22 @@ const styles = StyleSheet.create({
   },
   termChoiceText: {
     color: '#1A1A1A',
-    fontSize: 13.5,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '700',
   },
   setupChoice: {
     flex: 1,
-    height: 46,
+    minHeight: 58,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: 'transparent',
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
@@ -1204,8 +1226,23 @@ const styles = StyleSheet.create({
   },
   setupChoiceText: {
     color: '#1A1A1A',
-    fontSize: 13.5,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  choiceHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  choiceSubtext: {
+    color: '#6B7280',
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  choiceSubtextActive: {
+    color: '#1F2937',
   },
   locationHeaderRow: {
     flexDirection: 'row',

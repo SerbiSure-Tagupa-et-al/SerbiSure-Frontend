@@ -26,8 +26,8 @@ export function WorkerCvPreview({ cv }: { cv: WorkerCv }) {
   const monthlyRate = details.desired_monthly_rate ? `PHP ${Number(details.desired_monthly_rate).toLocaleString()} / month` : null;
 
   // Work Setup & Engagement
-  const workSetupLabel = details.work_setup === 'stay_in' ? 'Stay-in' : details.work_setup === 'stay_out' ? 'Stay-out' : details.work_setup === 'either' ? 'Either (Stay-in / Stay-out)' : 'Not provided';
-  const engagementLabel = details.engagement_preference === 'short_term' ? 'Short-term' : details.engagement_preference === 'long_term' ? 'Long-term' : details.engagement_preference === 'both' ? 'Both (Short & Long-term)' : 'Not provided';
+  const workSetupLabel = details.work_setup === 'stay_in' ? 'Stay-in (Live-in)' : details.work_setup === 'stay_out' ? 'Stay-out (Goes home)' : details.work_setup === 'either' ? 'Either (Stay-in / Stay-out)' : 'Not provided';
+  const engagementLabel = details.engagement_preference === 'short_term' ? 'Part-time / Daily' : details.engagement_preference === 'long_term' ? 'Full-time / Monthly' : details.engagement_preference === 'both' ? 'Both (Part-time & Full-time)' : 'Not provided';
   const availabilityText = details.available_from || 'Not provided';
 
   // Experience

@@ -20,7 +20,15 @@ import { PrivacyPolicyModal } from '../../profile/components/PrivacyPolicyModal'
 import { SERVICE_CHOICES, toggleService } from '../../bookings/engagementForm';
 
 import { WorkerCvForm } from '../../profile/worker/WorkerCvForm';
-import { emptyWorkerDraft, validateWorkerPage, workerPayload } from '../../profile/worker/workerCv';
+import {
+  TESDA_NC2_DROPDOWN_OPTIONS,
+  TESDA_NC2_HELPER_NOTE,
+  applyTesdaCertSelection,
+  emptyWorkerDraft,
+  getTesdaCertSelection,
+  validateWorkerPage,
+  workerPayload,
+} from '../../profile/worker/workerCv';
 import { APP_HEADER_BACK_ICON_COLOR, APP_HEADER_BACK_ICON_SIZE, APP_HEADER_LOGO_SIZE, APP_HEADER_SIDE_WIDTH } from '../../../shared/components/AppHeader';
 
 const logoSource = require('../../../../assets/serbisure-icon.png');
@@ -40,11 +48,11 @@ const STEP2_SERVICES = [
 ];
 
 const STEP2_WORK_LOOKING_FOR = [
-  { label: 'Short-term, Stay-in', engagement: 'short_term', setup: 'stay_in' },
-  { label: 'Short-term, Stay-out', engagement: 'short_term', setup: 'stay_out' },
-  { label: 'Long-term, Stay-in', engagement: 'long_term', setup: 'stay_in' },
-  { label: 'Long-term, Stay-out', engagement: 'long_term', setup: 'stay_out' },
-  { label: 'Both', engagement: 'both', setup: 'either' },
+  { label: 'Part-time / Daily (1–7 days) · Stay-out (Goes home)', engagement: 'short_term', setup: 'stay_out' },
+  { label: 'Part-time / Daily (1–7 days) · Stay-in (Live-in)', engagement: 'short_term', setup: 'stay_in' },
+  { label: 'Full-time / Monthly (30+ days) · Stay-in (Live-in)', engagement: 'long_term', setup: 'stay_in' },
+  { label: 'Full-time / Monthly (30+ days) · Stay-out (Goes home)', engagement: 'long_term', setup: 'stay_out' },
+  { label: 'Both (Part-time & Full-time)', engagement: 'both', setup: 'either' },
 ];
 
 const STEP2_LANGUAGES = ['Bisaya', 'Tagalog', 'English'];
@@ -67,7 +75,7 @@ const STEP2_PRACTICAL_SKILLS = [
   'Deep cleaning',
   'Infant care',
   'Child supervision',
-  'Senior assistance',
+  'Older adult assistance',
   'Laundry care',
   'Household organization',
 ];
@@ -179,11 +187,12 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
   const [workerDetails, setWorkerDetails] = useState(emptyWorkerDraft);
   const [workerPage, setWorkerPage] = useState(0);
   const [activeStep2Dropdown, setActiveStep2Dropdown] = useState<
-    'services' | 'workLookingFor' | 'languages' | 'householdWorkBefore' | 'approximateExperience' | 'practicalSkills' | 'education' | 'civilStatus' | 'numberOfChildren' | null
+    'services' | 'workLookingFor' | 'languages' | 'householdWorkBefore' | 'approximateExperience' | 'practicalSkills' | 'education' | 'tesdaCert' | 'civilStatus' | 'numberOfChildren' | null
   >(null);
   const [workLookingFor, setWorkLookingFor] = useState('');
   const [householdWorkBefore, setHouseholdWorkBefore] = useState('');
   const [approximateExperience, setApproximateExperience] = useState('');
+  const [tesdaCert, setTesdaCert] = useState('');
   const registrationScroll = useRef<ScrollView>(null);
   const genderDropdownAnchor = useRef<View>(null);
   const nationalityDropdownAnchor = useRef<View>(null);
@@ -233,6 +242,11 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
   }, [workerDetails.practical_skills]);
 
   const civilStatusDisplayText = workerDetails.civil_status || 'Choose';
+
+  const tesdaCertDisplayText = useMemo(() => {
+    if (tesdaCert) return tesdaCert;
+    return getTesdaCertSelection(workerDetails.training || []) || 'Choose';
+  }, [tesdaCert, workerDetails.training]);
 
   const numberOfChildrenDisplayText = useMemo(() => {
     const n = workerDetails.number_of_children;
@@ -507,15 +521,17 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
       errors.services = "Please choose at least one service.";
     }
 
-    const currentLookingFor = workLookingFor || STEP2_WORK_LOOKING_FOR.find(
-      o => o.engagement === workerDetails.engagement_preference && o.setup === workerDetails.work_setup
-    )?.label;
+    const matchedLookingOption = STEP2_WORK_LOOKING_FOR.find(
+      o => o.label === workLookingFor || (o.engagement === workerDetails.engagement_preference && o.setup === workerDetails.work_setup)
+    );
+    const currentLookingFor = workLookingFor || matchedLookingOption?.label;
     if (!currentLookingFor) {
       errors.workLookingFor = "Please choose the work you are looking for.";
     }
 
-    const needsMonthly = !currentLookingFor || currentLookingFor.includes('Long-term') || currentLookingFor === 'Both';
-    const needsDaily = !currentLookingFor || currentLookingFor.includes('Short-term') || currentLookingFor === 'Both';
+    const effectiveEngagement = matchedLookingOption?.engagement || workerDetails.engagement_preference;
+    const needsMonthly = !effectiveEngagement || effectiveEngagement !== 'short_term';
+    const needsDaily = !effectiveEngagement || effectiveEngagement !== 'long_term';
 
     if (needsMonthly && !workerDetails.desired_monthly_rate?.trim()) {
       errors.monthlySalary = "Please enter your expected monthly salary.";
@@ -542,6 +558,11 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
       if (!currentApprox) {
         errors.approximateExperience = "Please choose your approximate experience.";
       }
+    }
+
+    const currentTesdaCert = tesdaCert || getTesdaCertSelection(workerDetails.training || []);
+    if (!currentTesdaCert) {
+      errors.tesdaCert = "Please select your TESDA NC II certification status.";
     }
 
     if (!workerDetails.civil_status) {
@@ -1651,6 +1672,74 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
                               ]}
                             >
                               {edu}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* TESDA NC II CERTIFICATION */}
+                  <Text style={[styles.fieldSubLabel, fieldErrors.tesdaCert ? styles.fieldSubLabelError : null]}>
+                    TESDA NC II CERTIFICATION
+                  </Text>
+                  <Pressable
+                    style={[
+                      styles.step2SelectButton,
+                      { marginBottom: 6 },
+                      fieldErrors.tesdaCert ? styles.inputContainerError : null,
+                    ]}
+                    onPress={() => setActiveStep2Dropdown(activeStep2Dropdown === 'tesdaCert' ? null : 'tesdaCert')}
+                  >
+                    <Ionicons name="ribbon-outline" size={18} color="#0D0D11" style={styles.inputIcon} />
+                    <Text
+                      style={[
+                        styles.step2SelectButtonText,
+                        tesdaCertDisplayText === 'Choose' && styles.step2PlaceholderText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {tesdaCertDisplayText}
+                    </Text>
+                    <Ionicons
+                      name={activeStep2Dropdown === 'tesdaCert' ? 'chevron-up' : 'chevron-down'}
+                      size={18}
+                      color="#666666"
+                    />
+                  </Pressable>
+                  <Text style={styles.step2HelperText}>{TESDA_NC2_HELPER_NOTE}</Text>
+                  {fieldErrors.tesdaCert ? (
+                    <Text style={styles.fieldErrorText}>{fieldErrors.tesdaCert}</Text>
+                  ) : null}
+                  {activeStep2Dropdown === 'tesdaCert' && (
+                    <View style={styles.inlineDropdownMenu}>
+                      {TESDA_NC2_DROPDOWN_OPTIONS.map((cert) => {
+                        const isSelected = tesdaCertDisplayText === cert;
+                        return (
+                          <Pressable
+                            key={cert}
+                            style={({ pressed }) => [
+                              styles.inlineDropdownOption,
+                              isSelected && styles.inlineDropdownOptionSelected,
+                              pressed && styles.dropdownOptionPressed,
+                            ]}
+                            onPress={() => {
+                              setTesdaCert(cert);
+                              setWorkerDetails(prev => ({
+                                ...prev,
+                                training: applyTesdaCertSelection(prev.training || [], cert),
+                              }));
+                              if (fieldErrors.tesdaCert) setFieldErrors(prev => ({ ...prev, tesdaCert: '' }));
+                              setActiveStep2Dropdown(null);
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.inlineDropdownOptionText,
+                                isSelected && styles.inlineDropdownOptionTextSelected,
+                              ]}
+                            >
+                              {cert}
                             </Text>
                           </Pressable>
                         );
@@ -2851,6 +2940,13 @@ const styles = StyleSheet.create({
   step2PlaceholderText: {
     color: '#6B7280',
     fontFamily: THEME.typography.fontFamily.mainRegular,
+  },
+  step2HelperText: {
+    fontSize: 11.5,
+    color: '#6B7280',
+    lineHeight: 16,
+    marginBottom: 10,
+    marginLeft: 2,
   },
   step2PesoSymbol: {
     fontSize: 15,

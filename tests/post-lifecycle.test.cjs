@@ -263,7 +263,7 @@ test('tapping an own post opens essential details without profile or technical c
   view.open();
   assert.equal(view.modal().props.animationType, 'slide');
   assert.equal(view.modal().props.transparent, true);
-  for (const expected of ['Cleaning', 'Available', '₱ 800.00 / day', 'Short-term', 'Stay-out',
+  for (const expected of ['Cleaning', 'Available', '₱ 800.00 / day', 'Part-time', 'Stay-out',
     '08:00 AM – 05:00 PM', view.item.full_address, 'Please bring gloves.']) {
     assert.ok(view.text().includes(expected), expected);
   }

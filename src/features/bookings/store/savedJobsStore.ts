@@ -96,7 +96,7 @@ class SavedJobsStore {
             item.profile_link ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || 'User')}&background=FFB43B&color=fff`;
           const isLongTerm = item.booking_type === 'long_term';
-          const termTag = isLongTerm ? 'Long-term' : 'Short-term';
+          const termTag = isLongTerm ? 'Full-time' : 'Part-time';
           const unit = isLongTerm ? '/ month' : '/ day';
           const loc = formatBookingLocationShort(item, 'Location not provided');
 
@@ -129,7 +129,7 @@ class SavedJobsStore {
             avatar: item.profile_link || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(item.name || 'User'),
             roleTag: (item.service_category || []).join(', '), title: (item.service_category || []).join(', '),
             location: formatBookingLocationShort(item, 'Location not provided'),
-            termTag: item.booking_type === 'long_term' ? 'Long-term' : 'Short-term',
+            termTag: item.booking_type === 'long_term' ? 'Full-time' : 'Part-time',
             price: formatRate(item.rate_amount, 'PHP '), unit: '/ ' + item.rate_period,
             aboutText: item.special_instruction || '', tags: item.service_category || [],
             start_time: item.start_time, booking_status: item.booking_status, post_status: item.post_status,

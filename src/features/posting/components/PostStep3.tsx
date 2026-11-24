@@ -60,7 +60,7 @@ export function PostStep3({ form }: { form: PostFormController }) {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{uiText("Engagement")}</Text>
           <Text style={styles.summaryValue}>
-            {engagementType === 'short' ? uiText("Short-term") : uiText("Long-term")}
+            {engagementType === 'short' ? uiText("Part-time / Daily (1–7 days)") : uiText("Full-time / Monthly (30+ days)")}
           </Text>
         </View>
 
@@ -69,7 +69,7 @@ export function PostStep3({ form }: { form: PostFormController }) {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{uiText("Work Setup")}</Text>
           <Text style={styles.summaryValue}>
-            {setupPreference === 'stay-in' ? uiText("Stay-in") : uiText("Stay-out")}
+            {setupPreference === 'stay-in' ? uiText("Stay-in (Live-in)") : uiText("Stay-out (Goes home)")}
           </Text>
         </View>
 

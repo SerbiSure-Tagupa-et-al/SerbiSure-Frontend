@@ -82,8 +82,8 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
     if (filters.bookingType) {
       posts = posts.filter(post => {
         const term = (post.termTag || '').toLowerCase();
-        if (filters.bookingType === 'short_term') return term.includes('short');
-        if (filters.bookingType === 'long_term') return term.includes('long');
+        if (filters.bookingType === 'short_term') return term.includes('short') || term.includes('part');
+        if (filters.bookingType === 'long_term') return term.includes('long') || term.includes('full');
         return true;
       });
     }

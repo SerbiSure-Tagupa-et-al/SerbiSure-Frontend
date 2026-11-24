@@ -3,7 +3,14 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { toggleService } from '../../bookings/engagementForm';
-import { type WorkerDraft } from './workerCv';
+import {
+  TESDA_NC2_DROPDOWN_OPTIONS,
+  TESDA_NC2_HELPER_NOTE,
+  TESDA_NOT_YET_CERTIFIED,
+  applyTesdaCertSelection,
+  getTesdaCertSelection,
+  type WorkerDraft,
+} from './workerCv';
 import THEME from '../../../shared/theme/theme';
 
 const STEP2_SERVICES = [
@@ -16,14 +23,14 @@ const STEP2_SERVICES = [
 ];
 
 const STEP2_WORK_LOOKING_FOR = [
-  { label: 'Short-term, Stay-in', engagement: 'short_term', setup: 'stay_in' },
-  { label: 'Short-term, Stay-out', engagement: 'short_term', setup: 'stay_out' },
-  { label: 'Long-term, Stay-in', engagement: 'long_term', setup: 'stay_in' },
-  { label: 'Long-term, Stay-out', engagement: 'long_term', setup: 'stay_out' },
-  { label: 'Both', engagement: 'both', setup: 'either' },
+  { label: 'Part-time / Daily (1–7 days) · Stay-out (Goes home)', engagement: 'short_term', setup: 'stay_out' },
+  { label: 'Part-time / Daily (1–7 days) · Stay-in (Live-in)', engagement: 'short_term', setup: 'stay_in' },
+  { label: 'Full-time / Monthly (30+ days) · Stay-in (Live-in)', engagement: 'long_term', setup: 'stay_in' },
+  { label: 'Full-time / Monthly (30+ days) · Stay-out (Goes home)', engagement: 'long_term', setup: 'stay_out' },
+  { label: 'Both (Part-time & Full-time)', engagement: 'both', setup: 'either' },
 ];
 
-const STEP2_LANGUAGES = ['Bisaya', 'Tagalog', 'English', 'Ilocano', 'Cebuano'];
+const STEP2_LANGUAGES = ['Bisaya', 'Tagalog', 'English'];
 
 const STEP2_HOUSEHOLD_WORK_BEFORE = [
   { label: 'First-time worker', id: 'new' },
@@ -43,7 +50,7 @@ const STEP2_PRACTICAL_SKILLS = [
   'Deep cleaning',
   'Infant care',
   'Child supervision',
-  'Senior assistance',
+  'Older adult assistance',
   'Laundry care',
   'Household organization',
 ];
@@ -73,6 +80,7 @@ type ActiveDropdown =
   | 'approximateExperience'
   | 'practicalSkills'
   | 'education'
+  | 'tesdaCert'
   | 'civilStatus'
   | 'numberOfChildren'
   | null;
@@ -87,6 +95,7 @@ interface Props {
 export function WorkerCvForm({ value, onChange, disabled = false }: Props) {
   const { tr: uiText } = useUiLanguage();
   const [activeDropdown, setActiveDropdown] = useState<ActiveDropdown>(null);
+  const [tesdaNotYetSelected, setTesdaNotYetSelected] = useState(false);
 
   const toggleDropdown = (key: ActiveDropdown) => {
     if (disabled) return;
@@ -111,8 +120,12 @@ export function WorkerCvForm({ value, onChange, disabled = false }: Props) {
   );
   const workLookingForDisplayText =
     matchedLookingFor?.label ||
-    (value.engagement_preference === 'both' ? 'Both' : '') ||
+    (value.engagement_preference === 'both' ? 'Both (Part-time & Full-time)' : '') ||
     uiText('Choose');
+
+  const selectedTesdaCert = getTesdaCertSelection(value.training || []);
+  const tesdaCertDisplayText =
+    selectedTesdaCert || (tesdaNotYetSelected ? TESDA_NOT_YET_CERTIFIED : uiText('Choose'));
 
   // 5. Spoken Languages Display Text
   const languagesDisplayText =
@@ -405,61 +418,65 @@ export function WorkerCvForm({ value, onChange, disabled = false }: Props) {
         </View>
       )}
 
-      {/* 7. APPROXIMATE EXPERIENCE */}
-      <Text style={styles.fieldSubLabel}>{uiText('APPROXIMATE EXPERIENCE')}</Text>
-      <Pressable
-        disabled={disabled}
-        style={styles.step2SelectButton}
-        onPress={() => toggleDropdown('approximateExperience')}
-      >
-        <Ionicons name="calendar-outline" size={18} color="#1F2937" style={styles.inputIcon} />
-        <Text
-          style={[
-            styles.step2SelectButtonText,
-            approxExpDisplayText === uiText('Choose') && styles.step2PlaceholderText,
-          ]}
-          numberOfLines={1}
-        >
-          {approxExpDisplayText}
-        </Text>
-        <Ionicons
-          name={activeDropdown === 'approximateExperience' ? 'chevron-up' : 'chevron-down'}
-          size={18}
-          color="#6B7280"
-        />
-      </Pressable>
-      {activeDropdown === 'approximateExperience' && (
-        <View style={styles.inlineDropdownMenu}>
-          {STEP2_APPROXIMATE_EXPERIENCE.map((option) => {
-            const isSelected = value.experience_duration === option.id;
-            return (
-              <Pressable
-                key={option.id}
-                style={[
-                  styles.inlineDropdownOption,
-                  isSelected && styles.inlineDropdownOptionSelected,
-                ]}
-                onPress={() => {
-                  setField('experience_duration', option.id);
-                  setActiveDropdown(null);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.inlineDropdownOptionText,
-                    isSelected && styles.inlineDropdownOptionTextSelected,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+      {/* 7. APPROXIMATE EXPERIENCE (hidden for first-time workers) */}
+      {value.experience_level !== 'new' && (
+        <>
+          <Text style={styles.fieldSubLabel}>{uiText('APPROXIMATE EXPERIENCE')}</Text>
+          <Pressable
+            disabled={disabled}
+            style={styles.step2SelectButton}
+            onPress={() => toggleDropdown('approximateExperience')}
+          >
+            <Ionicons name="calendar-outline" size={18} color="#1F2937" style={styles.inputIcon} />
+            <Text
+              style={[
+                styles.step2SelectButtonText,
+                approxExpDisplayText === uiText('Choose') && styles.step2PlaceholderText,
+              ]}
+              numberOfLines={1}
+            >
+              {approxExpDisplayText}
+            </Text>
+            <Ionicons
+              name={activeDropdown === 'approximateExperience' ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color="#6B7280"
+            />
+          </Pressable>
+          {activeDropdown === 'approximateExperience' && (
+            <View style={styles.inlineDropdownMenu}>
+              {STEP2_APPROXIMATE_EXPERIENCE.map((option) => {
+                const isSelected = value.experience_duration === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    style={[
+                      styles.inlineDropdownOption,
+                      isSelected && styles.inlineDropdownOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setField('experience_duration', option.id);
+                      setActiveDropdown(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.inlineDropdownOptionText,
+                        isSelected && styles.inlineDropdownOptionTextSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </>
       )}
 
-      {/* 8. PRACTICAL SKILLS / APPROXIMATE EXPERIENCE (Matching bicep icon in reference) */}
-      <Text style={styles.fieldSubLabel}>{uiText('APPROXIMATE EXPERIENCE')}</Text>
+      {/* 8. PRACTICAL SKILLS */}
+      <Text style={styles.fieldSubLabel}>{uiText('PRACTICAL SKILLS')}</Text>
       <Pressable
         disabled={disabled}
         style={styles.step2SelectButton}
@@ -562,6 +579,61 @@ export function WorkerCvForm({ value, onChange, disabled = false }: Props) {
                   ]}
                 >
                   {edu}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      {/* TESDA NC II CERTIFICATION */}
+      <Text style={styles.fieldSubLabel}>{uiText('TESDA NC II CERTIFICATION')}</Text>
+      <Pressable
+        disabled={disabled}
+        style={[styles.step2SelectButton, { marginBottom: 6 }]}
+        onPress={() => toggleDropdown('tesdaCert')}
+      >
+        <Ionicons name="ribbon-outline" size={18} color="#1F2937" style={styles.inputIcon} />
+        <Text
+          style={[
+            styles.step2SelectButtonText,
+            tesdaCertDisplayText === uiText('Choose') && styles.step2PlaceholderText,
+          ]}
+          numberOfLines={1}
+        >
+          {uiText(tesdaCertDisplayText)}
+        </Text>
+        <Ionicons
+          name={activeDropdown === 'tesdaCert' ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color="#6B7280"
+        />
+      </Pressable>
+      <Text style={styles.step2HelperText}>{uiText(TESDA_NC2_HELPER_NOTE)}</Text>
+      {activeDropdown === 'tesdaCert' && (
+        <View style={styles.inlineDropdownMenu}>
+          {TESDA_NC2_DROPDOWN_OPTIONS.map((cert) => {
+            const isSelected = tesdaCertDisplayText === cert;
+            return (
+              <Pressable
+                key={cert}
+                style={[
+                  styles.inlineDropdownOption,
+                  isSelected && styles.inlineDropdownOptionSelected,
+                ]}
+                onPress={() => {
+                  setTesdaNotYetSelected(cert === TESDA_NOT_YET_CERTIFIED);
+                  setField('training', applyTesdaCertSelection(value.training || [], cert));
+                  setActiveDropdown(null);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.inlineDropdownOptionText,
+                    isSelected && styles.inlineDropdownOptionTextSelected,
+                  ]}
+                >
+                  {uiText(cert)}
                 </Text>
               </Pressable>
             );
@@ -713,6 +785,13 @@ const styles = StyleSheet.create({
   step2PlaceholderText: {
     color: '#6B7280',
     fontFamily: THEME.typography.fontFamily.mainRegular,
+  },
+  step2HelperText: {
+    fontSize: 11.5,
+    color: '#6B7280',
+    lineHeight: 16,
+    marginBottom: 14,
+    marginLeft: 2,
   },
   step2PesoSymbol: {
     fontSize: 15,

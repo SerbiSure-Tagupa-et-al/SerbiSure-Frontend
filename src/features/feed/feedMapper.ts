@@ -33,7 +33,7 @@ export function mapFeedPost(item: BookingFeedDto, viewerRole: Role): FeedPost {
   const authorRole = isJob ? 'Homeowner' : 'Kasambahay';
   const name = item.name || (isJob ? 'Homeowner' : 'Kasambahay Worker');
   const longTerm = item.booking_type === 'long_term';
-  const termTag = longTerm ? 'Long-term' : 'Short-term';
+  const termTag = longTerm ? 'Full-time' : 'Part-time';
   const setupTag = workSetupLabel(item.work_setup);
   const location = formatBookingLocationShort(item, 'Location not provided');
   const description = item.special_instruction?.trim() || (isJob
@@ -69,7 +69,7 @@ export function mapWorkerPreview(item: BookingFeedDto) {
     daily_start_time: item.daily_start_time, daily_end_time: item.daily_end_time, work_days: item.work_days,
     location: formatBookingLocationShort(item, 'Location not provided'),
     role: categories.map((category) => CATEGORY_LABELS[category] || category.replace(/_/g, ' ')).join(', '),
-    years: item.booking_type === 'long_term' ? 'Long-term' : 'Short-term',
+    years: item.booking_type === 'long_term' ? 'Full-time' : 'Part-time',
     setupTag: workSetupLabel(item.work_setup),
     tags: [...categories.map((category) => CATEGORY_LABELS[category] || category.replace(/_/g, ' ')), ...(item.work_setup ? [workSetupLabel(item.work_setup)] : [])],
     price: formatRate(item.rate_amount),
@@ -101,7 +101,7 @@ export function mapJobPreview(item: BookingFeedDto) {
     `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || 'Homeowner')}&background=FFB43B&color=fff`;
 
   const isLongTerm = item.booking_type === 'long_term';
-  const termTag = isLongTerm ? 'Long-term' : 'Short-term';
+  const termTag = isLongTerm ? 'Full-time' : 'Part-time';
   const setupTag = workSetupLabel(item.work_setup);
   const unit = isLongTerm ? 'per month' : 'per day';
 

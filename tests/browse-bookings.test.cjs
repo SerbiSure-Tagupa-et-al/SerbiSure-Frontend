@@ -359,7 +359,7 @@ for (const role of ['homeowner', 'kasambahay']) {
       serviceCategory: ['Cleaning'], workSetup: 'stay_in', workHours: '09:00 AM - 02:00 PM', days: ['Th'],
     } }); await tick();
     assert.match(screen.text(), /WORK SETUP/);
-    screen.press('Short-term'); screen.press('Stay-out'); await tick();
+    screen.press('Part-time / Daily'); screen.press('Stay-out'); await tick();
     screen.press('Next');
     assert.match(screen.text(), /Select daily working hours/);
     assert.match(screen.text(), /WORK SCHEDULE/);
@@ -526,7 +526,7 @@ for (const role of ['homeowner', 'kasambahay']) {
     assert.equal(screen.find('ChatDetailScreen').props.partnerId, 'author');
     assert.equal(screen.find('ChatDetailScreen').props.userRole, role);
     screen.act(() => screen.find('ChatDetailScreen').props.onClose());
-    screen.act(() => screen.find('BrowseFilters').props.onChipPress('Long-term'));
+    screen.act(() => screen.find('BrowseFilters').props.onChipPress('Full-time'));
     screen.requests.at(-1).resolve([screen.post()]); await tick();
     assert.equal(screen.requests.at(-1).args[2].bookingType, 'long_term');
     assert.equal(screen.requests.at(-1).args[3], true);

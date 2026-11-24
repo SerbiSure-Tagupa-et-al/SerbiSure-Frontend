@@ -155,10 +155,10 @@ test(`${mode}: short-term replaces a previous Stay-in choice with Stay-out`, asy
   screen.set(form => form.handleBack());
   screen.set(form => form.handleBack());
   assert.equal(screen.form.step, 1);
-  screen.press('Long-term');
+  screen.press('Full-time / Monthly');
   screen.press('Stay-in');
   assert.equal(screen.form.setupPreference, 'stay-in');
-  screen.press('Short-term');
+  screen.press('Part-time / Daily');
   assert.equal(screen.form.setupPreference, 'stay-out');
   await screen.next(); await screen.next();
   assert.equal(screen.form.step, 2); // Changing engagement must not invent replacement work hours.

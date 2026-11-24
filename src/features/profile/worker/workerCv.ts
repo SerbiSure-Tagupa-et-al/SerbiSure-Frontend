@@ -2,7 +2,38 @@ import { normalizeServices } from '../../bookings/engagementForm';
 
 export const CV_PAGES = ['Work preferences', 'Experience & family', 'Availability', 'Extras & sharing'];
 export const PRACTICAL_SKILLS = ['Meal preparation', 'Ironing', 'Deep cleaning', 'Infant care', 'Child supervision', 'Older adult assistance', 'Laundry care', 'Household organization'];
+export const TESDA_NC2_CERTIFICATES = [
+  'TESDA NC II – Domestic Work',
+  'TESDA NC II – Housekeeping',
+  'TESDA NC II – Caregiving',
+  'TESDA NC II – Cookery',
+] as const;
+export const TESDA_NOT_YET_CERTIFIED = 'Not yet certified (will upload before booking)';
+export const TESDA_NC2_DROPDOWN_OPTIONS = [...TESDA_NC2_CERTIFICATES, TESDA_NOT_YET_CERTIFIED] as const;
+export const TESDA_NC2_HELPER_NOTE =
+  'You must upload your TESDA NC II certificate in Step 5 or Document Verification before you can post, apply, or accept bookings.';
 export interface Training { name: string; provider: string; year: string }
+
+function isTesdaNc2Entry(item: Training): boolean {
+  const name = (item.name || '').trim().toLowerCase();
+  if (!name) return false;
+  if (TESDA_NC2_CERTIFICATES.some(cert => cert.toLowerCase() === name)) return true;
+  return (item.provider || '').trim().toUpperCase() === 'TESDA' && name.startsWith('tesda nc ii');
+}
+
+export function getTesdaCertSelection(training: Training[] = []): string {
+  const match = training.find(isTesdaNc2Entry);
+  if (!match) return '';
+  const canonical = TESDA_NC2_CERTIFICATES.find(cert => cert.toLowerCase() === match.name.trim().toLowerCase());
+  return canonical || match.name.trim();
+}
+
+export function applyTesdaCertSelection(training: Training[] = [], selection: string): Training[] {
+  const others = training.filter(item => !isTesdaNc2Entry(item));
+  const trimmed = selection.trim();
+  if (!trimmed || trimmed === TESDA_NOT_YET_CERTIFIED) return others;
+  return [{ name: trimmed, provider: 'TESDA', year: '' }, ...others];
+}
 export interface WorkerDraft {
   service_categories: string[]; work_setup: string; engagement_preference: string;
   desired_monthly_rate: string; desired_daily_rate: string; civil_status: string; number_of_children: string;
@@ -30,13 +61,32 @@ export function workerDraft(data: Record<string, any>, tags: string[] = [], lang
     languages: data.languages || language.split(',').map(value => value.trim()).filter(Boolean),
   };
 }
+const DAY_CODE_ALIASES: Record<string, string> = {
+  TH: 'Th',
+  SA: 'S',
+  SU: 'Su',
+};
+const VALID_DAY_CODES = new Set(['M', 'T', 'W', 'Th', 'F', 'S', 'Su']);
+const SKILL_ALIASES: Record<string, string> = {
+  'Senior assistance': 'Older adult assistance',
+};
+const VALID_SKILLS = new Set(PRACTICAL_SKILLS);
+
+function normalizeAvailableDays(days: string[] = []): string[] {
+  return [...new Set(days.map(day => DAY_CODE_ALIASES[day] || day).filter(day => VALID_DAY_CODES.has(day)))];
+}
+
+function normalizePracticalSkills(skills: string[] = []): string[] {
+  return [...new Set(skills.map(skill => SKILL_ALIASES[skill] || skill).filter(skill => VALID_SKILLS.has(skill)))];
+}
+
 export function workerPayload(value: WorkerDraft) {
   return { service_categories: normalizeServices(value.service_categories), work_setup: value.work_setup, engagement_preference: value.engagement_preference,
     desired_monthly_rate: value.desired_monthly_rate.trim() || null, desired_daily_rate: value.desired_daily_rate.trim() || null,
     civil_status: value.civil_status, number_of_children: value.number_of_children === '' ? null : Number(value.number_of_children),
     experience_level: value.experience_level, experience_duration: value.experience_level === 'new' ? '' : value.experience_duration,
-    experience_summary: value.experience_summary.trim(), practical_skills: value.practical_skills,
-    available_from: value.available_from || null, available_days: value.available_days, preferred_shifts: value.preferred_shifts,
+    experience_summary: value.experience_summary.trim(), practical_skills: normalizePracticalSkills(value.practical_skills),
+    available_from: value.available_from || null, available_days: normalizeAvailableDays(value.available_days), preferred_shifts: value.preferred_shifts,
     preferred_work_areas: [...new Set(value.preferred_work_areas.split(',').map(area => area.trim()).filter(Boolean))],
     education: value.education.trim(), training: value.training.filter(item => item.name.trim()).map(item => ({ name: item.name.trim(), provider: item.provider.trim(), year: item.year ? Number(item.year) : null })),
     references_available: value.references_available, share_family_details: value.share_family_details, share_contact_details: value.share_contact_details };

@@ -170,6 +170,7 @@ function registrationForm(t, role = 'homeowner', actualCamera) {
     act(() => node('WorkerForm').props.onChange({ ...node('WorkerForm').props.value,
       service_categories: ['Cleaning'], work_setup: 'stay_out', engagement_preference: 'short_term', desired_daily_rate: '800',
       experience_level: 'new', civil_status: 'Single', number_of_children: '0', available_from: '2026-11-01', available_days: ['M'], preferred_shifts: ['morning'], languages: ['English'],
+      training: [{ name: 'TESDA NC II – Housekeeping', provider: 'TESDA', year: '' }],
     }));
     // Visit the four existing CV pages.
     for (let page = 0; page < 4; page++) act(() => h.button('Next').props.onPress());

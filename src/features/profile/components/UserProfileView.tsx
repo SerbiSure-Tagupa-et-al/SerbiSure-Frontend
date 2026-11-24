@@ -478,7 +478,7 @@ export function UserProfileView({
             contactAvatar={activeAvatar}
             userRole="homeowner"
             token={effectiveToken}
-            bookingType={offerPost?.termTag === 'Long-term' ? 'long_term' : 'short_term'}
+            bookingType={offerPost?.termTag === 'Full-time' || offerPost?.termTag === 'Long-term' ? 'long_term' : 'short_term'}
             jobPost={offerJobPost}
             onConfirm={handleConfirmBookingOffer}
           />

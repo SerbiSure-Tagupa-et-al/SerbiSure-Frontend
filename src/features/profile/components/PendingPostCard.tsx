@@ -56,13 +56,13 @@ export function PendingPostCard({
     const rawCategories = Array.isArray(post.service_category)
       ? post.service_category
       : post.service_category
-      ? [post.service_category]
-      : [isJob ? 'Household' : 'General Service'];
+        ? [post.service_category]
+        : [isJob ? 'Household' : 'General Service'];
     const categories = rawCategories.map((value) =>
       !isJob && value === 'Cleaning' ? 'Cleaner' : CATEGORY_LABELS[value] || value.replace(/_/g, ' ')
     );
     const longTerm = post.booking_type === 'long_term';
-    const termTag = longTerm ? 'Long-term' : 'Short-term';
+    const termTag = longTerm ? 'Full-time' : 'Part-time';
     const setupTag = workSetupLabel(post.work_setup);
     const location = formatBookingLocationShort(post, authorLocation || 'Location not provided');
     const numRate = Number(post.rate_amount) || 0;
@@ -135,7 +135,7 @@ export function PendingPostCard({
         <Text style={styles.pendingPostRateUnit}>
           {' '}
           {post.rate_needs_review ? '(unit needs confirmation)' : '/ ' + post.rate_period} ·{' '}
-          {post.booking_type === 'long_term' ? uiText("Long-term") : uiText("Short-term")}
+          {post.booking_type === 'long_term' ? uiText("Full-time") : uiText("Part-time")}
         </Text>
       </View>
       <Text style={styles.pendingPostDetailText}>

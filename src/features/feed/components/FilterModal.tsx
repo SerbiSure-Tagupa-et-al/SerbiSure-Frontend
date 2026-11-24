@@ -41,8 +41,8 @@ export const CATEGORY_OPTIONS = ['All-around', 'Child Care', 'Cleaning', 'Cookin
 
 const BOOKING_TYPES = [
   { label: 'All Types', value: null },
-  { label: 'Short-term', value: 'short_term' },
-  { label: 'Long-term', value: 'long_term' },
+  { label: 'Part-time', value: 'short_term' },
+  { label: 'Full-time', value: 'long_term' },
 ];
 
 export const RATE_PRESETS = [400, 500, 600, 800, 1000];
@@ -399,6 +399,9 @@ export function FilterModal({
                     );
                   })}
                 </View>
+                <Text style={styles.sectionHint}>
+                  {uiText("Part-time: 1–7 days (daily pay) · Full-time: 30+ days (monthly pay)")}
+                </Text>
               </View>
 
               <View style={styles.section}>
@@ -412,6 +415,9 @@ export function FilterModal({
                     </Pressable>
                   ))}
                 </View>
+                <Text style={styles.sectionHint}>
+                  {uiText("Stay-in: lives in employer's home · Stay-out: goes home after shift")}
+                </Text>
               </View>
 
               {/* SECTION: Maximum Rate */}
@@ -696,6 +702,12 @@ const styles = StyleSheet.create({
   toggleBtnTextActive: {
     color: THEME.colors.ink,
     fontWeight: '700',
+  },
+  sectionHint: {
+    fontSize: 11.5,
+    color: '#6B7280',
+    marginTop: 6,
+    lineHeight: 16,
   },
   periodRow: {
     flexDirection: 'row',

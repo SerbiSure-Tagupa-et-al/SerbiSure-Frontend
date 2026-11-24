@@ -11,9 +11,9 @@ export const POSTING_CONFIG = {
     notice: 'Your listing will be visible to verified Kasambahays in your area immediately once posted.',
     termsPrefix: 'I agree to the ', termsName: 'SerbiSure Terms of Service', termsSuffix: ' and confirm these household details are accurate.',
     missingTerms: 'Please agree to the Terms of Service to post.',
-    missingEngagement: 'Please select an engagement type (Short-term or Long-term).',
+    missingEngagement: 'Please select an engagement type (Part-time / Daily or Full-time / Monthly).',
     missingSetup: 'Please select your work setup preference (Stay-out or Stay-in).', missingTime: 'Please select what time works best for you.',
-    invalidAmount: 'Please provide a valid offer amount.', dailyMinimumMessage: 'The rate cannot be below ₱600/day on a short-term basis.',
+    invalidAmount: 'Please provide a valid offer amount.', dailyMinimumMessage: 'The rate cannot be below ₱600/day on a part-time / daily basis.',
     monthlyMinimumTitle: 'Minimum Monthly Salary', errorMessage: 'Failed to post job. Please check your entries.',
   },
   service: {
@@ -26,9 +26,9 @@ export const POSTING_CONFIG = {
     notice: 'Your service post will be visible to homeowners searching for household help in your area.',
     termsPrefix: 'I confirm that my service details and availability are accurate and agree to the ', termsName: 'SerbiSure Terms', termsSuffix: '.',
     missingTerms: 'Please confirm that your service details are accurate.',
-    missingEngagement: 'Please select what type of work you want (Short-term or Long-term).',
+    missingEngagement: 'Please select what type of work you want (Part-time / Daily or Full-time / Monthly).',
     missingSetup: 'Please select where you will stay (Stay-out or Stay-in).', missingTime: 'Please select what time you are available.',
-    invalidAmount: 'Please provide a valid asking rate.', dailyMinimumMessage: 'The asking rate cannot be below ₱600/day on a short-term basis.',
+    invalidAmount: 'Please provide a valid asking rate.', dailyMinimumMessage: 'The asking rate cannot be below ₱600/day on a part-time / daily basis.',
     monthlyMinimumTitle: 'Minimum Monthly Rate', errorMessage: 'Failed to post service. Please check your entries.',
   },
 } as const;
@@ -71,7 +71,7 @@ export function buildPostDescription(mode: PostingMode, input: {
       : `I am looking for ${service} at ${location}, capable of working on a ${setup} setup.`
     : shortTerm
       ? `I am offering ${service} service in ${location}, available ${time}.`
-      : `I am looking for long-term ${service} work in ${location} on a ${setup} arrangement.`;
+      : `I am looking for full-time ${service} work in ${location} on a ${setup} arrangement.`;
   const rateText = buildPostRateText(rate, shortTerm);
   if (rateText) {
     const rateLabel = mode === 'job' ? 'offer rate' : 'expected rate';

@@ -1003,6 +1003,22 @@ export const UI_MESSAGES = {
   'Inside Personal Info, tap View CV to check, edit, or download your Worker CV anytime.': ['Sa loob ng Personal Info, pindutin ang View CV para tingnan, baguhin, o i-download ang iyong Worker CV.', 'Sulod sa Personal Info, pislita ang View CV aron tan-awon, usbon, o i-download ang imong Worker CV.'],
   'Tap Get Verified to upload your ID. You need to be verified before you can post a job or hire.': ['Pindutin ang Get Verified para i-upload ang iyong ID. Kailangan munang ma-verify bago makapag-post o kumuha ng kasambahay.', 'Pislita ang Get Verified aron i-upload ang imong ID. Kinahanglan una ma-verify sa dili pa maka-post o mokuha og kasambahay.'],
   'Tap Get Verified to upload your NBI or Police clearance. You need to be verified before you can post or apply.': ['Pindutin ang Get Verified para i-upload ang iyong NBI o Police clearance. Kailangan munang ma-verify bago makapag-post o mag-apply.', 'Pislita ang Get Verified aron i-upload ang imong NBI o Police clearance. Kinahanglan una ma-verify sa dili pa maka-post o mo-apply.'],
+  'Part-time / Daily': ['Part-time / Arawan', 'Part-time / Inadlaw'],
+  'Full-time / Monthly': ['Full-time / Buwanan', 'Full-time / Binulan'],
+  '1–7 days · Daily pay': ['1–7 araw · Arawang bayad', '1–7 adlaw · Inadlaw nga bayad'],
+  '30+ days · Monthly pay': ['30+ araw · Buwanang sahod', '30+ adlaw · Binulan nga sweldo'],
+  'Live-in': ['Nakatira sa bahay', 'Puyo sa balay'],
+  'Goes home': ['Umuuwi pagkatapos', 'Mouli human trabaho'],
+  'Part-time / Daily (1–7 days)': ['Part-time / Arawan (1–7 araw)', 'Part-time / Inadlaw (1–7 adlaw)'],
+  'Full-time / Monthly (30+ days)': ['Full-time / Buwanan (30+ araw)', 'Full-time / Binulan (30+ adlaw)'],
+  'Stay-in (Live-in)': ['Stay-in (Nakatira sa bahay)', 'Stay-in (Puyo sa balay)'],
+  'Stay-out (Goes home)': ['Stay-out (Umuuwi pagkatapos)', 'Stay-out (Mouli human trabaho)'],
+  'Part-time: 1–7 days (daily pay) · Full-time: 30+ days (monthly pay)': ['Part-time: 1–7 araw (arawang bayad) · Full-time: 30+ araw (buwanang sahod)', 'Part-time: 1–7 adlaw (inadlaw nga bayad) · Full-time: 30+ adlaw (binulan nga sweldo)'],
+  "Stay-in: lives in employer's home · Stay-out: goes home after shift": ['Stay-in: nakatira sa bahay ng amo · Stay-out: umuuwi pagkatapos ng trabaho', 'Stay-in: nagpuyo sa balay sa amo · Stay-out: mouli human sa trabaho'],
+  'PRACTICAL SKILLS': ['PRAKTIKAL NA KAKAYAHAN', 'PRAKTIKAL NGA KAHANAS'],
+  'TESDA NC II CERTIFICATION': ['SERTIPIKASYONG TESDA NC II', 'SERTIPIKASYON SA TESDA NC II'],
+  'Not yet certified (will upload before booking)': ['Wala pang sertipiko (mag-a-upload bago mag-booking)', 'Wala pay sertipiko (mag-upload una sa dili pa mag-booking)'],
+  'You must upload your TESDA NC II certificate in Step 5 or Document Verification before you can post, apply, or accept bookings.': ['Kailangan mong i-upload ang iyong TESDA NC II certificate sa Hakbang 5 o Document Verification bago ka makapag-post, mag-apply, o tumanggap ng booking.', 'Kinahanglan nimong i-upload ang imong TESDA NC II certificate sa Lakang 5 o Document Verification sa dili pa ka maka-post, mo-apply, o modawat og booking.'],
 } as const satisfies Record<string, readonly [string, string]>;
 
 export type AppLanguage = 'English' | 'Tagalog' | 'Bisaya' | 'Cebuano';

@@ -195,7 +195,7 @@ export function OwnPostsSection({
                 <Text style={styles.rateDecimalsAndUnit}>.{detailsDecimals} / {tr(detailsPost.rate_period || 'day')}</Text>
               </View>
               <Text style={styles.detailsMeta}>
-                {tr(detailsPost.booking_type === 'short_term' ? 'Short-term' : 'Long-term')} · {tr(workSetupLabel(detailsPost.work_setup))}
+                {tr(detailsPost.booking_type === 'short_term' ? 'Part-time' : 'Full-time')} · {tr(workSetupLabel(detailsPost.work_setup))}
               </Text>
             </View>
             <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} bounces={false}>
