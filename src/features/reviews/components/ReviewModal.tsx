@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { submitReview, ReviewItem, ReviewSubmissionError } from '../api/reviewApi';
 import { generateUUID } from '../../chat/api/chatApi';
+import { useUser } from '../../auth/session/UserContext';
 
 export interface ReviewModalProps {
   visible: boolean;
@@ -15,6 +16,7 @@ export interface ReviewModalProps {
   onSuccess?: () => void;
   isMandatory?: boolean;
   useNativeModal?: boolean;
+  reviewerRole?: 'Homeowner' | 'Kasambahay';
 }
 
 export interface ReviewModalHandle {
@@ -30,12 +32,18 @@ const SENTIMENT_COLORS = {
 
 export const ReviewModal = forwardRef<ReviewModalHandle, ReviewModalProps>(function ReviewModal({
   visible, onClose, bookingId, revieweeName = 'Service Partner', token, onSuccess, isMandatory = false,
-  useNativeModal = true,
+  useNativeModal = true, reviewerRole,
 }, ref) {
   const { tr: uiText } = useUiLanguage();
+  const { user } = useUser();
   const insets = useSafeAreaInsets();
+  const effectiveRole = reviewerRole || user?.accountType;
+  const isHomeownerReviewer = effectiveRole === 'Homeowner';
+  const isKasambahayReviewer = effectiveRole === 'Kasambahay';
+  const requiresRecommendation = isHomeownerReviewer || isKasambahayReviewer;
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState('');
+  const [wouldRecommend, setWouldRecommend] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stillWaiting, setStillWaiting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -55,6 +63,7 @@ export const ReviewModal = forwardRef<ReviewModalHandle, ReviewModalProps>(funct
     setSavedReview(null);
     setFeedback('');
     setRating(0);
+    setWouldRecommend(null);
     submission.current = null;
     return () => { session.current += 1; };
   }, [visible, bookingId]);
@@ -81,7 +90,18 @@ export const ReviewModal = forwardRef<ReviewModalHandle, ReviewModalProps>(funct
       setErrorMsg('Please write at least 10 characters about your experience.');
       return;
     }
-    const params = { booking_id: bookingId, rating, unstructured_feedback: trimmed };
+    if (requiresRecommendation && wouldRecommend === null) {
+      setErrorMsg(uiText(isHomeownerReviewer
+        ? 'Please choose whether you would recommend this Kasambahay to other Homeowners.'
+        : 'Please choose whether you would recommend this Homeowner to other Kasambahays.'));
+      return;
+    }
+    const params = {
+      booking_id: bookingId,
+      rating,
+      unstructured_feedback: trimmed,
+      ...(requiresRecommendation ? { would_recommend: wouldRecommend } : {}),
+    };
     const body = JSON.stringify(params);
     if (submission.current?.body !== body) submission.current = { body, key: generateUUID() };
     const currentSession = session.current;
@@ -152,6 +172,68 @@ export const ReviewModal = forwardRef<ReviewModalHandle, ReviewModalProps>(funct
               <Text style={styles.charCountText}>{feedback.trim().length} {uiText("/ 1000 characters · minimum 10")}</Text>
             </View>
           </View>
+          {requiresRecommendation && (
+            <View style={styles.recommendCard}>
+              <View style={styles.recommendHeaderRow}>
+                <Text style={styles.inputLabel}>{uiText(isHomeownerReviewer ? 'HOMEOWNER REFERRAL' : 'KASAMBAHAY REFERRAL')}</Text>
+                <View style={styles.requiredPill}>
+                  <Text style={styles.requiredPillText}>{uiText("Required")}</Text>
+                </View>
+              </View>
+              <Text style={styles.recommendQuestion}>
+                {uiText(isHomeownerReviewer
+                  ? 'Would you recommend {name} to other Homeowners?'
+                  : 'Would you recommend {name} to other Kasambahays?', { name: revieweeName })}
+              </Text>
+              <Text style={styles.recommendHint}>
+                {uiText(isHomeownerReviewer
+                  ? 'Your answer helps other families choose trusted Kasambahays on SerbiSure.'
+                  : 'Your answer helps other Kasambahays find safe and respectful Homeowners on SerbiSure.')}
+              </Text>
+              <View style={styles.recommendBtnRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={uiText("Yes, I recommend")}
+                  accessibilityState={{ selected: wouldRecommend === true, disabled: isSubmitting || !!savedReview }}
+                  disabled={isSubmitting || !!savedReview}
+                  onPress={() => { setWouldRecommend(true); setErrorMsg(null); }}
+                  style={[
+                    styles.recommendBtn,
+                    wouldRecommend === true && styles.recommendBtnYesActive,
+                  ]}
+                >
+                  <Ionicons
+                    name={wouldRecommend === true ? 'thumbs-up' : 'thumbs-up-outline'}
+                    size={18}
+                    color={wouldRecommend === true ? '#166534' : '#374151'}
+                  />
+                  <Text style={[styles.recommendBtnText, wouldRecommend === true && styles.recommendBtnTextYes]}>
+                    {uiText("Yes, I recommend")}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={uiText("No")}
+                  accessibilityState={{ selected: wouldRecommend === false, disabled: isSubmitting || !!savedReview }}
+                  disabled={isSubmitting || !!savedReview}
+                  onPress={() => { setWouldRecommend(false); setErrorMsg(null); }}
+                  style={[
+                    styles.recommendBtn,
+                    wouldRecommend === false && styles.recommendBtnNoActive,
+                  ]}
+                >
+                  <Ionicons
+                    name={wouldRecommend === false ? 'thumbs-down' : 'thumbs-down-outline'}
+                    size={18}
+                    color={wouldRecommend === false ? '#991B1B' : '#374151'}
+                  />
+                  <Text style={[styles.recommendBtnText, wouldRecommend === false && styles.recommendBtnTextNo]}>
+                    {uiText("No")}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
           {isSubmitting && (
             <View onLayout={() => scroll.current?.scrollToEnd({ animated: true })} style={styles.statusCard} accessibilityLiveRegion="polite" accessibilityState={{ busy: true }}>
               <ActivityIndicator size="small" color="#B45309" />
@@ -168,6 +250,11 @@ export const ReviewModal = forwardRef<ReviewModalHandle, ReviewModalProps>(funct
                 <Text style={styles.statusTitle}>{uiText("Review submitted")}</Text>
                 <Text style={styles.statusText}>{uiText("Thank you! Your review has been saved.")}</Text>
                 <Text style={[styles.resultBadge, SENTIMENT_COLORS[savedReview.nlp_sentiment]]}>{uiText("Feedback sentiment:")} {uiText(savedReview.nlp_sentiment)}</Text>
+                {savedReview.would_recommend === true && (
+                  <Text style={[styles.resultBadge, { backgroundColor: '#DCFCE7', color: '#166534' }]}>
+                    {uiText(isHomeownerReviewer ? 'Added as a Verified Employer Referral' : 'Added as a Verified Kasambahay Referral')}
+                  </Text>
+                )}
               </View>
             </View>
           )}
@@ -307,6 +394,84 @@ const styles = StyleSheet.create({
   charCountText: {
     fontSize: 11,
     color: '#9CA3AF',
+  },
+  recommendCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  recommendHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  requiredPill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  requiredPillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  recommendQuestion: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    lineHeight: 21,
+    marginBottom: 4,
+  },
+  recommendHint: {
+    fontSize: 12.5,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  recommendBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  recommendBtn: {
+    flex: 1,
+    minHeight: 46,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  recommendBtnYesActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#16A34A',
+  },
+  recommendBtnNoActive: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#DC2626',
+  },
+  recommendBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  recommendBtnTextYes: {
+    color: '#166534',
+  },
+  recommendBtnTextNo: {
+    color: '#991B1B',
   },
   errorBox: {
     flexDirection: 'row',

@@ -623,6 +623,7 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
       'react-native': reactNativeMock, '@expo/vector-icons': { Ionicons: 'Icon' },
       'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
       '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: text => text }) },
+      '../../auth/session/UserContext': { useUser: () => ({ user }) },
       '../../chat/api/chatApi': { generateUUID: () => 'c44113ea-6392-462f-b55b-2eed6bb9c180' },
       '../api/reviewApi': { submitReview: () => submission.promise },
     });
@@ -712,6 +713,7 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     assert.ok(screen.all('Text').some(node => content(node) === 'other Name?'));
     screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Rate 5 out of 5 stars').props.onPress());
     screen.act(() => screen.find('TextInput').props.onChangeText('Excellent service.'));
+    screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Yes, I recommend').props.onPress());
     screen.act(() => header('Submit Review').props.onPress());
     screen.act(() => bookingsModal.props.onRequestClose());
     assert.ok(header('Please wait…'));

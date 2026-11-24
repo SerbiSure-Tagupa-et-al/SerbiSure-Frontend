@@ -214,6 +214,35 @@ export function WorkerCvPreview({ cv }: { cv: WorkerCv }) {
               </Text>
             ))}
           </View>
+
+          {/* VERIFIED SERBISURE TRACK RECORD & REFERRALS */}
+          {(cv.performance?.completed_jobs ?? 0) > 0 && (
+            <>
+              <Text style={styles.sectionHeading}>{uiText("VERIFIED SERBISURE TRACK RECORD")}</Text>
+              <View style={styles.languagesBlock}>
+                <Text style={styles.bulletItem}>
+                  • {cv.performance.completed_jobs === 1
+                    ? uiText('1 Completed Job')
+                    : uiText('{count} Completed Jobs', { count: cv.performance.completed_jobs })}
+                  {(cv.performance.recommended_count ?? 0) > 0
+                    ? ` · ${cv.performance.recommended_count === 1
+                      ? uiText('Recommended by 1 Homeowner')
+                      : uiText('Recommended by {count} Homeowners', { count: cv.performance.recommended_count! })}`
+                    : ''}
+                </Text>
+                {(cv.work_history || []).slice(0, 3).map((job) => {
+                  const title = (job.service_labels || []).join(', ') || uiText('Household Service');
+                  const term = job.booking_type === 'long_term' ? uiText('Full-time') : uiText('Part-time');
+                  const parts = [title, term, job.area].filter(Boolean).join(' · ');
+                  return (
+                    <Text key={job.booking_id} style={styles.bulletItem}>
+                      • {parts}{job.would_recommend ? ` (${uiText("Recommended by Homeowner")})` : ''}
+                    </Text>
+                  );
+                })}
+              </View>
+            </>
+          )}
         </View>
       </View>
     </View>

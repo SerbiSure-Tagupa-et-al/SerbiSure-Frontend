@@ -35,6 +35,7 @@ export interface ReviewItem {
   reviewee_account_type: string;
   reviewee_profile_link: string | null;
   rating: number;
+  would_recommend?: boolean | null;
   unstructured_feedback: string;
   nlp_sentiment: SentimentType;
   sentiment_analysis?: SentimentAnalysis | Record<string, never>;
@@ -66,6 +67,7 @@ export interface CreateReviewParams {
   booking_id: string;
   rating: number; // 1 to 5
   unstructured_feedback: string; // Min 10 chars, max 1000 chars
+  would_recommend?: boolean | null;
 }
 
 /** Django validates, analyzes, and saves the review before returning success. */
@@ -76,6 +78,14 @@ export async function submitReview(
 ): Promise<{ message: string; data: ReviewItem }> {
   let res: Response;
   try {
+    const payload: Record<string, unknown> = {
+      booking_id: params.booking_id,
+      rating: params.rating,
+      unstructured_feedback: params.unstructured_feedback.trim(),
+    };
+    if (typeof params.would_recommend === 'boolean') {
+      payload.would_recommend = params.would_recommend;
+    }
     res = await requestResponse(`${REVIEW_BASE}/create/`, {
       method: 'POST',
       headers: {
@@ -83,11 +93,7 @@ export async function submitReview(
         'Content-Type': 'application/json',
         'Idempotency-Key': idempotencyKey,
       },
-      body: JSON.stringify({
-        booking_id: params.booking_id,
-        rating: params.rating,
-        unstructured_feedback: params.unstructured_feedback.trim(),
-      }),
+      body: JSON.stringify(payload),
     }, 60000);
   } catch {
     throw new ReviewSubmissionError('We could not confirm your submission. Your feedback is still here. Tap Try Again to check safely.', 'connection');
@@ -95,7 +101,7 @@ export async function submitReview(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const message = data.detail || data.booking_id?.[0] || data.rating?.[0] ||
-      data.unstructured_feedback?.[0] || 'Could not submit your review. Please try again.';
+      data.would_recommend?.[0] || data.unstructured_feedback?.[0] || 'Could not submit your review. Please try again.';
     throw new ReviewSubmissionError(String(message), data.code);
   }
   if (!data.data?.review_id || !['Positive', 'Neutral', 'Negative'].includes(data.data.nlp_sentiment)) {

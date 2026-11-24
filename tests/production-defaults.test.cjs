@@ -112,23 +112,178 @@ test('malformed review ratings and sentiments do not become five stars or positi
   assert.equal(screen.all('Icon').filter(node => node.props.name === 'star').length, 6); // Three summary stars + three actual review stars.
 });
 
-test('review submission requires a deliberate star selection', async t => {
+test('review submission requires a deliberate star selection and a referral choice from both roles', async t => {
   const sent = [];
   const { ReviewModal } = load('src/features/reviews/components/ReviewModal.tsx', {
-    '../api/reviewApi': { submitReview: async (_token, payload) => { sent.push(payload); return { ...payload, nlp_sentiment: 'Positive' }; } },
+    '../api/reviewApi': { submitReview: async (_token, payload) => { sent.push(payload); return { data: { ...payload, nlp_sentiment: 'Positive' } }; } },
+    '../../auth/session/UserContext': { useUser: () => ({ user: { accountType: 'Homeowner' } }) },
     '../../chat/api/chatApi': { generateUUID: () => 'c44113ea-6392-462f-b55b-2eed6bb9c180' },
   });
-  const screen = mount(t, ReviewModal, { visible: true, onClose() {}, bookingId: 'booking', token: 'test-token' });
+  const screen = mount(t, ReviewModal, { visible: true, onClose() {}, bookingId: 'booking', token: 'test-token', revieweeName: 'Maria' });
   assert.match(screen.content(), /Select a star rating/);
+  assert.match(screen.content(), /Would you recommend .* to other Homeowners\?/);
   screen.act(() => screen.all('TextInput')[0].props.onChangeText('The work was completed well.'));
   const submit = () => screen.all('Pressable').find(node => text(node).includes('Submit Review'));
   await screen.act(() => submit().props.onPress());
   assert.equal(sent.length, 0);
   assert.match(screen.content(), /Please select a star rating/);
   screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Rate 3 out of 5 stars').props.onPress());
+  // Still blocked until Homeowner answers the required referral question
+  await screen.act(() => submit().props.onPress());
+  assert.equal(sent.length, 0);
+  assert.match(screen.content(), /Please choose whether you would recommend/);
+  screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Yes, I recommend').props.onPress());
   await screen.act(() => submit().props.onPress());
   assert.equal(sent.length, 1);
   assert.equal(sent[0].rating, 3);
+  assert.equal(sent[0].would_recommend, true);
+
+  // Kasambahay reviewing a Homeowner must also answer before the full review can be submitted.
+  const workerScreen = mount(t, ReviewModal, { visible: true, onClose() {}, bookingId: 'booking-2', token: 'test-token', reviewerRole: 'Kasambahay' });
+  assert.match(workerScreen.content(), /KASAMBAHAY REFERRAL/);
+  assert.match(workerScreen.content(), /Would you recommend .* to other Kasambahays\?/);
+  assert.match(workerScreen.content(), /safe and respectful Homeowners/);
+  workerScreen.act(() => workerScreen.all('TextInput')[0].props.onChangeText('Respectful employer and clear instructions.'));
+  workerScreen.act(() => workerScreen.all('Pressable').find(node => node.props.accessibilityLabel === 'Rate 5 out of 5 stars').props.onPress());
+  await workerScreen.act(() => workerScreen.all('Pressable').find(node => text(node).includes('Submit Review')).props.onPress());
+  assert.equal(sent.length, 1);
+  assert.match(workerScreen.content(), /Please choose whether you would recommend this Homeowner to other Kasambahays/);
+  workerScreen.act(() => workerScreen.all('Pressable').find(node => node.props.accessibilityLabel === 'Yes, I recommend').props.onPress());
+  await workerScreen.act(() => workerScreen.all('Pressable').find(node => text(node).includes('Submit Review')).props.onPress());
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].would_recommend, true);
+  assert.match(workerScreen.content(), /Added as a Verified Kasambahay Referral/);
+});
+
+test('No is a complete recommendation answer for either reviewer role', async t => {
+  for (const role of ['Homeowner', 'Kasambahay']) {
+    const sent = [];
+    const { ReviewModal } = load('src/features/reviews/components/ReviewModal.tsx', {
+      '../api/reviewApi': { submitReview: async (_token, payload) => {
+        sent.push(payload); return { data: { ...payload, nlp_sentiment: 'Neutral' } };
+      } },
+      '../../auth/session/UserContext': { useUser: () => ({ user: { accountType: role } }) },
+      '../../chat/api/chatApi': { generateUUID: () => 'c44113ea-6392-462f-b55b-2eed6bb9c180' },
+    });
+    const screen = mount(t, ReviewModal, { visible: true, onClose() {}, bookingId: 'booking', token: 'token' });
+    screen.act(() => screen.all('TextInput')[0].props.onChangeText('The work was completed as agreed.'));
+    screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Rate 3 out of 5 stars').props.onPress());
+    screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'No').props.onPress());
+    await screen.act(() => screen.all('Pressable').find(node => text(node).includes('Submit Review')).props.onPress());
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].would_recommend, false);
+    assert.doesNotMatch(screen.content(), /Added as a Verified .* Referral/);
+  }
+});
+
+test('review referral badges identify the reviewer role and omit declined or legacy unanswered recommendations', t => {
+  const { ReviewsSection } = load('src/features/profile/components/ReviewsSection.tsx', {
+    '../styles': { profileStyles: {} },
+    '../../../shared/ui/ProfileAvatar': { ProfileAvatar: 'ProfileAvatar' },
+    '../../reviews/ratings': ratings,
+  });
+  for (const role of ['Kasambahay', 'Homeowner', undefined]) {
+    for (const recommendation of [true, false, null]) {
+      const screen = mount(t, ReviewsSection, { profile: {
+        t: {}, isReviewsExpanded: false, setIsReviewsExpanded() {},
+        reviews: [{ review_id: 'review', rating: 5, reviewer_account_type: role, would_recommend: recommendation,
+          unstructured_feedback: 'A real review.' }],
+      } });
+      if (recommendation === true) {
+        assert.ok(screen.content().includes(role === 'Kasambahay' ? 'Recommended by Kasambahay' : 'Recommended by Homeowner'));
+      } else {
+        assert.doesNotMatch(screen.content(), /Recommended by/);
+      }
+    }
+  }
+});
+
+test('WorkHistorySection displays verified SerbiSure jobs, referrals, and empty states honestly', t => {
+  const { WorkHistorySection } = load('src/features/profile/components/ReviewsSection.tsx', {
+    '../styles': { profileStyles: {} },
+    '../../../shared/ui/ProfileAvatar': { ProfileAvatar: 'ProfileAvatar' },
+    '../../reviews/ratings': load('src/features/reviews/ratings.ts'),
+  });
+  const empty = mount(t, WorkHistorySection, { workHistory: { user_id: 'w1', summary: { completed_jobs_count: 0, recommended_count: 0, repeat_employers_count: 0 }, jobs: [] } });
+  assert.match(empty.content(), /No completed jobs on SerbiSure yet/);
+
+  const populated = mount(t, WorkHistorySection, {
+    workHistory: {
+      user_id: 'w1',
+      summary: { completed_jobs_count: 2, recommended_count: 1, repeat_employers_count: 1 },
+      jobs: [{
+        booking_id: 'b1',
+        service_category: ['Cleaning'],
+        service_labels: ['Cleaning'],
+        booking_type: 'short_term',
+        work_setup: 'stay_out',
+        area: 'Agusan, Cagayan de Oro',
+        start_date: '2026-10-10',
+        end_date: '2026-10-12',
+        completed_at: '2026-10-12T10:00:00Z',
+        employer_name: 'Ana Cruz',
+        employer_verified: true,
+        employer_avatar: null,
+        rating: 5,
+        would_recommend: true,
+        nlp_sentiment: 'Positive',
+        feedback: 'Very trustworthy and clean.',
+      }],
+    },
+  });
+  assert.match(populated.content(), /Verified Job/);
+  assert.match(populated.content(), /Agusan, Cagayan de Oro/);
+  assert.match(populated.content(), /Hired by Ana Cruz/);
+  assert.match(populated.content(), /Employer Referral · Recommended to other Homeowners/);
+  assert.match(populated.content(), /Very trustworthy and clean\./);
+});
+
+test('homeowner history uses helper referrals and booking language with an honest empty state', t => {
+  const { WorkHistorySection } = load('src/features/profile/components/ReviewsSection.tsx', {
+    '../styles': { profileStyles: {} },
+    '../../../shared/ui/ProfileAvatar': { ProfileAvatar: 'ProfileAvatar' },
+    '../../reviews/ratings': ratings,
+  });
+  const empty = mount(t, WorkHistorySection, { profileRole: 'Homeowner', workHistory: null });
+  assert.match(empty.content(), /No completed bookings on SerbiSure yet/);
+  assert.match(empty.content(), /once this Homeowner finishes a booking/);
+  const screen = mount(t, WorkHistorySection, { profileRole: 'Homeowner', workHistory: {
+    account_type: 'Homeowner', summary: { completed_jobs_count: 2, recommended_count: 1, repeat_employers_count: 1 },
+    jobs: [{ booking_id: 'job', service_labels: ['Cleaning'], partner_role: 'Kasambahay', employer_name: 'Maria Santos',
+      area: 'Agusan, Cagayan de Oro', rating: 5, would_recommend: true, feedback: 'Respectful homeowner.' }],
+  } });
+  assert.match(screen.content(), /Jobs Done/);
+  assert.match(screen.content(), /Kasambahay Referrals/);
+  assert.match(screen.content(), /Repeat Helpers/);
+  assert.match(screen.content(), /Worked with Maria Santos/);
+  assert.match(screen.content(), /Kasambahay Referral · Recommended to other Kasambahays/);
+  assert.doesNotMatch(screen.content(), /Hired by|Homeowner Referrals|Repeat Clients/);
+});
+
+test('reputation metrics use loaded history counts and never invent a percentage for zero reviews', t => {
+  const metricVal = {};
+  const { ReputationSection } = load('src/features/profile/worker/ReputationSection.tsx', {
+    '../styles': { profileStyles: { metricVal } },
+  });
+  const base = { totalReviews: 0, summary: { total_reviews: 0, average_rating: 0 }, positivePercentage: 0,
+    isVerified: false, verificationLabel: 'Pending' };
+  for (const isWorker of [true, false]) {
+    const zero = mount(t, ReputationSection, { profile: { ...base, isWorker,
+      workHistory: { summary: { completed_jobs_count: 0, recommended_count: 0 } } } });
+    assert.deepEqual(zero.all('Text').filter(node => node.props.style === metricVal).map(text), ['—', '0', '—']);
+    assert.doesNotMatch(zero.content(), /0%/);
+    const loaded = mount(t, ReputationSection, { profile: { ...base, isWorker, totalReviews: 2,
+      summary: { total_reviews: 2, average_rating: 4.5 }, positivePercentage: 50,
+      workHistory: { summary: { completed_jobs_count: 3, recommended_count: 1 } } } });
+    assert.deepEqual(loaded.all('Text').filter(node => node.props.style === metricVal).map(text), ['4.5', '3', '50%']);
+    assert.ok(loaded.content().includes(isWorker ? 'Recommended by 1 Homeowner' : 'Recommended by 1 Kasambahay'));
+  }
+  const unavailable = mount(t, ReputationSection, { profile: base });
+  assert.deepEqual(unavailable.all('Text').filter(node => node.props.style === metricVal).map(text), ['—', '—', '—']);
+  const analytics = mount(t, ReputationSection, { profile: { ...base,
+    analyticsData: { total_reviews: 3, average_rating: 4, positive_percentage: 67, total_jobs_completed: 0 },
+    workHistory: { summary: { completed_jobs_count: 3 } } } });
+  assert.deepEqual(analytics.all('Text').filter(node => node.props.style === metricVal).map(text), ['4.0', '0', '67%']);
 });
 
 test('CV preview and exported PDF do not invent worker qualifications or personal details', t => {

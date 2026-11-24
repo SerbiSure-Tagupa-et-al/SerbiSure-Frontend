@@ -106,6 +106,60 @@ export interface PublicProfile {
   show_social_links?: boolean;
 }
 
+export interface VerifiedWorkHistoryJob {
+  booking_id: string;
+  service_category: string[];
+  service_labels: string[];
+  booking_type: 'short_term' | 'long_term' | string;
+  work_setup: 'stay_in' | 'stay_out' | null;
+  area: string;
+  start_date: string | null;
+  end_date: string | null;
+  completed_at: string | null;
+  employer_name: string;
+  partner_role?: string;
+  employer_verified: boolean;
+  employer_avatar: string | null;
+  rating: number | null;
+  would_recommend: boolean | null;
+  nlp_sentiment: string | null;
+  feedback: string | null;
+}
+
+export interface VerifiedWorkHistorySummary {
+  completed_jobs_count: number;
+  recommended_count: number;
+  repeat_employers_count: number;
+}
+
+export interface VerifiedWorkHistoryData {
+  user_id: string;
+  account_type?: string;
+  summary: VerifiedWorkHistorySummary;
+  jobs: VerifiedWorkHistoryJob[];
+}
+
+/**
+ * Fetch either participant's verified on-platform completed booking history and referrals.
+ * GET /api/v1/accounts/public-profile/<userId>/work-history/
+ */
+export async function fetchWorkerWorkHistory(token: string, userId: string): Promise<VerifiedWorkHistoryData | null> {
+  try {
+    const res = await requestResponse(`${ACCOUNTS_BASE}/public-profile/${userId}/work-history/`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error: any) {
+    console.warn('[accountApi] fetchWorkerWorkHistory error:', error?.message || error);
+    return null;
+  }
+}
+
 /**
  * Fetch the public profile of any user by their UUID.
  * GET /api/v1/accounts/public-profile/<userId>/

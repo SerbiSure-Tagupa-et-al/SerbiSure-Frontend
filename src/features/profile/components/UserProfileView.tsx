@@ -15,7 +15,7 @@ import { useUser } from '../../auth/session/UserContext';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
 import { AppHeader, APP_HEADER_BACK_ICON_COLOR, APP_HEADER_BACK_ICON_SIZE } from '../../../shared/components/AppHeader';
 import { localizeProfileCopy } from '../profileConfig';
-import { ReviewsSection } from './ReviewsSection';
+import { ReviewsSection, WorkHistorySection } from './ReviewsSection';
 import { WorkerCvModal } from '../worker/WorkerCvModal';
 import { JobDetailSheet } from '../../feed/components/JobDetailSheet';
 import { BookingModal, type BookingConfirmData } from '../../bookings/components/BookingModal';
@@ -82,8 +82,8 @@ export function UserProfileView({
   const effectiveToken = token || user.token;
   const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const { applyJob, applyingJobId } = useJobApplication(effectiveToken, () => { void refreshPosts(); }, setPendingReview);
-  const { profile, reviews, summary, posts, canUsePost, loading, postsLoading, profileError, postsError, refreshPosts, markSubmitted } = usePublicProfile(visible, userId, effectiveToken);
-  const [activeTab, setActiveTab] = useState<'posts' | 'reviews'>('posts');
+  const { profile, reviews, summary, workHistory, posts, canUsePost, loading, postsLoading, profileError, postsError, refreshPosts, markSubmitted } = usePublicProfile(visible, userId, effectiveToken);
+  const [activeTab, setActiveTab] = useState<'posts' | 'history' | 'reviews'>('posts');
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(false);
   const [showCv, setShowCv] = useState(false);
   const [selectedJob, setSelectedJob] = useState<FeedPost | null>(null);
@@ -98,6 +98,10 @@ export function UserProfileView({
   const displayName = profile?.full_name || prefilledName;
   const displayRole = profile?.account_type || prefilledRole;
   const isWorker = displayRole === 'Kasambahay';
+  const hasHistory = isWorker || displayRole === 'Homeowner';
+  const completedJobs = workHistory?.summary?.completed_jobs_count ?? 0;
+  const repeatPartners = workHistory?.summary?.repeat_employers_count ?? 0;
+  const recommendedCount = workHistory?.summary?.recommended_count ?? reviews.filter(r => r.would_recommend === true).length;
 
   useEffect(() => {
     setActiveTab('posts');
@@ -319,6 +323,40 @@ export function UserProfileView({
               </Text>
             </View>
 
+            {/* Verified track record for both booking participant roles. */}
+            {hasHistory && (completedJobs > 0 || recommendedCount > 0) ? (
+              <View style={styles.trustStripRow}>
+                {completedJobs > 0 && (
+                  <View style={styles.trustPill}>
+                    <Ionicons name="checkmark-circle" size={14} color="#0D0D11" />
+                    <Text style={styles.trustPillText}>
+                      {completedJobs === 1
+                        ? uiText('1 Completed Job')
+                        : uiText('{count} Completed Jobs', { count: completedJobs })}
+                    </Text>
+                  </View>
+                )}
+                {recommendedCount > 0 && (
+                  <View style={[styles.trustPill, styles.trustPillReferral]}>
+                    <Ionicons name="thumbs-up" size={13} color="#166534" />
+                    <Text style={[styles.trustPillText, styles.trustPillReferralText]}>
+                      {recommendedCount === 1
+                        ? uiText(isWorker ? 'Recommended by 1 Homeowner' : 'Recommended by 1 Kasambahay')
+                        : uiText(isWorker ? 'Recommended by {count} Homeowners' : 'Recommended by {count} Kasambahays', { count: recommendedCount })}
+                    </Text>
+                  </View>
+                )}
+                {repeatPartners > 0 && (
+                  <View style={styles.trustPill}>
+                    <Ionicons name="repeat" size={13} color="#EA580C" />
+                    <Text style={styles.trustPillText}>
+                      {uiText(isWorker ? 'Rehired by {count}' : 'Rehired {count}', { count: repeatPartners })}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : null}
+
             {/* Hero Tags Pill Row */}
             <View style={styles.heroTagsRow}>
               {displayTags.map((tag, idx) => (
@@ -353,12 +391,14 @@ export function UserProfileView({
             )}
           </View>
 
-          {/* Profile Tabs: Recent Posts vs Reviews & Feedbacks */}
+          {/* Booking participants share Recent Posts, Job History and Reviews. */}
           <ProfileTabs
             activeTab={activeTab}
             onChange={setActiveTab}
             postsCount={posts.length}
+            historyCount={workHistory?.summary?.completed_jobs_count}
             reviewsCount={totalReviews}
+            showHistory={hasHistory}
           />
 
           {activeTab === 'posts' ? (
@@ -379,6 +419,8 @@ export function UserProfileView({
               onMessage={handlePostReply}
               onApplyJob={handlePostReply}
             />
+          ) : activeTab === 'history' && hasHistory ? (
+            <WorkHistorySection workHistory={workHistory} loading={loading} profileRole={isWorker ? 'Kasambahay' : 'Homeowner'} />
           ) : (
             <ReviewsSection
               profile={{
@@ -697,6 +739,33 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     alignItems: 'center',
+  },
+  trustStripRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  trustPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 9999,
+  },
+  trustPillReferral: {
+    backgroundColor: '#DCFCE7',
+  },
+  trustPillText: {
+    fontFamily: THEME.typography.fontFamily.mainBold,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0D0D11',
+  },
+  trustPillReferralText: {
+    color: '#166534',
   },
   heroTagBadge: {
     backgroundColor: '#FFAE7A',

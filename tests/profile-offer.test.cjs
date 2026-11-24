@@ -42,8 +42,9 @@ const sourcePost = { id: '63212905-719c-444b-b42a-c0cc56790846', partnerId: work
 const details = { bookingType: 'long_term', startDate: '12/01/2099', endDate: '01/02/2100', ongoing: false,
   workHours: '08:00 AM - 05:00 PM', days: ['M'], serviceCategory: ['Cleaning'], workSetup: 'stay_out',
   salary: '8000', region: 'Region X', province: 'Misamis Oriental', city: 'Cagayan de Oro', barangay: 'Pagatpat', street: 'Lot 555', floorUnit: 'Unit 2B', zipCode: '9000' };
+const { translateMessage } = load('src/shared/localization/messages.ts');
 
-function profile(t) {
+function profile(t, { publicProfile = {}, openOffer = true } = {}) {
   const requests = [], alerts = [];
   let fail = true, refreshes = 0;
   const native = { StyleSheet: { create: value => value }, Alert: { alert: (...args) => alerts.push(args) } };
@@ -66,17 +67,17 @@ function profile(t) {
     'react-native': native, '@expo/vector-icons': { Ionicons: 'Icon' },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0 }) },
     '../../../../assets/serbisure-icon.png': 1,
-    '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: text => text, t: {} }) },
+    '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: (text, params) => translateMessage('English', text, params), t: {} }) },
     '../hooks/usePublicProfile': { usePublicProfile: () => ({ profile: { full_name: 'Naruto', account_type: 'Kasambahay' },
-      reviews: [], posts: [], canUsePost: () => true, refreshPosts: async () => { refreshes++; } }) },
+      reviews: [], posts: [], canUsePost: () => true, refreshPosts: async () => { refreshes++; }, ...publicProfile }) },
     '../../auth/session/UserContext': { useUser: () => ({ user: { id: ownerId, token: 'token', accountType: 'Homeowner' } }) },
     '../../bookings/store/savedJobsStore': { useJobsActivity: () => ({ isSaved: () => false, isApplied: () => false }) },
     '../../bookings/hooks/useJobApplication': { useJobApplication: () => ({}) },
     '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../feed/feedMapper': {}, '../styles': { profileStyles: {} },
     './ProfileTabs': { ProfileTabs: 'ProfileTabs' }, './PublicPostsSection': { PublicPostsSection: 'PublicPostsSection' },
-    '../../../shared/ui/ProfileAvatar': { ProfileAvatar: 'ProfileAvatar' }, '../profileConfig': {},
-    './ReviewsSection': { ReviewsSection: 'ReviewsSection' }, '../worker/WorkerCvModal': { WorkerCvModal: 'WorkerCvModal' },
+    '../../../shared/ui/ProfileAvatar': { ProfileAvatar: 'ProfileAvatar' }, '../profileConfig': { localizeProfileCopy: () => ({}) },
+    './ReviewsSection': { ReviewsSection: 'ReviewsSection', WorkHistorySection: 'WorkHistorySection' }, '../worker/WorkerCvModal': { WorkerCvModal: 'WorkerCvModal' },
     '../../feed/components/JobDetailSheet': { JobDetailSheet: 'JobDetailSheet' },
     '../../bookings/components/BookingModal': { BookingModal: 'BookingModal' }, '../../chat/api/bookingOffersApi': api,
     '../../chat/api/chatApi': module.exports, '../../bookings/engagementForm': load('src/features/bookings/engagementForm.ts'),
@@ -93,10 +94,55 @@ function profile(t) {
   t.after(() => { act(() => renderer.updateContainer(null, root, null)); renderer.flushPassiveEffects(); });
   const find = type => { const visit = node => node.type === type ? node : node.children.map(visit).find(Boolean); return visit(container); };
   render();
-  act(() => find('PublicPostsSection').props.onDetails(sourcePost));
-  act(() => { void find('JobDetailSheet').props.onApply(); });
-  return { requests, alerts, find, render, act, set fail(value) { fail = value; }, get refreshes() { return refreshes; } };
+  if (openOffer) {
+    act(() => find('PublicPostsSection').props.onDetails(sourcePost));
+    act(() => { void find('JobDetailSheet').props.onApply(); });
+  }
+  const content = () => {
+    const visit = node => node.text || node.children.map(visit).join('');
+    return visit(container);
+  };
+  return { requests, alerts, find, render, act, content, set fail(value) { fail = value; }, get refreshes() { return refreshes; } };
 }
+
+test('homeowner referral pills use the summary or review fallback and enable role-aware job history', t => {
+  for (const [count, reviews, expected] of [
+    [1, [], 'Recommended by 1 Kasambahay'],
+    [2, [], 'Recommended by 2 Kasambahays'],
+    [undefined, [{ would_recommend: true }, { would_recommend: true }, { would_recommend: false }], 'Recommended by 2 Kasambahays'],
+    [0, [{ would_recommend: true }], null],
+  ]) {
+    const screen = profile(t, { openOffer: false, publicProfile: {
+      profile: { full_name: 'Actual Homeowner', account_type: 'Homeowner' }, reviews,
+      workHistory: count === undefined ? undefined : { summary: { recommended_count: count, completed_jobs_count: 0, repeat_employers_count: 0 }, jobs: [] },
+    } });
+    assert.equal(screen.find('ProfileTabs').props.showHistory, true);
+    assert.equal(screen.find('WorkHistorySection'), undefined);
+    assert.doesNotMatch(screen.content(), /Completed Job|Rehired by|Recommended by (?:\d+|\{count\}) Homeowners?/);
+    if (expected) assert.ok(screen.content().includes(expected));
+    else assert.doesNotMatch(screen.content(), /Recommended by/);
+    screen.act(() => screen.find('ProfileTabs').props.onChange('history'));
+    assert.equal(screen.find('WorkHistorySection').props.profileRole, 'Homeowner');
+  }
+});
+
+test('public job history is available to both participant roles and hidden for desk accounts', t => {
+  for (const role of ['Kasambahay', 'Homeowner', 'Admin', 'Barangay']) {
+    const screen = profile(t, { openOffer: false, publicProfile: {
+      profile: { full_name: 'Actual Person', account_type: role },
+      workHistory: { summary: { completed_jobs_count: 2, recommended_count: 1, repeat_employers_count: 1 }, jobs: [] },
+    } });
+    const allowed = role === 'Kasambahay' || role === 'Homeowner';
+    assert.equal(screen.find('ProfileTabs').props.showHistory, allowed);
+    if (allowed) {
+      assert.match(screen.content(), /2 Completed Jobs/);
+      assert.ok(screen.content().includes(role === 'Kasambahay' ? 'Rehired by 1' : 'Rehired 1'));
+    } else assert.doesNotMatch(screen.content(), /Completed Jobs|Recommended by|Rehired/);
+    screen.act(() => screen.find('ProfileTabs').props.onChange('history'));
+    if (allowed) assert.equal(screen.find('WorkHistorySection').props.profileRole, role);
+    else assert.equal(screen.find('WorkHistorySection'), undefined);
+  }
+});
 
 test('profile offer preserves source details and a valid UUID across failed-send retry and parent refresh', async t => {
   const screen = profile(t);

@@ -284,6 +284,34 @@ export function generateWorkerCvPdf(cv: WorkerCv, options?: GenerateCvPdfOptions
     yR -= 16;
   }
 
+  // VERIFIED SERBISURE TRACK RECORD (only when completed jobs exist)
+  const completedJobs = cv.performance?.completed_jobs ?? 0;
+  const recommendedCount = cv.performance?.recommended_count ?? 0;
+  if (completedJobs > 0 && yR > 120) {
+    yR -= 16;
+    s += '0.05 0.05 0.07 rg\n';
+    s += `BT /F2 12 Tf ${rightX} ${yR} Td (SERBISURE TRACK RECORD) Tj ET\n`;
+    yR -= 18;
+    s += '0.25 0.25 0.30 rg\n';
+    const summaryLine = `\\225 ${completedJobs} Completed ${completedJobs === 1 ? 'Job' : 'Jobs'}${recommendedCount > 0 ? ` | Recommended by ${recommendedCount} ${recommendedCount === 1 ? 'Homeowner' : 'Homeowners'}` : ''}`;
+    for (const line of wrapText(summaryLine, 36)) {
+      if (yR <= 82) break;
+      s += `BT /F1 10.5 Tf ${rightX} ${yR} Td (${escapePdf(line).replace(/\\\\225/g, '\\225')}) Tj ET\n`;
+      yR -= 15;
+    }
+    for (const job of (cv.work_history || []).slice(0, 2)) {
+      if (yR <= 82) break;
+      const title = (job.service_labels || []).join(', ') || 'Household Service';
+      const term = job.booking_type === 'long_term' ? 'Full-time' : 'Part-time';
+      const lineText = `\\225 ${[title, term, job.area].filter(Boolean).join(' - ')}${job.would_recommend ? ' (Recommended)' : ''}`;
+      for (const line of wrapText(lineText, 36)) {
+        if (yR <= 82) break;
+        s += `BT /F1 10 Tf ${rightX} ${yR} Td (${escapePdf(line).replace(/\\\\225/g, '\\225')}) Tj ET\n`;
+        yR -= 14;
+      }
+    }
+  }
+
   // Vertical column separator line (Exactly centered at 297.5 pt across the 511 pt printable area)
   s += '0.88 0.88 0.90 RG 1 w 297.5 690 m 297.5 75 l S\n';
 

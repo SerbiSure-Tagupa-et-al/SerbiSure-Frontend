@@ -37,8 +37,9 @@ const deferred = () => { let resolve, reject; const promise = new Promise((yes, 
 const tick = async () => { await new Promise(resolve => setImmediate(resolve)); renderer.flushPassiveEffects(); };
 const jwt = (role, status, version = 1, id = role) => `header.${Buffer.from(JSON.stringify({ user_id: id, account_type: role, verification_status: status, version })).toString('base64url')}.signature`;
 const content = node => node.text || node.children.map(content).join('');
-function screen(t, role, withProfile = false) {
+function screen(t, role, withProfile = false, history = null) {
   const requests = [], alerts = [], submissions = [], listeners = new Set();
+  const historyRequests = [];
   const native = { StyleSheet: { create: value => value }, Platform: { OS: 'android' }, Alert: { alert: (...args) => alerts.push(args) },
     AppState: { addEventListener: (_event, callback) => { listeners.add(callback); return { remove: () => listeners.delete(callback) }; } } };
   for (const name of ['Text', 'View', 'Pressable', 'ScrollView', 'TextInput', 'KeyboardAvoidingView', 'ActivityIndicator']) native[name] = name;
@@ -60,6 +61,7 @@ function screen(t, role, withProfile = false) {
     '../api/accountApi': {
       fetchUserAbout: async () => '', fetchUserTags: async () => [], fetchContactPrivacy: async () => false,
       fetchUserSocialLinks: async () => ({ social_links: [] }),
+      ...(history ? { fetchWorkerWorkHistory: async (...args) => { historyRequests.push(args); return history; } } : {}),
     },
     '../../notifications/api/notificationsApi': { fetchNotifications: async () => ({ unread_count: 0 }) },
     '../../bookings/api/bookingApi': { fetchMyPosts: async () => [] },
@@ -90,7 +92,7 @@ function screen(t, role, withProfile = false) {
   t.after(unmount);
   const nodes = () => { const result = []; const visit = node => { result.push(node); node.children.forEach(visit); }; visit(container); return result; };
   const press = label => act(() => nodes().find(node => node.type === 'Pressable' && (node.props.accessibilityLabel === label || content(node) === label)).props.onPress());
-  return { render, unmount, act, nodes, press, requests, alerts, submissions,
+  return { render, unmount, act, nodes, press, requests, alerts, submissions, historyRequests,
     apply: () => press(role === 'Homeowner' ? 'Offer to Hire' : 'Apply'),
     foreground: () => act(() => listeners.forEach(callback => callback('active'))),
     get context() { return session; }, get profile() { return profile; }, get listenerCount() { return listeners.size; } };
@@ -100,6 +102,26 @@ const namedJwt = (role, version = 1) => `header.${Buffer.from(JSON.stringify({
   user_id: role, account_type: role, verification_status: 'Verified', version,
   first_name: 'Jerry', middle_name: 'Testing', last_name: 'Doloriel', date_of_birth: '1988-06-22',
 })).toString('base64url')}.signature`;
+
+test('own profiles load verified history for both roles on mount and pull-to-refresh', async t => {
+  for (const role of ['Homeowner', 'Kasambahay']) {
+    const history = { user_id: role, account_type: role,
+      summary: { completed_jobs_count: 2, recommended_count: 1, repeat_employers_count: 1 }, jobs: [] };
+    const app = screen(t, role, true, history);
+    app.render(jwt(role, 'Verified'));
+    await tick();
+    assert.ok(app.historyRequests.length > 0);
+    assert.deepEqual(app.profile.workHistory, history);
+    const before = app.historyRequests.length;
+    const refresh = app.profile.handleRefresh();
+    for (const request of app.requests) request.resolve({ overall_status: 'Verified', documents: [] });
+    await refresh;
+    await tick();
+    assert.ok(app.historyRequests.length > before);
+    assert.equal(app.profile.totalReviews, 0);
+    assert.equal(app.profile.positivePercentage, null);
+  }
+});
 
 test('expiry and renewal refresh remove stale green badges despite historical approvals', async t => {
   const app = screen(t, 'Kasambahay', true);
