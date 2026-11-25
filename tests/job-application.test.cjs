@@ -94,6 +94,8 @@ function home(t, f) {
     '../../profile/components/UserProfileModal': { UserProfileModal: 'UserProfileModal' },
     '../../chat/components/ChatDetailScreen': { ChatDetailScreen: 'ChatDetailScreen' },
     '../components/JobDetailSheet': { JobDetailSheet: 'JobDetailSheet' },
+    '../components/LocationRadiusModal': { LocationRadiusModal: 'LocationRadiusModal' },
+    '../locationFilter': load('src/features/feed/locationFilter.ts', {}),
     '../components/HomeFeedControls': Object.fromEntries(['HomeFeedFilters', 'HomeFeedHeader', 'HomeFeedEmptyState', 'HomeFeedLoadingState'].map(key => [key, key])),
     '../components/FeedPostCard': { FeedPostCard: 'FeedPostCard' },
     '../hooks/useFeed': { useFeed: () => ({ posts: [post], isLoading: false, refresh: async () => {} }) },

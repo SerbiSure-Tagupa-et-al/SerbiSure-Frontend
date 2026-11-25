@@ -14,6 +14,7 @@ function load(file) {
     if (name === './postingConfig') return load('src/features/posting/postingConfig.ts');
     if (name.endsWith('/posting/validation')) return load('src/features/posting/validation.ts');
     if (name.endsWith('/bookings/engagementForm')) return load('src/features/bookings/engagementForm.ts');
+    if (name === '../locationFilter') return load('src/features/feed/locationFilter.ts');
     if (name.endsWith('theme/theme')) return load('src/shared/theme/theme.ts');
     if (name === 'react') return require('react');
     if (name === 'react-native') return { Dimensions: { get: () => ({ height: 800 }) }, StyleSheet: { create: value => value }, Platform: { OS: 'android' } };

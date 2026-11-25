@@ -479,7 +479,8 @@ function browse(t, role) {
   let swipe;
   const { BrowseScreen } = load('src/features/feed/screens/BrowseScreen.tsx', {
     'react-native': native, 'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0 }) },
-    '../../../app/roleConfig': load('src/app/roleConfig.ts'), '../../../shared/theme/theme': { default: { colors: {} } },
+    '@expo/vector-icons': { Ionicons: 'Ionicons' },
+    '../../../app/roleConfig': load('src/app/roleConfig.ts'), '../../../shared/theme/theme': { default: { colors: {}, typography: { fontFamily: {} }, roundness: { pill: 999 } } },
     '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: (text, params) => localization.translateMessage(language, text, params) }) },
     '../../../shared/components/AppHeader': { AppHeader: 'AppHeader' }, '../../auth/session/UserContext': { useUser: () => ({ user }) },
     '../../bookings/store/savedJobsStore': { useJobsActivity: () => store }, '../../chat/components/ChatDetailScreen': { ChatDetailScreen: 'ChatDetailScreen' },
@@ -490,6 +491,8 @@ function browse(t, role) {
     '../components/BrowseHeader': { BrowseHeader: 'BrowseHeader', BrowseFilters: 'BrowseFilters' }, '../components/BrowsePostCard': { BrowsePostCard: 'BrowsePostCard', BrowseCardBackdrop: 'BrowseCardBackdrop' },
     '../components/BrowseDeck': { ...Object.fromEntries(['BrowseDeckEmpty', 'BrowseDeckSkeleton', 'BrowseDeckSwipeControls', 'BrowseEmptyState'].map(name => [name, name])), browseDeckStyles: {} },
     '../components/FilterModal': { FilterModal: 'FilterModal', DEFAULT_FILTERS: defaultFilters }, '../components/JobDetailSheet': { JobDetailSheet: 'JobDetailSheet' },
+    '../components/LocationRadiusModal': { LocationRadiusModal: 'LocationRadiusModal' },
+    '../locationFilter': load('src/features/feed/locationFilter.ts'),
     '../browsePresentation': load('src/features/feed/browsePresentation.ts'), '../feedMapper': mapper, '../hooks/useExploreFeed': { useExploreFeed },
     '../hooks/usePostUpdates': { usePostUpdates: () => ({ canUsePost: () => true, now: Date.now() }) },
     '../hooks/useBrowseSwipeDeck': { useBrowseSwipeDeck: (_id, onSwipe) => { swipe = onSwipe; return { position: { x: 0, y: 0, setValue() {} }, rotateCard: 0, panHandlers: {}, swipeCard: direction => swipe(direction === 'right') }; } },

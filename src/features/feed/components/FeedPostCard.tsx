@@ -89,7 +89,9 @@ export function FeedPostCard({
         <View style={styles.locationRow}>
           <MapPinIcon size={13} color="#6B7280" />
           <Text style={styles.locationText} numberOfLines={1}>
-            {post.location}
+            {post.proximity_label
+              ? `${post.location.replace(/City of Cagayan De Oro/gi, 'CDO')} · ${uiText(post.proximity_label)}`
+              : post.location}
           </Text>
         </View>
       ) : null}

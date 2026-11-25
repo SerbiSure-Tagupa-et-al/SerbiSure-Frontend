@@ -5,8 +5,30 @@ import { Ionicons } from '@expo/vector-icons';
 import THEME from '../../../shared/theme/theme';
 import type { Role } from '../../../app/roleConfig';
 import { browseEmptyCopy } from '../browsePresentation';
+import type { LocationEmptyExpansion, LocationFilterState } from '../locationFilter';
 
-export function BrowseDeckEmpty({ role, fetchedCount, hasFilters, error, onRefresh, onClearFilters }: Readonly<{ role: Role; fetchedCount: number; hasFilters: boolean; error?: string | null; onRefresh: () => void; onClearFilters: () => void }>) {
+export function BrowseDeckEmpty({ role, fetchedCount, hasFilters, error, onRefresh, onClearFilters, locationPrompt, onSelectLocation }: Readonly<{ role: Role; fetchedCount: number; hasFilters: boolean; error?: string | null; onRefresh: () => void; onClearFilters: () => void; locationPrompt?: LocationEmptyExpansion | null; onSelectLocation?: (next: LocationFilterState) => void }>) {
+  if (!error && fetchedCount === 0 && !hasFilters && locationPrompt && onSelectLocation) {
+    return (
+      <View style={styles.empty}>
+        <Ionicons name="location-outline" size={40} color="#CBD5E1" style={styles.icon} />
+        <Text style={styles.title}>{locationPrompt.title}</Text>
+        <Text style={styles.description}>{locationPrompt.description}</Text>
+        <View style={styles.expandRow}>
+          {locationPrompt.actions.map((act, idx) => (
+            <Pressable
+              key={act.label}
+              accessibilityRole="button"
+              onPress={() => onSelectLocation(act.next)}
+              style={[styles.button, idx > 0 && styles.secondaryButton]}
+            >
+              <Text style={styles.buttonText}>{act.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
   const copy = browseEmptyCopy(role, fetchedCount, hasFilters, error);
   const clearFilters = !error && fetchedCount === 0 && hasFilters;
   const showAction = !clearFilters && !!copy.action;
@@ -137,6 +159,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  expandRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 16 },
+  secondaryButton: { backgroundColor: THEME.colors.white, borderWidth: 1, borderColor: '#E5E7EB', marginTop: 18 },
   buttonText: { color: THEME.colors.ink, fontSize: 13, fontFamily: THEME.typography.fontFamily.display },
   skeleton: { width: '100%', aspectRatio: 0.95, borderRadius: 28, backgroundColor: THEME.colors.white, padding: 20, gap: 16 },
   skeletonIdentity: { flexDirection: 'row', alignItems: 'center', gap: 12 },

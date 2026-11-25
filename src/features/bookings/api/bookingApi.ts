@@ -78,6 +78,8 @@ export interface BookingParticipant {
 
 export interface BookingItem {
   poster_account_type?: 'Homeowner' | 'Kasambahay';
+  distance_km?: number | null;
+  proximity_label?: string | null;
   application?: BookingProposal;
   schedule_expired?: boolean;
   booking_id: string;

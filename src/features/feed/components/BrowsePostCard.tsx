@@ -12,6 +12,7 @@ interface CardProps {
   readonly authorRole: 'Homeowner' | 'Kasambahay';
   readonly title: string;
   readonly location: string;
+  readonly proximityLabel?: string | null;
   readonly description: string;
   readonly tags: readonly string[];
   readonly price: string;
@@ -32,7 +33,7 @@ function formatCardUnit(rawUnit: string): string {
   return trimmed;
 }
 
-export function BrowsePostCard({ name, avatarUri, authorRole, title, location, description, tags, price, unit, saved, applied, startTime, onProfilePress, onSave, onDetails }: CardProps) {
+export function BrowsePostCard({ name, avatarUri, authorRole, title, location, proximityLabel, description, tags, price, unit, saved, applied, startTime, onProfilePress, onSave, onDetails }: CardProps) {
   const { tr: uiText } = useUiLanguage();
   const displayTags = Array.from(new Set(tags.filter((tag) => !tag.startsWith('Verified')))).slice(0, 3);
   const workerPost = authorRole === 'Kasambahay';
@@ -55,7 +56,11 @@ export function BrowsePostCard({ name, avatarUri, authorRole, title, location, d
             </Pressable>
             <View style={styles.locationRow}>
               <Ionicons name="location-sharp" size={14} color="#FFAA77" />
-              <Text style={styles.location} numberOfLines={1}>{location}</Text>
+              <Text style={styles.location} numberOfLines={1}>
+                {proximityLabel
+                  ? `${location.replace(/City of Cagayan De Oro/gi, 'CDO')} · ${uiText(proximityLabel)}`
+                  : location}
+              </Text>
             </View>
             {workerPost && <Text style={styles.serviceTitle} numberOfLines={1}>{title}</Text>}
             <Text style={styles.description} numberOfLines={2}>{workerPost ? stripLegacyExpectedRate(description) : description}</Text>

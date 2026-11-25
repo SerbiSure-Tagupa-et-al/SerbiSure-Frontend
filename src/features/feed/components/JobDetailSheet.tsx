@@ -32,6 +32,8 @@ export interface JobDetailData {
   image?: string;
   time?: string;
   location?: string;
+  distance_km?: number | null;
+  proximity_label?: string | null;
   roleTag?: string;
   termTag?: string;
   tags?: string[];
@@ -355,7 +357,9 @@ export function JobDetailSheet({
                 <View style={styles.locationRow}>
                   <Ionicons name="location-sharp" size={13} color="#F97316" />
                   <Text style={styles.sheetLocation} numberOfLines={1}>
-                    {location}
+                    {job.proximity_label
+                      ? `${location.replace(/City of Cagayan De Oro/gi, 'CDO')} · ${uiText(job.proximity_label)}`
+                      : location}
                   </Text>
                 </View>
 

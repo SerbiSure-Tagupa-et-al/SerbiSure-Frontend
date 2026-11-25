@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Animated, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { ROLE_CONFIG, type Role } from '../../../app/roleConfig';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
 import THEME from '../../../shared/theme/theme';
@@ -16,9 +17,11 @@ import { BrowseHeader, BrowseFilters } from '../components/BrowseHeader';
 import { BrowsePostCard, BrowseCardBackdrop } from '../components/BrowsePostCard';
 import { BrowseDeckEmpty, BrowseDeckSkeleton, BrowseDeckSwipeControls, BrowseEmptyState, browseDeckStyles as deckStyles } from '../components/BrowseDeck';
 import { FilterModal, DEFAULT_FILTERS, type FeedFilters } from '../components/FilterModal';
+import { LocationRadiusModal } from '../components/LocationRadiusModal';
 import { ProposalsModal } from '../../bookings/components/ProposalsModal';
 import { JobDetailSheet } from '../components/JobDetailSheet';
 import { activeBrowseChip, quickBrowseFilters, countBrowseFilters, browseHeaderCopy, type BrowseTab } from '../browsePresentation';
+import { defaultLocationFilter, formatLocationChipLabel, locationEmptyPrompt, type LocationFilterState } from '../locationFilter';
 import { mapBrowsePost } from '../feedMapper';
 import { useBrowseSwipeDeck } from '../hooks/useBrowseSwipeDeck';
 import { useExploreFeed } from '../hooks/useExploreFeed';
@@ -52,8 +55,19 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
   const partnerRole = ROLE_CONFIG[role].partnerType;
   const mapPost = useCallback((item: BookingFeedDto) => mapBrowsePost(item, role), [role]);
   const { items, setItems, isLoading, error: feedError, fetchItems, fetchedCount } = useExploreFeed(role, effectiveToken, mapPost);
-  const [filters, setFilters] = useState<FeedFilters>(DEFAULT_FILTERS);
+  const defaultFiltersForUser = useCallback((): FeedFilters => {
+    const loc = defaultLocationFilter(user);
+    return {
+      ...DEFAULT_FILTERS,
+      locationScope: loc.scope,
+      radiusKm: loc.radiusKm,
+      originCity: loc.city,
+      originBarangay: loc.barangay,
+    };
+  }, [user.city, user.barangay]);
+  const [filters, setFilters] = useState<FeedFilters>(() => defaultFiltersForUser());
   const [filterVisible, setFilterVisible] = useState(false);
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [quickFiltersVisible, setQuickFiltersVisible] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [subTab, setSubTab] = useState<BrowseTab>('explore');
@@ -162,6 +176,21 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
     setFilters(safeFilters);
     void fetchFeed(true, safeFilters);
   };
+  const currentLocationState: LocationFilterState = {
+    scope: filters.locationScope || 'all',
+    radiusKm: filters.radiusKm || 5,
+    city: filters.originCity || '',
+    barangay: filters.originBarangay || '',
+  };
+  const applyLocation = (next: LocationFilterState) => {
+    applyFilters({
+      ...filters,
+      locationScope: next.scope,
+      radiusKm: next.radiusKm,
+      originCity: next.city,
+      originBarangay: next.barangay,
+    });
+  };
   const refresh = async () => {
     setIsRefreshing(true);
     try {
@@ -171,10 +200,11 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
   };
 
   useEffect(() => {
-    setBidPost(null); setFilters(DEFAULT_FILTERS); setSubTab('explore'); setSelectedPost(null); setProfilePost(null); setActiveChat(null); setFilterVisible(false); setQuickFiltersVisible(true);
-    void fetchFeed(true, DEFAULT_FILTERS);
+    const initial = defaultFiltersForUser();
+    setBidPost(null); setFilters(initial); setSubTab('explore'); setSelectedPost(null); setProfilePost(null); setActiveChat(null); setFilterVisible(false); setLocationModalVisible(false); setQuickFiltersVisible(true);
+    void fetchFeed(true, initial);
     if (effectiveToken) void refreshSavedFromBackend(effectiveToken);
-  }, [role, effectiveToken]);
+  }, [role, effectiveToken, user.city, user.barangay]);
   useEffect(() => {
     if ((subTab === 'saved' || subTab === 'applied') && effectiveToken) void refreshSavedFromBackend(effectiveToken);
   }, [subTab, effectiveToken]);
@@ -205,17 +235,30 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
         onTabChange={tab => setSubTab(!findingJobs && tab === 'applied' ? 'explore' : tab)} onProfilePress={onViewProfile}
         filtersVisible={quickFiltersVisible} onFiltersToggle={() => setQuickFiltersVisible(visible => !visible)} />
       {subTab === 'explore' ? <>
+        <View style={styles.locationChipWrap}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={uiText('Change location and distance')}
+            onPress={() => setLocationModalVisible(true)}
+            style={({ pressed }) => [styles.locationChip, pressed && { opacity: 0.78 }]}
+          >
+            <Ionicons name="location-sharp" size={14} color={THEME.colors.brandDark} />
+            <Text style={styles.locationChipText} numberOfLines={1}>{formatLocationChipLabel(currentLocationState, uiText)}</Text>
+            <Ionicons name="chevron-down" size={14} color={THEME.colors.textSecondary} />
+          </Pressable>
+        </View>
         {quickFiltersVisible && <BrowseFilters activeChip={activeBrowseChip(filters)} filterCount={activeFilterCount}
           onChipPress={label => applyFilters(quickBrowseFilters(filters, label))} onFilterPress={() => setFilterVisible(true)} />}
         {isLoading ? <View style={deckStyles.centerWrapper}><BrowseDeckSkeleton /></View>
           : feedError || !card0 ? <View style={deckStyles.emptyContainer}><BrowseDeckEmpty role={role} fetchedCount={fetchedCount}
-            hasFilters={activeFilterCount > 0} error={feedError} onRefresh={() => { void fetchFeed(true); }} onClearFilters={() => applyFilters({ ...DEFAULT_FILTERS })} /></View>
+            hasFilters={activeFilterCount > 0} error={feedError} onRefresh={() => { void fetchFeed(true); }} onClearFilters={() => applyFilters(defaultFiltersForUser())}
+            locationPrompt={locationEmptyPrompt(currentLocationState, uiText)} onSelectLocation={applyLocation} /></View>
             : <View style={deckStyles.centerWrapper}><View style={deckStyles.container}>
               {card2 && <View style={deckStyles.back}><BrowseCardBackdrop avatarUri={card2.avatar} name={card2.employerName} /></View>}
               {card1 && <View style={deckStyles.middle}><BrowseCardBackdrop avatarUri={card1.avatar} name={card1.employerName} /></View>}
               <Animated.View style={[deckStyles.front, { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate: rotateCard }] }]} {...panHandlers}>
                 <BrowsePostCard startTime={card0.start_time} name={card0.employerName} avatarUri={card0.avatar} authorRole={partnerRole} title={card0.title}
-                  location={card0.location} description={card0.aboutText} tags={card0.tags} price={card0.price} unit={card0.unit}
+                  location={card0.location} proximityLabel={card0.proximity_label} description={card0.aboutText} tags={card0.tags} price={card0.price} unit={card0.unit}
                   saved={isSaved(card0.id)} applied={findingJobs && isApplied(card0.id)} onProfilePress={() => openProfile(card0)}
                   onSave={() => { void toggleSave(card0, effectiveToken); }} onDetails={() => setSelectedPost(card0)} />
               </Animated.View>
@@ -251,7 +294,24 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
         currentRate={bidPost.price?.replace(/[^0-9.]/g, '') || null} ratePeriod={bidPost.unit?.includes('month') ? 'month' : 'day'} token={effectiveToken} onUpdated={() => { void refresh(); }} />}
       {activeChat && <ChatDetailScreen visible onClose={() => setActiveChat(null)} {...activeChat}
         contactName={activeChat.name} contactRole={activeChat.role} contactAvatar={activeChat.avatar} userRole={role} token={effectiveToken} />}
-      <FilterModal visible={filterVisible} onClose={() => setFilterVisible(false)} onApply={applyFilters} initialFilters={filters} mode={role} />
+      <FilterModal
+        visible={filterVisible}
+        onClose={() => setFilterVisible(false)}
+        onApply={applyFilters}
+        initialFilters={filters}
+        mode={role}
+        onPickLocation={() => {
+          setFilterVisible(false);
+          setLocationModalVisible(true);
+        }}
+      />
+      <LocationRadiusModal
+        visible={locationModalVisible}
+        value={currentLocationState}
+        userLocation={user}
+        onClose={() => setLocationModalVisible(false)}
+        onApply={applyLocation}
+      />
       {profilePost && <UserProfileModal visible onClose={() => setProfilePost(null)} userId={String(profilePost.partnerId)}
         prefilledName={profilePost.employerName} prefilledRole={partnerRole} prefilledAvatar={profilePost.avatar} token={effectiveToken || ''} />}
       {pendingReview && (
@@ -271,6 +331,9 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.colors.canvas },
+  locationChipWrap: { marginHorizontal: 20, marginBottom: 8, alignItems: 'flex-start' },
+  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: THEME.roundness.pill, backgroundColor: THEME.colors.white, borderWidth: 1, borderColor: '#EAE6DF', maxWidth: '100%' },
+  locationChipText: { flexShrink: 1, fontSize: 12.5, fontFamily: THEME.typography.fontFamily.secondarySemiBold, color: THEME.colors.ink },
   activityTabContainer: { flex: 1, paddingBottom: 40 },
   activityList: { paddingHorizontal: 20, gap: 12, paddingTop: 4 },
 });

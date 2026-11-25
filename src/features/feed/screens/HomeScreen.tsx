@@ -19,10 +19,12 @@ import { ChatDetailScreen } from '../../chat/components/ChatDetailScreen';
 import { ProposalsModal } from '../../bookings/components/ProposalsModal';
 import { JobDetailSheet } from '../components/JobDetailSheet';
 import { HomeFeedFilters, HomeFeedHeader, HomeFeedEmptyState, HomeFeedLoadingState } from '../components/HomeFeedControls';
+import { LocationRadiusModal } from '../components/LocationRadiusModal';
 import { FeedPostCard } from '../components/FeedPostCard';
 import { useFeed } from '../hooks/useFeed';
 import { usePostUpdates } from '../hooks/usePostUpdates';
 import { matchesHomeFeedFilters, type HomeFeedCategory } from '../feedFilters';
+import { defaultLocationFilter, formatLocationChipLabel, locationEmptyPrompt, type LocationFilterState } from '../locationFilter';
 import type { FeedPost } from '../types';
 import THEME from '../../../shared/theme/theme';
 
@@ -47,7 +49,9 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
   const { t } = useLanguage();
   const role = requestedRole || resolveRole(user.accountType);
   const authToken = token || user.token;
-  const { posts, isLoading, isRefreshing, error, refresh } = useFeed(role, authToken, user.id);
+  const [locationFilter, setLocationFilter] = useState<LocationFilterState>(() => defaultLocationFilter(user));
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const { posts, isLoading, isRefreshing, error, refresh } = useFeed(role, authToken, user.id, locationFilter);
   const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const { applyJob, applyingJobId } = useJobApplication(authToken, () => { void handleRefresh(); }, setPendingReview);
   const { canUsePost } = usePostUpdates(posts, () => { void handleRefresh(); });
@@ -61,8 +65,10 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
 
   useEffect(() => {
     setBidPost(null); setSearchQuery(''); setSelectedCategory(null); setSelectedPost(null); setProfilePost(null); setActiveChat(null);
+    setLocationModalVisible(false);
+    setLocationFilter(defaultLocationFilter(user));
     if (authToken) void refreshSavedFromBackend(authToken);
-  }, [authToken, user.id, role]);
+  }, [authToken, user.id, user.city, user.barangay, role]);
 
   const visiblePosts = posts.filter((post) => {
     if (!canUsePost(post)) return false;
@@ -91,7 +97,15 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
   const renderPosts = () => {
     if (isLoading) return <HomeFeedLoadingState />;
     if (!error && visiblePosts.length === 0) {
-      return <HomeFeedEmptyState role={role} hasActiveFilters={hasActiveFilters} onResetFilters={resetFilters} />;
+      return (
+        <HomeFeedEmptyState
+          role={role}
+          hasActiveFilters={hasActiveFilters}
+          onResetFilters={resetFilters}
+          locationPrompt={locationEmptyPrompt(locationFilter, uiText)}
+          onSelectLocation={setLocationFilter}
+        />
+      );
     }
     return visiblePosts.map((post) => {
       const actions = {
@@ -112,13 +126,28 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
         onRefresh={handleRefresh}
       >
         <GreetingCard name={getFirstNameOnly()} greeting={t.greeting} avatarUri={avatarUri} onAvatarPress={onAvatarPress} />
-        <HomeFeedFilters placeholder={t[ROLE_CONFIG[role].searchKey]} searchQuery={searchQuery} selectedCategory={selectedCategory} onSearchChange={setSearchQuery} onCategoryChange={setSelectedCategory} />
+        <HomeFeedFilters
+          placeholder={t[ROLE_CONFIG[role].searchKey]}
+          searchQuery={searchQuery}
+          selectedCategory={selectedCategory}
+          onSearchChange={setSearchQuery}
+          onCategoryChange={setSelectedCategory}
+          locationLabel={formatLocationChipLabel(locationFilter, uiText)}
+          onLocationPress={() => setLocationModalVisible(true)}
+        />
         {(!isLoading && visiblePosts.length > 0) ? <HomeFeedHeader onViewAll={onViewAll} /> : null}
         <View style={styles.list}>
           {error && <ErrorNotice message={error} onRetry={() => { void handleRefresh(); }} />}
           {renderPosts()}
         </View>
       </ScreenLayout>
+      <LocationRadiusModal
+        visible={locationModalVisible}
+        value={locationFilter}
+        userLocation={user}
+        onClose={() => setLocationModalVisible(false)}
+        onApply={setLocationFilter}
+      />
       {profilePost && <UserProfileModal visible onClose={() => setProfilePost(null)} userId={profilePost.partnerId} token={authToken} prefilledName={profilePost.employerName} prefilledRole={profilePost.kind === 'job' ? 'Homeowner' : profilePost.roleTag} prefilledAvatar={profilePost.avatar} />}
       <JobDetailSheet
         visible={!!selectedPost} job={selectedPost} onClose={() => setSelectedPost(null)}

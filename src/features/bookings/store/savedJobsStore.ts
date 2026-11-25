@@ -15,6 +15,8 @@ export interface SavedJobItem {
   avatar: string;
   time?: string;
   location?: string;
+  distance_km?: number | null;
+  proximity_label?: string | null;
   roleTag?: string;
   termTag?: string;
   setupTag?: string;
