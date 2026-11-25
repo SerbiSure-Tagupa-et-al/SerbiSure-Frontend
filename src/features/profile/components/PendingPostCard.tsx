@@ -1,4 +1,4 @@
-import { formatRate } from '../../../shared/utils/rate';
+import { formatRate, stripLegacyExpectedRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { workSetupLabel } from '../../bookings/workSetup';
 import React from 'react';
@@ -52,7 +52,7 @@ export function PendingPostCard({
 
   // If authorName is provided, render the modern feed post card!
   if (authorName || feedPost) {
-    const isJob = (authorRole || 'Homeowner') === 'Homeowner';
+    const isJob = (post.poster_account_type || authorRole || 'Homeowner') === 'Homeowner';
     const rawCategories = Array.isArray(post.service_category)
       ? post.service_category
       : post.service_category
@@ -95,9 +95,9 @@ export function PendingPostCard({
       roleTag: categories[0] || (isJob ? 'Household Service' : 'Kasambahay'),
       termTag,
       setupTag,
-      price: rawPrice,
-      unit,
-      aboutText: description,
+      price: isJob ? rawPrice : '',
+      unit: isJob ? unit : '',
+      aboutText: isJob ? description : stripLegacyExpectedRate(description),
       tags: Array.from(new Set([termTag, setupTag, ...categories])),
     };
 
@@ -131,12 +131,16 @@ export function PendingPostCard({
         </View>
       </View>
       <View style={styles.pendingPostRateRow}>
+        {(post.poster_account_type || authorRole) === 'Kasambahay' ? (
+          <Text style={styles.pendingPostRate}>{uiText(post.booking_type === 'long_term' ? 'Full-time' : 'Part-time')}</Text>
+        ) : <>
         <Text style={styles.pendingPostRate}>{uiText(formatRate(post.rate_amount))}</Text>
         <Text style={styles.pendingPostRateUnit}>
           {' '}
           {post.rate_needs_review ? '(unit needs confirmation)' : '/ ' + post.rate_period} ·{' '}
           {post.booking_type === 'long_term' ? uiText("Full-time") : uiText("Part-time")}
         </Text>
+        </>}
       </View>
       <Text style={styles.pendingPostDetailText}>
         {uiText("Work setup:")} {workSetupLabel(post.work_setup)}
@@ -151,7 +155,7 @@ export function PendingPostCard({
       </View>
       {post.special_instruction ? (
         <View style={styles.pendingPostInstructionBox}>
-          <Text style={styles.pendingPostInstructionText}>{post.special_instruction}</Text>
+          <Text style={styles.pendingPostInstructionText}>{(post.poster_account_type || authorRole) === 'Kasambahay' ? stripLegacyExpectedRate(post.special_instruction) : post.special_instruction}</Text>
         </View>
       ) : null}
       <View style={styles.pendingPostProposalsRow}>

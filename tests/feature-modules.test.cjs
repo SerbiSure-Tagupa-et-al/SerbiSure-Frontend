@@ -216,9 +216,10 @@ test('Explore keeps its own card wording and rate units', () => {
   assert.equal(worker.name, 'Test User');
   assert.equal(worker.role, 'Cleaning, Child Care');
   assert.equal(worker.years, 'Part-time');
-  assert.equal(worker.price, '₱800.00');
-  assert.equal(worker.unit, 'per day');
-  assert.equal(mapper.mapWorkerPreview({ ...dto, booking_type: 'long_term' }).unit, 'per month');
+  assert.equal(worker.price, '');
+  assert.equal(worker.authorRole, 'Kasambahay');
+  assert.equal(worker.unit, '');
+  assert.equal(mapper.mapWorkerPreview({ ...dto, booking_type: 'long_term' }).unit, '');
   assert.equal(job.price, '₱800.00');
   assert.equal(job.title, 'Cleaning & Child Care');
   assert.equal(job.unit, 'per month');
@@ -368,18 +369,20 @@ test('posting does not invent amounts when engagement changes', () => {
 test('generated descriptions preserve role and engagement wording', () => {
   const input = { service: 'Cleaning', location: 'Nazareth', setup: 'stay-out', time: '8 AM to 5 PM', shortTerm: true, instructions: '  Pet-friendly  ' };
   assert.equal(posting.buildPostDescription('job', input), 'I am looking for Cleaning at Nazareth, available 8 AM to 5 PM.\n\nSpecific instructions:\nPet-friendly');
-  assert.equal(posting.buildPostDescription('service', input), 'I am offering Cleaning service in Nazareth, available 8 AM to 5 PM.\n\nAbout my experience:\nPet-friendly');
-  assert.equal(posting.buildPostDescription('service', { ...input, shortTerm: false, instructions: '' }), 'I am looking for full-time Cleaning work in Nazareth on a stay-out arrangement.');
+  assert.equal(posting.buildPostDescription('service', input), 'I am offering Cleaning service in Nazareth for Part-time / Daily work, Stay-out (Goes home), available 8 AM to 5 PM.\n\nAbout my experience:\nPet-friendly');
+  assert.equal(posting.buildPostDescription('service', { ...input, shortTerm: false, instructions: '' }), 'I am offering Cleaning service in Nazareth for Full-time / Monthly work, Stay-out (Goes home), available 8 AM to 5 PM.');
   const location = posting.buildPostLocation({ street: 'Lot 3', floorUnit: '5', barangay: 'Brgy. Agusan', city: 'City of Cagayan De Oro', zipcode: '9000' });
   assert.equal(location, 'Lot 3, Floor/Unit 5, Brgy. Agusan, City of Cagayan De Oro (9000)');
-  assert.equal(posting.buildPostDescription('service', { ...input, location, rate: '₱600' }), 'I am offering Cleaning service in Lot 3, Floor/Unit 5, Brgy. Agusan, City of Cagayan De Oro (9000), available 8 AM to 5 PM with an expected rate of ₱600.00 / day.\n\nAbout my experience:\nPet-friendly');
+  assert.equal(posting.buildPostDescription('service', { ...input, location, rate: '₱600' }), 'I am offering Cleaning service in Lot 3, Floor/Unit 5, Brgy. Agusan, City of Cagayan De Oro (9000) for Part-time / Daily work, Stay-out (Goes home), available 8 AM to 5 PM.\n\nAbout my experience:\nPet-friendly');
   assert.equal(posting.buildPostLocation({ street: '  ', floorUnit: '', barangay: null, city: 'Cagayan de Oro', zipcode: '9000' }), 'Cagayan de Oro (9000)');
 });
 
 test('rate validation handles empty values, formatted amounts, and existing limits', () => {
   assert.ok(validation.validatePostingRate('job', 'short', ''));
-  assert.ok(validation.validatePostingRate('service', 'short', 'abc'));
-  assert.ok(validation.validatePostingRate('service', 'short', '599', { rate_period: 'day', minimum_rate: '600' }));
+  assert.equal(validation.validatePostingRate('service', 'short', 'abc'), null);
+  assert.ok(validation.validatePostingRate('job', 'short', 'abc'));
+  assert.equal(validation.validatePostingRate('service', 'short', '599'), null);
+  assert.ok(validation.validatePostingRate('job', 'short', '599', { rate_period: 'day', minimum_rate: '600' }));
   assert.equal(validation.validatePostingRate('job', 'short', '600', { rate_period: 'day', minimum_rate: '600' }), null);
   assert.ok(validation.validatePostingRate('job', 'long', '6499', { rate_period: 'month', minimum_rate: '6500' }));
   assert.equal(validation.validatePostingRate('service', 'long', '6500', { rate_period: 'month', minimum_rate: '6500' }), null);

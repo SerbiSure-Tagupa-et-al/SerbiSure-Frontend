@@ -31,6 +31,8 @@ function load(file, mocks = {}) {
     if (name in mocks) return mocks[name];
     if (name.endsWith('/utils/rate')) return load('src/shared/utils/rate.ts');
     if (name.endsWith('/reviews/ratings') || name === '../ratings') return load('src/features/reviews/ratings.ts');
+    if (name.endsWith('/bookings/components/ProposalsModal')) return { ProposalsModal: 'ProposalsModal' };
+    if (name.endsWith('/chat/components/ChatDetailScreen')) return { ChatDetailScreen: 'ChatDetailScreen' };
     throw new Error('Unexpected dependency: ' + name);
   }, module, module.exports);
   return module.exports;

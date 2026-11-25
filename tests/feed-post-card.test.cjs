@@ -109,7 +109,8 @@ for (const kind of ['job', 'service']) {
     assert.deepEqual(screen.calls, ['save', 'profile', 'details']);
     assert.match(content(screen.rootNode), /Canitoan, CDO/);
     assert.match(content(screen.rootNode), /Cleaning· 12h/);
-    assert.match(content(screen.rootNode), /₱ 600\.00\/day/);
+    if (kind === 'job') assert.match(content(screen.rootNode), /₱ 600\.00\/day/);
+    else { assert.match(content(screen.rootNode), /Part-time/); assert.doesNotMatch(content(screen.rootNode), /₱|Open for Offer|Homeowner's Budget/); }
     assert.equal(screen.nodes().some(node => node.type === 'Icon' && /time|clock/.test(node.props.name)), false);
     const snippet = screen.nodes().find(node => node.type === 'Text' && content(node) === post.aboutText);
     assert.equal(snippet.props.numberOfLines, 2);
@@ -155,3 +156,39 @@ test('custom action slots and missing metadata do not create invented values', t
   assert.match(content(screen.rootNode), /Repost/);
   assert.doesNotMatch(content(screen.rootNode), /Recently|Rate not provided\/day|· /);
 });
+
+for (const [price, unit, expected] of [
+  ['₱658', '/ day', '₱ 658.00/day'],
+  ['₱8,500', '/ month', '₱ 8,500.00/month'],
+  ['₱50,000.00', '/ month', '₱ 50,000.00/month'],
+]) {
+  test(`${expected}: full price is a direct sibling of the name with single-line amount parts`, t => {
+    const screen = card(t, { post: { ...post, kind: 'job', authorRole: 'Homeowner', price, unit,
+      employerName: 'A homeowner with a long display name' } });
+    const rate = screen.nodes().find(node => node.type === 'View' && node.props.accessibilityLabel === expected);
+    assert.ok(rate);
+    assert.equal(content(rate), expected);
+    assert.equal(rate.children.length, 2);
+    assert.ok(rate.children.every(node => node.type === 'Text' && node.props.numberOfLines === 1));
+    const row = screen.nodes().find(node => node.children.includes(rate));
+    assert.equal(row.props.style.flexDirection, 'row');
+    assert.ok(row.children.some(node => node.type === 'Text' && content(node) === 'A homeowner with a long display name'));
+    assert.doesNotMatch(content(screen.rootNode), /Homeowner's Budget|Open for Offer/);
+  });
+}
+
+for (const termTag of ['Part-time', 'Full-time']) {
+  test(`${termTag}: worker term is plain bold text beside the name with no price or oval wrapper`, t => {
+    const screen = card(t, { post: { ...post, authorRole: 'Kasambahay', termTag, price: '₱5,000.00' } });
+    const term = screen.nodes().find(node => node.type === 'Text' && content(node) === termTag);
+    assert.ok(term);
+    const style = Object.assign({}, ...[term.props.style].flat());
+    assert.equal(style.flexShrink, 0);
+    assert.match(style.fontFamily, /Bold/);
+    assert.equal(style.backgroundColor, undefined);
+    assert.equal(style.borderRadius, undefined);
+    const row = screen.nodes().find(node => node.children.includes(term));
+    assert.ok(row.children.some(node => node.type === 'Text' && content(node) === post.employerName));
+    assert.doesNotMatch(content(screen.rootNode), /₱|Open for Offer|Homeowner's Budget/);
+  });
+}

@@ -17,6 +17,7 @@ import { AppHeader, APP_HEADER_BACK_ICON_COLOR, APP_HEADER_BACK_ICON_SIZE } from
 import { localizeProfileCopy } from '../profileConfig';
 import { ReviewsSection, WorkHistorySection } from './ReviewsSection';
 import { WorkerCvModal } from '../worker/WorkerCvModal';
+import { ProposalsModal } from '../../bookings/components/ProposalsModal';
 import { JobDetailSheet } from '../../feed/components/JobDetailSheet';
 import { BookingModal, type BookingConfirmData } from '../../bookings/components/BookingModal';
 import { sendBookingOffer, type ChatOfferPayload } from '../../chat/api/bookingOffersApi';
@@ -86,6 +87,8 @@ export function UserProfileView({
   const [activeTab, setActiveTab] = useState<'posts' | 'history' | 'reviews'>('posts');
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(false);
   const [showCv, setShowCv] = useState(false);
+  const [bidPost, setBidPost] = useState<FeedPost | null>(null);
+  useEffect(() => setBidPost(null), [visible, userId, effectiveToken]);
   const [selectedJob, setSelectedJob] = useState<FeedPost | null>(null);
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
   const [offerPost, setOfferPost] = useState<FeedPost | null>(null);
@@ -172,7 +175,7 @@ export function UserProfileView({
 
   const displayTags = profile?.user_tags || [];
 
-  const handlePostReply = async (post?: PublicPendingPost) => {
+  const handlePostReply = async (post?: PublicPendingPost, applyBudget = false) => {
     if (!userId || !effectiveToken) return;
     if (!post) {
       onMessage({
@@ -187,8 +190,8 @@ export function UserProfileView({
     }
 
     const isJob = displayRole === 'Homeowner';
-    const application = isJob ? await applyJob(mapFeedPost({ ...post, poster_id: userId }, 'kasambahay')) : null;
-    if (isJob && !application) return;
+    const application = isJob && applyBudget ? await applyJob(mapFeedPost({ ...post, poster_id: userId }, 'kasambahay')) : null;
+    if (isJob && applyBudget && !application) return;
     const rawCategories = Array.isArray(post.service_category)
       ? post.service_category
       : post.service_category
@@ -198,7 +201,7 @@ export function UserProfileView({
     const roleName = (catKey && CATEGORY_LABELS[catKey]) || catKey?.replace(/_/g, ' ') || (isJob ? 'Job Position' : 'Service');
     const formattedRate = formatRate(post.rate_amount);
     const period = post.rate_period || (post.booking_type === 'long_term' ? 'month' : 'day');
-    const rateStr = isJob ? `${formattedRate} / ${period}` : `${formattedRate} per ${period}`;
+    const rateStr = isJob ? `${formattedRate} / ${period}` : uiText(post.booking_type === 'long_term' ? 'Full-time' : 'Part-time');
     const locStr = formatBookingLocationShort(post, locationText || '');
     const snippet = [roleName, rateStr, locStr].filter(Boolean).join(' • ');
 
@@ -416,8 +419,8 @@ export function UserProfileView({
               onRefresh={refreshPosts}
               onSubmitted={markSubmitted}
               onDetails={(jobPost) => setSelectedJob(jobPost)}
-              onMessage={handlePostReply}
-              onApplyJob={handlePostReply}
+              onMessage={post => { void handlePostReply(post); }}
+              onApplyJob={post => { void handlePostReply(post, true); }}
             />
           ) : activeTab === 'history' && hasHistory ? (
             <WorkHistorySection workHistory={workHistory} loading={loading} profileRole={isWorker ? 'Kasambahay' : 'Homeowner'} />
@@ -449,11 +452,15 @@ export function UserProfileView({
           </View>
         ) : null}
 
+        {bidPost && <ProposalsModal visible onClose={() => setBidPost(null)} bookingId={String(bidPost.id)} isPoster={false}
+          currentRate={bidPost.price.replace(/[^0-9.]/g, '') || null} ratePeriod={bidPost.unit.includes('month') ? 'month' : 'day'} token={effectiveToken} onUpdated={() => { void refreshPosts(); }} />}
         {/* Details sheet when tapping See Details on any post */}
         <JobDetailSheet
           visible={!!selectedJob}
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
+          onSubmitBid={user.accountType === 'Kasambahay' && !isWorker ? () => { setBidPost(selectedJob); setSelectedJob(null); } : undefined}
+          onMessage={() => { setSelectedJob(null); handlePostReply(); }}
           onApply={async () => {
             const isBookingOffer = isWorker && user.accountType === 'Homeowner';
             const currentJob = selectedJob;

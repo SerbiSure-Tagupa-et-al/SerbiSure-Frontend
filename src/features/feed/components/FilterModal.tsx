@@ -421,6 +421,7 @@ export function FilterModal({
               </View>
 
               {/* SECTION: Maximum Rate */}
+              {mode === 'kasambahay' && <>
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
                   <Text style={styles.sectionTitle}>{uiText('Maximum rate per {period}', { period: uiText(bookingType === 'long_term' ? 'month' : bookingType === 'short_term' ? 'day' : ratePeriod) }).toUpperCase()}</Text>
@@ -497,6 +498,7 @@ export function FilterModal({
                 </View>
               </View>
 
+              </>}
               {/* SECTION: Location Search */}
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>

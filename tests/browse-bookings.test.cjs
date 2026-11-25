@@ -33,6 +33,8 @@ function load(filename, mocks = {}) {
     if (name.endsWith('/utils/rate')) return load('src/shared/utils/rate.ts');
     if (name === '../../../shared/utils/date') return load('src/shared/utils/date.ts');
     if (name.endsWith('/reviews/ratings') || name === '../ratings') return load('src/features/reviews/ratings.ts');
+    if (name.endsWith('/bookings/components/ProposalsModal')) return { ProposalsModal: 'ProposalsModal' };
+    if (name.endsWith('/chat/components/ChatDetailScreen')) return { ChatDetailScreen: 'ChatDetailScreen' };
     throw new Error('Unexpected dependency: ' + name);
   }, module, module.exports);
   return module.exports;
@@ -539,13 +541,13 @@ for (const role of ['homeowner', 'kasambahay']) {
     await tick();
     assert.equal(screen.chats.at(-1).partnerId, 'author');
     assert.equal(screen.find('ChatDetailScreen').props.initialReplyTo.author, role === 'homeowner' ? 'Service Post' : 'Job Post');
-    assert.ok(screen.find('ChatDetailScreen').props.initialReplyTo.text.includes('₱8,000.00'));
+    assert.equal(screen.find('ChatDetailScreen').props.initialReplyTo.text.includes('₱8,000.00'), role === 'kasambahay');
     screen.act(() => screen.find('ChatDetailScreen').props.onClose());
     screen.store.savedJobs = [screen.saves[0][0]]; screen.store.savedCount = 1;
     screen.act(() => screen.find('BrowseHeader').props.onTabChange('saved'));
     const saved = screen.find('BrowseActivityCard');
     assert.equal(saved.props.post.partnerId, 'author');
-    assert.equal(typeof saved.props.onMessage, role === 'homeowner' ? 'function' : 'undefined');
+    assert.equal(typeof saved.props.onMessage, 'function');
     screen.act(() => saved.props.onUnsave()); assert.equal(screen.saves.length, 2);
     assert.equal(screen.find('BrowseHeader').props.appliedCount, role === 'kasambahay' ? 0 : undefined);
     screen.language('Bisaya');
@@ -605,7 +607,7 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     let language = 'English';
     const user = { id: 'viewer', accountType };
     const otherRole = accountType === 'Homeowner' ? 'Kasambahay' : 'Homeowner';
-    const booking = { booking_id: 'own', poster: participant('viewer', accountType), assigned_partner: null, recipient: null,
+    const booking = { booking_id: 'own', proposals_count: 2, poster: participant('viewer', accountType), assigned_partner: null, recipient: null,
       service_category: ['Cleaning'], booking_type: 'short_term', booking_status: 'Pending', rate_amount: '600', rate_period: 'day', start_time: '2026-10-20', end_time: '2026-10-20' };
     const assignedBooking = { ...booking, booking_id: 'other', poster: participant('other', otherRole), recipient: participant('viewer', accountType) };
     let initialTab;
@@ -681,6 +683,14 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     }
     initialTab = 'pending'; booking.booking_status = assignedBooking.booking_status = 'Pending';
     assignedBooking.poster.rating = 0; render(); await tick();
+    const applicants = accountType === 'Homeowner' ? 'Applicants & Bids (2)' : 'Incoming Offers (2)';
+    const openApplicants = screen.all('Pressable').filter(node => content(node) === applicants);
+    assert.equal(openApplicants.length, 1, 'Multiple applicants do not duplicate the owner card');
+    screen.act(() => openApplicants[0].props.onPress());
+    assert.equal(screen.find('ProposalsModal').props.bookingId, 'own');
+    assert.equal(screen.find('ProposalsModal').props.isPoster, true);
+    assert.equal(screen.find('ProposalsModal').props.posterRole, accountType);
+    screen.act(() => screen.find('ProposalsModal').props.onClose());
     const details = () => screen.all('Pressable').filter(node => content(node) === 'Details');
     assert.equal(details().length, 2);
     screen.act(() => details()[0].props.onPress());

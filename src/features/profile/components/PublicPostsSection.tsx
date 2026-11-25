@@ -1,5 +1,5 @@
 import { validatePostingRate } from '../../posting/validation';
-import { formatRateInput } from '../../../shared/utils/rate';
+import { formatRate, formatRateInput } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -10,6 +10,13 @@ import { submitBookingProposal, type PublicPendingPost, type PendingMandatoryRev
 import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { PendingPostCard } from './PendingPostCard';
 import { profileStyles as styles } from '../styles';
+
+const postActionStyle = {
+  width: 36,
+  height: 36,
+  alignItems: 'center',
+  justifyContent: 'center',
+} as const;
 
 export function PublicPostsSection({
   posts,
@@ -70,11 +77,11 @@ export function PublicPostsSection({
   const isJob = ownerRole === 'Homeowner';
   const allowedRole = isJob ? 'Kasambahay' : ownerRole === 'Kasambahay' ? 'Homeowner' : null;
   const canRespond = user.id !== ownerId && user.accountType === allowedRole;
-  const action = isJob ? 'Apply' : 'Offer to Hire';
+  const action = isJob ? 'Accept Budget' : 'Offer to Hire';
 
   const openProposal = async (post: PublicPendingPost) => {
     if (checkingRef.current) return;
-    if (post.rate_needs_review) {
+    if (isJob && post.rate_needs_review) {
       Alert.alert(
         'Rate Awaiting Confirmation',
         'The poster must confirm the monthly amount before this post can receive new proposals.'
@@ -101,7 +108,7 @@ export function PublicPostsSection({
         );
         return;
       }
-      setRate(post.rate_amount);
+      setRate(post.rate_amount || '');
       setMessage('');
       setSelected(post);
     } finally {
@@ -140,7 +147,7 @@ export function PublicPostsSection({
             { text: uiText('Write Review Now'), onPress: () => setPendingReview(pending) },
           ]);
         } else {
-          Alert.alert('Unable to Send', result.error || 'Please try again.');
+          Alert.alert(uiText(result.code === 'short_term_monthly_cap' ? 'Monthly Booking Limit' : 'Unable to Send'), uiText(result.error || 'Please try again.'));
           onRefresh();
         }
         return;
@@ -188,9 +195,10 @@ export function PublicPostsSection({
             const status = post.viewer_proposal?.status;
             const pending = status === 'Pending' || status === 'Accepted';
             const actionLabel = pending ? status === 'Accepted' ? 'Accepted' : isJob ? 'Application Sent' : 'Offer Sent'
-              : !isJob && onMessage ? 'Message Now' : action;
+              : isJob ? uiText('Accept {amount}', { amount: formatRate(post.rate_amount) }) : onMessage ? 'Message Now' : action;
             const actionIcon = pending ? 'checkmark-circle'
-              : !isJob && onMessage ? 'chatbubble-outline' : 'paper-plane-outline';
+              : isJob ? 'checkmark-circle-outline'
+              : onMessage ? 'chatbubble-ellipses-outline' : 'paper-plane-outline';
             const actionDisabled = pending || checkingPostId !== null;
             const note =
               status === 'Pending'
@@ -215,18 +223,15 @@ export function PublicPostsSection({
                 authorLocation={authorLocation}
                 onDetails={onDetails}
               >
-                {canRespond && token ? (
+                {/* The details screen owns these actions; keep the standalone fallback for callers without one. */}
+                {!onDetails && canRespond && token ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={uiText(actionLabel)}
                     accessibilityState={{ disabled: actionDisabled, busy: checkingPostId === post.booking_id }}
                     hitSlop={6}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
+                    style={({ pressed }) => [postActionStyle, pressed && { opacity: 0.75 }]}
                     disabled={actionDisabled}
                     onPress={() => {
                       if (!isJob && onMessage) {
@@ -239,12 +244,22 @@ export function PublicPostsSection({
                     }}
                   >
                     {checkingPostId === post.booking_id ? (
-                      <ActivityIndicator color="#0D0D11" />
+                      <ActivityIndicator color="#4B5563" size="small" />
                     ) : (
-                      <Ionicons name={actionIcon} size={pending ? 20 : 18}
-                        color={pending ? '#10B981' : '#0D0D11'} accessible={false} />
+                      <Ionicons name={actionIcon} size={20} color={pending ? '#10B981' : actionDisabled ? '#9CA3AF' : '#4B5563'} accessible={false} />
                     )}
                   </Pressable>
+                  {isJob && !pending && <Pressable accessibilityRole="button" accessibilityLabel={uiText('Submit a Bid')}
+                    accessibilityState={{ disabled: actionDisabled, busy: checkingPostId === post.booking_id }} hitSlop={6}
+                    disabled={actionDisabled} onPress={() => { void openProposal(post); }}
+                    style={({ pressed }) => [postActionStyle, pressed && { opacity: 0.75 }]}>
+                    <Ionicons name="pricetag-outline" size={20} color={actionDisabled ? '#9CA3AF' : '#4B5563'} accessible={false} />
+                  </Pressable>}
+                  {isJob && onMessage && <Pressable accessibilityRole="button" accessibilityLabel={uiText('Message')} hitSlop={6}
+                    onPress={() => onMessage(post)} style={({ pressed }) => [postActionStyle, pressed && { opacity: 0.75 }]}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={20} color="#4B5563" accessible={false} />
+                  </Pressable>}
+                  </View>
                 ) : null}
               </PendingPostCard>
             );
@@ -268,15 +283,17 @@ export function PublicPostsSection({
             }}
             contentContainerStyle={{ padding: 24, paddingBottom: Math.max(insets.bottom, 16) + 16 }}
           >
-            <Text style={styles.tabSectionTitle}>{isJob ? 'Apply for this Job' : 'Send a Hiring Offer'}</Text>
+            <Text style={styles.tabSectionTitle}>{uiText(isJob ? 'Submit a Bid' : 'Send a Hiring Offer')}</Text>
             <Text style={[styles.tabSectionSubtitle, { marginBottom: 16 }]}>
               {uiText("The owner will review your proposal before confirming a booking.")}
             </Text>
-            <Text style={styles.pendingPostManageBtnText}>Proposed amount (₱/{selected?.rate_period})</Text>
+            {isJob && <Text style={styles.pendingPostManageBtnText}>{uiText('Listed Rate')}: {formatRate(selected?.rate_amount)} / {uiText(selected?.rate_period || 'day')}</Text>}
+            <Text style={styles.pendingPostManageBtnText}>₱ · {uiText('Your Proposed Rate')} (₱/{selected?.rate_period})</Text>
             <TextInput
               accessibilityLabel="Proposed compensation amount"
               value={formatRateInput(rate)}
               onChangeText={text => setRate(text.replace(/,/g, ''))}
+              onBlur={() => { if (/^\d+(?:\.\d{0,2})?$/.test(rate)) setRate(Number(rate).toFixed(2)); }}
               keyboardType="decimal-pad"
               editable={!submitting}
               style={[styles.bioTextInput, { minHeight: 48, marginTop: 8, marginBottom: 16 }]}
@@ -286,12 +303,11 @@ export function PublicPostsSection({
               accessibilityLabel="Proposal message"
               value={message}
               onChangeText={setMessage}
-              multiline
-              maxLength={450}
+              maxLength={200}
               editable={!submitting}
               placeholder={
                 isJob
-                  ? 'Tell the homeowner why you are a good fit...'
+                  ? uiText('e.g., Includes deep kitchen cleaning')
                   : 'Describe the work you would like help with...'
               }
               style={[styles.bioTextInput, { marginTop: 8, marginBottom: 16 }]}

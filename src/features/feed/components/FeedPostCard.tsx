@@ -6,6 +6,7 @@ import { MapPinIcon } from '../../../shared/components/icons/LucideIcons';
 import { ProfileAvatar } from '../../../shared/ui/ProfileAvatar';
 import THEME from '../../../shared/theme/theme';
 import type { FeedPost } from '../types';
+import { stripLegacyExpectedRate } from '../../../shared/utils/rate';
 
 export interface FeedPostCardProps {
   readonly post: FeedPost;
@@ -60,7 +61,9 @@ export function FeedPostCard({
             >
               {post.employerName}
             </Text>
-            {formattedPrice ? (
+            {(post.authorRole === 'Kasambahay' || post.kind === 'service') ? (
+              <Text style={[styles.serviceText, { flexShrink: 0 }]}>{uiText(post.termTag || 'Part-time')}</Text>
+            ) : formattedPrice ? (
               <View style={styles.rateGroup} accessible accessibilityLabel={`₱ ${formattedPrice}${unit ? `/${uiText(unit)}` : ''}`}>
                 <Text style={styles.rateMainNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                   ₱ {whole}
@@ -99,7 +102,7 @@ export function FeedPostCard({
           accessibilityRole={onDetails ? 'button' : undefined}
           onPress={onDetails}
         >
-          {post.aboutText}
+          {(post.authorRole === 'Kasambahay' || post.kind === 'service') ? stripLegacyExpectedRate(post.aboutText) : post.aboutText}
         </Text>
       ) : null}
 

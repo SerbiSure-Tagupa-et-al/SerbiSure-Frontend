@@ -4,11 +4,11 @@ import { formatCompactTimeAgo } from '../../shared/utils/date';
 import { formatBookingAddress, formatBookingLocationShort } from '../bookings/api/bookingApi';
 import type { BookingFeedDto, FeedPost } from './types';
 import type { SavedJobItem } from '../bookings/store/savedJobsStore';
-import { formatRate } from '../../shared/utils/rate';
+import { formatRate, stripLegacyExpectedRate } from '../../shared/utils/rate';
 
 // Both Browse roles use one shape for cards, saved posts, profiles and chats.
 export function mapBrowsePost(item: BookingFeedDto, role: Role): SavedJobItem & { title: string; location: string; aboutText: string; tags: string[] } {
-  if (role === 'kasambahay') return mapJobPreview(item);
+  if (item.poster_account_type === 'Homeowner' || (!item.poster_account_type && role === 'kasambahay')) return mapJobPreview(item);
   const worker = mapWorkerPreview(item);
   return {
     id: worker.id, partnerId: worker.partnerId, employerName: worker.name, title: worker.role,
@@ -16,7 +16,7 @@ export function mapBrowsePost(item: BookingFeedDto, role: Role): SavedJobItem & 
     end_time: item.end_time, booking_type: item.booking_type,
     daily_start_time: item.daily_start_time, daily_end_time: item.daily_end_time, work_days: item.work_days,
     avatar: worker.avatar, image: worker.image, location: worker.location, roleTag: worker.role,
-    termTag: worker.years, setupTag: worker.setupTag, price: worker.price, unit: worker.unit,
+    authorRole: 'Kasambahay', termTag: worker.years, setupTag: worker.setupTag, price: worker.price, unit: worker.unit,
     aboutText: worker.aboutText, tags: Array.from(new Set([worker.years, ...worker.tags])),
   };
 }
@@ -27,7 +27,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function mapFeedPost(item: BookingFeedDto, viewerRole: Role): FeedPost {
-  const isJob = viewerRole === 'kasambahay';
+  const isJob = item.poster_account_type ? item.poster_account_type === 'Homeowner' : viewerRole === 'kasambahay';
   const rawCategories = Array.isArray(item.service_category) ? item.service_category : item.service_category ? [item.service_category] : [isJob ? 'Household' : 'General Service'];
   const categories = rawCategories.map((value) => !isJob && value === 'Cleaning' ? 'Cleaner' : CATEGORY_LABELS[value] || value.replace(/_/g, ' '));
   const authorRole = isJob ? 'Homeowner' : 'Kasambahay';
@@ -48,7 +48,7 @@ export function mapFeedPost(item: BookingFeedDto, viewerRole: Role): FeedPost {
     avatar: item.profile_link || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || authorRole)}&background=FFB43B&color=fff`,
     time: formatCompactTimeAgo(item.createdAt), location, categories,
     roleTag: categories[0] || (isJob ? 'Household Service' : 'Kasambahay'), termTag, setupTag,
-    price: formatRate(item.rate_amount), unit: longTerm ? '/ month' : '/ day', aboutText: description,
+    price: isJob ? formatRate(item.rate_amount) : '', unit: isJob ? (longTerm ? '/ month' : '/ day') : '', aboutText: isJob ? description : stripLegacyExpectedRate(description),
     tags: Array.from(new Set(isJob ? [...(item.poster_verification_status === 'Verified' ? ['Verified Employer'] : []), termTag, setupTag, ...categories] : [...categories, termTag, ...(item.work_setup ? [setupTag] : [])])),
   };
 }
@@ -62,6 +62,7 @@ export function mapWorkerPreview(item: BookingFeedDto) {
     `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || 'Kasambahay')}&background=FFB43B&color=fff`;
 
   return {
+    authorRole: 'Kasambahay' as const,
     id: item.booking_id,
     partnerId: item.poster_id,
     name: item.name || 'Anonymous User',
@@ -72,9 +73,9 @@ export function mapWorkerPreview(item: BookingFeedDto) {
     years: item.booking_type === 'long_term' ? 'Full-time' : 'Part-time',
     setupTag: workSetupLabel(item.work_setup),
     tags: [...categories.map((category) => CATEGORY_LABELS[category] || category.replace(/_/g, ' ')), ...(item.work_setup ? [workSetupLabel(item.work_setup)] : [])],
-    price: formatRate(item.rate_amount),
-    unit: item.booking_type === 'long_term' ? 'per month' : 'per day',
-    aboutText: item.special_instruction?.trim() || 'Available for household services. View this post for more details.',
+    price: '',
+    unit: '',
+    aboutText: stripLegacyExpectedRate(item.special_instruction) || 'Available for household services. View this post for more details.',
     image: avatarUrl,
     avatar: avatarUrl,
   };
@@ -114,6 +115,7 @@ export function mapJobPreview(item: BookingFeedDto) {
 
 
   return {
+    authorRole: 'Homeowner' as const,
     id: item.booking_id,
     partnerId: item.poster_id,
     employerName: item.name || 'Homeowner',

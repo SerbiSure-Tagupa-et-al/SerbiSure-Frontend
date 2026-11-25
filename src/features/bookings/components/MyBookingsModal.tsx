@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BookingItem, formatBookingAddress, fetchMyBookings, fetchMyAssignedBookings, startBooking, completeBooking, fetchBookingPenaltyStatus, type BookingPenaltyStatus } from '../api/bookingApi';
 import { CancelBookingModal } from './CancelBookingModal';
 import { ReviewModal, type ReviewModalHandle } from '../../reviews/components/ReviewModal';
+import { ChatDetailScreen } from '../../chat/components/ChatDetailScreen';
 import { ProposalsModal } from './ProposalsModal';
 import { BookingModal } from './BookingModal';
 import { UserProfileModal } from '../../profile/components/UserProfileModal';
@@ -102,13 +103,18 @@ export function MyBookingsModal({
   } | null>(null);
   const reviewRef = useRef<ReviewModalHandle>(null);
 
+  const [bidChat, setBidChat] = useState<{ partnerId: string; contactName: string; contactAvatar?: string; contactRole: string } | null>(null);
   // Proposals Modal State
   const [proposalsTarget, setProposalsTarget] = useState<{
     id: string;
     isPoster: boolean;
-    currentRate: string;
+    currentRate: string | null;
     ratePeriod: 'day' | 'month';
     rateNeedsReview?: boolean;
+    posterRole?: 'Homeowner' | 'Kasambahay';
+    bookingType?: 'short_term' | 'long_term';
+    initialWorkHours?: string;
+    requireScheduleOnHire?: boolean;
   } | null>(null);
 
   // User Profile Modal State
@@ -585,6 +591,8 @@ export function MyBookingsModal({
                     const setupLabel = workSetupLabel(setupRaw);
                     const combinedTerms = `${durationLabel} · ${setupLabel}`;
 
+                    const owner = isBookingPoster(booking, user.id);
+                    const availability = booking.booking_status === 'Pending' && (booking.poster_account_type || booking.poster?.account_type) === 'Kasambahay' && !booking.assigned_partner;
                     const canStart = booking.booking_status === 'Accepted' || (booking.booking_status === 'InProgress' && !booking.started_at);
                     const canComplete = booking.booking_status === 'InProgress' && !!booking.started_at;
                     const isCompleted = booking.booking_status === 'Completed';
@@ -642,12 +650,12 @@ export function MyBookingsModal({
 
                         {/* Middle Row: Rate & Combined Terms Badge */}
                         <View style={styles.cardMiddleRow}>
-                          <View style={styles.rateContainer}>
+                          {!availability && (<View style={styles.rateContainer}>
                             <Text style={styles.rateAmount}>{uiText(formatRate(booking.rate_amount))}</Text>
                             <Text style={styles.ratePeriod}>
                               / {booking.rate_period || (booking.booking_type === 'long_term' ? 'month' : 'day')}
                             </Text>
-                          </View>
+                          </View>)}
                           <View style={styles.combinedTermsPill}>
                             <Text style={styles.combinedTermsPillText}>
                               {combinedTerms}
@@ -662,6 +670,26 @@ export function MyBookingsModal({
                         ) : null}
                         {booking.contract_summary ? <ContractDownloadCard summary={booking.contract_summary} /> : null}
 
+                        {owner && booking.booking_status === 'Pending' && !booking.recipient_id && <Pressable style={[styles.detailsBtn, { marginBottom: 10, paddingVertical: 12 }]} onPress={() => {
+                          const toClock12 = (clock?: string | null) => {
+                            const m = /^(\d{2}):(\d{2})/.exec(String(clock || '').trim());
+                            if (!m) return '';
+                            const h24 = Number(m[1]);
+                            return `${String(h24 % 12 || 12).padStart(2, '0')}:${m[2]} ${h24 >= 12 ? 'PM' : 'AM'}`;
+                          };
+                          const start12 = toClock12(booking.daily_start_time);
+                          const end12 = toClock12(booking.daily_end_time);
+                          setProposalsTarget({
+                            id: booking.booking_id, isPoster: true, currentRate: booking.rate_amount,
+                            ratePeriod: booking.rate_period, rateNeedsReview: booking.rate_needs_review,
+                            posterRole: (booking.poster_account_type || booking.poster?.account_type) === 'Kasambahay' ? 'Kasambahay' : 'Homeowner',
+                            bookingType: booking.booking_type,
+                            initialWorkHours: start12 && end12 ? `${start12} - ${end12}` : '',
+                            requireScheduleOnHire: !booking.work_days || booking.work_days.length === 0,
+                          });
+                        }}>
+                          <Text style={styles.detailsBtnText}>{uiText((booking.poster_account_type || booking.poster?.account_type) === 'Kasambahay' ? 'Incoming Offers' : 'Applicants & Bids')} ({booking.proposals_count || 0})</Text>
+                        </Pressable>}
                         {/* Action Buttons Row */}
                         <View style={styles.actionRow}>
                           {/* Details button */}
@@ -792,11 +820,17 @@ export function MyBookingsModal({
                   currentRate={proposalsTarget.currentRate}
                   ratePeriod={proposalsTarget.ratePeriod}
                   rateNeedsReview={proposalsTarget.rateNeedsReview}
+                  posterRole={proposalsTarget.posterRole}
+                  bookingType={proposalsTarget.bookingType}
+                  initialWorkHours={proposalsTarget.initialWorkHours}
+                  requireScheduleOnHire={proposalsTarget.requireScheduleOnHire}
                   token={token}
+                  onMessage={proposal => { setProposalsTarget(null); setBidChat({ partnerId: proposal.proposer_id, contactName: proposal.proposer_name, contactAvatar: proposal.proposer_avatar || undefined, contactRole: proposal.proposer_role }); }}
                   onUpdated={() => loadData()}
                 />
               )}
 
+              {bidChat && <ChatDetailScreen visible onClose={() => setBidChat(null)} {...bidChat} token={token} userRole={accountType === 'Kasambahay' ? 'kasambahay' : 'homeowner'} />}
               {profileTarget && (
                 <UserProfileModal
                   visible={!!profileTarget}

@@ -26,7 +26,7 @@ const deferred = () => {
   const promise = new Promise(yes => { resolve = yes; });
   return { promise, resolve };
 };
-const job = { id: 'job-one', partnerId: 'employer', employerName: 'Employer', avatar: '', price: '₱800', unit: '/ day' };
+const job = { id: 'job-one', partnerId: 'employer', employerName: 'Employer', avatar: '', price: 'â‚±800', unit: '/ day' };
 const confirmed = { success: true, proposal: { proposal_id: 'proposal-one' } };
 function fixture() {
   let applications = [], saved = [], response = confirmed;
@@ -37,6 +37,7 @@ function fixture() {
       fetchSavedPostsApi: async () => await saved,
       fetchMyProposalPosts: async () => await applications,
       formatBookingLocationShort: () => 'Pagatpat',
+      respondToProposal: async (...args) => { calls.push(['withdraw', ...args]); return await response; },
       applyToJobPost: async (...args) => { calls.push(args); return await response; },
     },
   });
@@ -71,7 +72,8 @@ const tick = async () => { await new Promise(resolve => setImmediate(resolve)); 
 function home(t, f) {
   const alerts = [];
   const useJobApplication = load('src/features/bookings/hooks/useJobApplication.ts', {
-    'react-native': { Alert: { alert: (...args) => alerts.push(args) } }, '../store/savedJobsStore': { savedJobsStore: f.store },
+    'react-native': { Alert: { alert: (...args) => alerts.push(args) } },
+    '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: (text, params = {}) => text.replace(/\{(\w+)\}/g, (_, key) => params[key] ?? `{${key}}`) }) }, '../store/savedJobsStore': { savedJobsStore: f.store },
   }).useJobApplication;
   const post = { ...job, kind: 'job', authorRole: 'Homeowner', categories: ['Cleaning'], tags: [], location: 'Pagatpat', termTag: 'Short-term', aboutText: 'Cleaning job' };
   const { HomeScreen } = load('src/features/feed/screens/HomeScreen.tsx', {
@@ -84,6 +86,7 @@ function home(t, f) {
       refreshSavedFromBackend: async () => {},
     }) },
     '../../bookings/hooks/useJobApplication': { useJobApplication },
+    '../../bookings/components/ProposalsModal': { ProposalsModal: 'ProposalsModal' },
     '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../../shared/components/GreetingCard': { GreetingCard: 'GreetingCard' },
     '../../../shared/components/ScreenLayout': { ScreenLayout: 'ScreenLayout' },
@@ -118,6 +121,9 @@ test('Home Apply Now waits for persistence, blocks rapid taps, then opens chat w
   assert.equal(screen.find('JobDetailSheet').props.isApplying, true);
   assert.equal(screen.find('ChatDetailScreen'), undefined);
   screen.act(() => { void screen.find('JobDetailSheet').props.onApply(); });
+  assert.equal(f.calls.length, 0, 'No bid before confirmation');
+  assert.equal(screen.alerts.length, 1, 'Rapid taps do not open duplicate confirmations');
+  screen.alerts[0][2][1].onPress(); await tick();
   assert.equal(f.calls.length, 1);
   pending.resolve(confirmed); await tick();
   assert.equal(f.store.getAppliedCount(), 1);
@@ -128,11 +134,12 @@ test('Home Apply Now waits for persistence, blocks rapid taps, then opens chat w
 test('failed Home application keeps the detail sheet open and never opens chat or marks Applied', async t => {
   const f = fixture(); f.response = { success: false, error: 'This post has expired.' };
   const screen = home(t, f);
-  screen.act(() => { void screen.find('JobDetailSheet').props.onApply(); }); await tick();
+  screen.act(() => { void screen.find('JobDetailSheet').props.onApply(); });
+  screen.alerts[0][2][1].onPress(); await tick();
   assert.equal(screen.find('ChatDetailScreen'), undefined);
   assert.equal(screen.find('JobDetailSheet').props.visible, true);
   assert.equal(f.store.getAppliedCount(), 0);
-  assert.deepEqual(screen.alerts[0], ['Application not confirmed', 'This post has expired.']);
+  assert.deepEqual(screen.alerts[1], ['Application not confirmed', 'This post has expired.']);
 });
 
 test('rapid repeated taps share one submission and do not produce another navigation result', async () => {
@@ -202,4 +209,39 @@ test('application API requests the server-posted rate and preserves repeat-succe
   assert.deepEqual(JSON.parse(requests[0][1].body), {
     apply_at_posted_rate: true, message: 'I am interested in this job position',
   });
+});
+
+
+test('Message and Submit a Bid never silently accept the budget', async t => {
+  const f = fixture(); const screen = home(t, f);
+  screen.act(() => screen.find('JobDetailSheet').props.onSubmitBid());
+  assert.equal(screen.find('ProposalsModal').props.bookingId, job.id);
+  assert.equal(screen.find('ProposalsModal').props.currentRate, '800');
+  assert.equal(screen.find('JobDetailSheet').props.visible, false);
+  assert.equal(f.calls.length, 0); assert.equal(screen.alerts.length, 0);
+  screen.act(() => screen.find('ProposalsModal').props.onClose());
+  screen.act(() => screen.find('FeedPostCard').props.onDetails());
+  screen.act(() => { void screen.find('JobDetailSheet').props.onMessage(); }); await tick();
+  assert.equal(screen.find('ChatDetailScreen').props.partnerId, 'employer');
+  assert.equal(f.calls.length, 0); assert.equal(f.store.getAppliedCount(), 0);
+});
+test('cancelling Accept Budget leaves the job available and sends no request', async t => {
+  const f = fixture(); const screen = home(t, f);
+  screen.act(() => { void screen.find('JobDetailSheet').props.onApply(); });
+  screen.alerts[0][2][0].onPress(); await tick();
+  assert.equal(f.calls.length, 0); assert.equal(screen.find('JobDetailSheet').props.visible, true);
+  assert.equal(screen.find('JobDetailSheet').props.isApplying, false);
+});
+test('Applied keeps the counter-bid amount and withdraws through the proposal endpoint only', async () => {
+  const f = fixture();
+  const row = { booking_id: job.id, poster_account_type:'Homeowner', name:'Employer', rate_amount:'700',rate_period:'day',
+    application_status:'applied',application:{proposal_id:'bid',proposed_rate:'750',is_budget_accepted:false} };
+  f.applications = [row]; await f.store.initForUser('worker','token');
+  const applied = f.store.getAppliedJobs()[0];
+  assert.equal(applied.price, '₱750.00'); assert.equal(applied.proposalId, 'bid'); assert.equal(applied.isBudgetAccepted,false);
+  f.applications = [{...row,application_status:'withdrawn'}];
+  await f.store.withdrawBid(applied, 'token');
+  assert.deepEqual(f.calls, [['withdraw','token','bid','withdraw']]);
+  assert.equal(f.store.getAppliedJobs()[0].application_status,'withdrawn');
+  assert.equal(f.store.isApplied(job.id),false);
 });

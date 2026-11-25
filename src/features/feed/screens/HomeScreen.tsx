@@ -16,6 +16,7 @@ import type { PendingMandatoryReview } from '../../bookings/api/bookingApi';
 import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { UserProfileModal } from '../../profile/components/UserProfileModal';
 import { ChatDetailScreen } from '../../chat/components/ChatDetailScreen';
+import { ProposalsModal } from '../../bookings/components/ProposalsModal';
 import { JobDetailSheet } from '../components/JobDetailSheet';
 import { HomeFeedFilters, HomeFeedHeader, HomeFeedEmptyState, HomeFeedLoadingState } from '../components/HomeFeedControls';
 import { FeedPostCard } from '../components/FeedPostCard';
@@ -54,11 +55,12 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<HomeFeedCategory | null>(null);
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
+  const [bidPost, setBidPost] = useState<FeedPost | null>(null);
   const [profilePost, setProfilePost] = useState<FeedPost | null>(null);
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
 
   useEffect(() => {
-    setSearchQuery(''); setSelectedCategory(null); setSelectedPost(null); setProfilePost(null); setActiveChat(null);
+    setBidPost(null); setSearchQuery(''); setSelectedCategory(null); setSelectedPost(null); setProfilePost(null); setActiveChat(null);
     if (authToken) void refreshSavedFromBackend(authToken);
   }, [authToken, user.id, role]);
 
@@ -71,9 +73,9 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
   const resetFilters = () => { setSearchQuery(''); setSelectedCategory(null); };
   const handleRefresh = async () => { await Promise.all([refresh(), authToken ? refreshSavedFromBackend(authToken) : Promise.resolve()]); };
 
-  const contactPoster = async (post: FeedPost) => {
-    const application = post.kind === 'job' ? await applyJob(post) : null;
-    if (post.kind === 'job' && !application) return;
+  const contactPoster = async (post: FeedPost, applyBudget = true) => {
+    const application = post.kind === 'job' && applyBudget ? await applyJob(post) : null;
+    if (post.kind === 'job' && applyBudget && !application) return;
     setSelectedPost(null);
     if (post.kind === 'job') {
       setActiveChat({
@@ -121,6 +123,8 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
       <JobDetailSheet
         visible={!!selectedPost} job={selectedPost} onClose={() => setSelectedPost(null)}
         onApply={() => selectedPost && contactPoster(selectedPost)}
+        onMessage={() => { if (selectedPost) void contactPoster(selectedPost, false); }}
+        onSubmitBid={() => { setBidPost(selectedPost); setSelectedPost(null); }}
         isApplied={selectedPost?.kind === 'job' ? isApplied(selectedPost.id) : false}
         isApplying={applyingJobId === selectedPost?.id}
         isSaved={selectedPost ? isSaved(selectedPost.id) : false}
@@ -131,6 +135,8 @@ export function HomeScreen({ role: requestedRole, avatarUri, onAvatarPress, onVi
         ctaNotice={role === 'homeowner' ? uiText("Start direct chat with this kasambahay") : undefined}
         token={authToken}
       />
+      {bidPost && <ProposalsModal visible onClose={() => setBidPost(null)} bookingId={String(bidPost.id)} isPoster={false}
+        currentRate={bidPost.price.replace(/[^0-9.]/g, '') || null} ratePeriod={bidPost.unit.includes('month') ? 'month' : 'day'} token={authToken} onUpdated={() => { void handleRefresh(); }} />}
       {activeChat && <ChatDetailScreen visible onClose={() => setActiveChat(null)} partnerId={activeChat.post.partnerId} token={authToken} contactName={activeChat.post.employerName} contactRole={activeChat.post.kind === 'job' ? 'Homeowner' : activeChat.post.roleTag} contactAvatar={activeChat.post.avatar} initialMessage={activeChat.initialMessage} initialReplyTo={activeChat.initialReplyTo} userRole={role} />}
       {pendingReview && (
         <ReviewModal

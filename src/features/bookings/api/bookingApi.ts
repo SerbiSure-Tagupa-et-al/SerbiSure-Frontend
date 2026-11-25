@@ -77,6 +77,8 @@ export interface BookingParticipant {
 }
 
 export interface BookingItem {
+  poster_account_type?: 'Homeowner' | 'Kasambahay';
+  application?: BookingProposal;
   schedule_expired?: boolean;
   booking_id: string;
   pass_url?: string | null;
@@ -103,7 +105,7 @@ export interface BookingItem {
   floor_number?: string | null;
   zip_code?: string | null;
   special_instruction?: string | null;
-  rate_amount: string;
+  rate_amount: string | null;
   rate_period: 'day' | 'month';
   rate_needs_review?: boolean;
   started_at?: string | null;
@@ -179,6 +181,12 @@ export function formatBookingLocationShort(
 }
 
 export interface BookingProposal {
+  is_verified?: boolean;
+  has_tesda_nc2?: boolean;
+  avg_rating?: number | null;
+  jobs_done_count?: number;
+  recommendation_pct?: number | null;
+  is_budget_accepted?: boolean;
   proposal_id: string;
   booking_id: string;
   proposer_id: string;
@@ -400,7 +408,7 @@ export async function submitBookingProposal(
   proposedRate: number | string,
   message: string | undefined,
   ratePeriod: 'day' | 'month'
-): Promise<{ success: boolean; error?: string; proposal?: BookingProposal; language_warning?: string | null; pendingReview?: PendingMandatoryReview | null }> {
+): Promise<{ success: boolean; error?: string; code?: string; proposal?: BookingProposal; language_warning?: string | null; pendingReview?: PendingMandatoryReview | null }> {
   return sendProposal(token, bookingId, { proposed_rate: proposedRate, rate_period: ratePeriod, message });
 }
 
@@ -411,8 +419,10 @@ export async function applyToJobPost(token: string, bookingId: string) {
   });
 }
 
+export const PAIR_BID_CAP_MESSAGE = 'This pair has reached 3 Part-time / Daily bookings this month. You can still choose Full-time / Monthly or a different partner.';
+
 async function sendProposal(token: string, bookingId: string, body: Record<string, unknown>): Promise<{
-  success: boolean; error?: string; proposal?: BookingProposal; language_warning?: string | null; already_applied?: boolean; pendingReview?: PendingMandatoryReview | null;
+  success: boolean; error?: string; code?: string; proposal?: BookingProposal; language_warning?: string | null; already_applied?: boolean; pendingReview?: PendingMandatoryReview | null;
 }> {
   try {
     const res = await requestResponse(`${API_BASE_URL}/api/v1/booking/${bookingId}/proposals/`, {
@@ -424,7 +434,7 @@ async function sendProposal(token: string, bookingId: string, body: Record<strin
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, error: bookingError(data, 'Could not submit proposal.'), pendingReview: extractPendingReview(data) };
+    if (!res.ok) return { success: false, code: data.code, error: data.code === 'short_term_monthly_cap' ? PAIR_BID_CAP_MESSAGE : bookingError(data, 'Could not submit proposal.'), pendingReview: extractPendingReview(data) };
     return { success: true, proposal: data.proposal, language_warning: data.language_warning, already_applied: data.already_applied === true };
   } catch (err: any) {
     return { success: false, error: err.message || 'Network error.' };
@@ -450,11 +460,20 @@ export async function fetchBookingProposals(token: string, bookingId: string): P
 /**
  * Respond to a proposal ('accept' or 'reject')
  */
+export interface HireSchedulePayload {
+  start_time: string;
+  end_time: string | null;
+  daily_start_time: string;
+  daily_end_time: string;
+  work_days: string[];
+}
+
 export async function respondToProposal(
   token: string,
   proposalId: string,
-  action: 'accept' | 'reject'
-): Promise<{ success: boolean; error?: string; proposal?: BookingProposal; booking?: BookingItem; pendingReview?: PendingMandatoryReview | null }> {
+  action: 'accept' | 'reject' | 'withdraw',
+  schedule?: HireSchedulePayload
+): Promise<{ success: boolean; error?: string; code?: string; proposal?: BookingProposal; booking?: BookingItem; pendingReview?: PendingMandatoryReview | null }> {
   try {
     const res = await requestResponse(`${API_BASE_URL}/api/v1/booking/proposals/${proposalId}/respond/`, {
       method: 'PATCH',
@@ -462,10 +481,10 @@ export async function respondToProposal(
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify(schedule ? { action, ...schedule } : { action }),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, error: bookingError(data, 'Could not respond to proposal.'), pendingReview: extractPendingReview(data) };
+    if (!res.ok) return { success: false, code: data.code, error: data.code === 'short_term_monthly_cap' ? PAIR_BID_CAP_MESSAGE : bookingError(data, 'Could not respond to proposal.'), pendingReview: extractPendingReview(data) };
     return { success: true, proposal: data.proposal, booking: data.booking };
   } catch (err: any) {
     return { success: false, error: err.message || 'Network error.' };

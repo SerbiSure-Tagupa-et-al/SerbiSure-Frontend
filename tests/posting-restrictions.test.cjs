@@ -171,7 +171,11 @@ test(`${mode}: short-term replaces a previous Stay-in choice with Stay-out`, asy
   assert.equal(screen.form.step, 3);
   await screen.submit(403, { code: 'booking_restricted' });
   assert.equal(screen.requests[0].args[1].work_setup, 'stay_out');
-  assert.doesNotMatch(screen.requests[0].args[1].special_instruction, /stay-out/);
+  if (mode === 'service') {
+    assert.match(screen.requests[0].args[1].special_instruction, /Stay-out \(Goes home\)/);
+    assert.equal(screen.requests[0].args[1].rate_amount, null);
+    assert.doesNotMatch(screen.requests[0].args[1].special_instruction, /expected rate/);
+  } else assert.doesNotMatch(screen.requests[0].args[1].special_instruction, /stay-out/);
 });
 }
 
@@ -241,4 +245,16 @@ test('closing the form ignores a late restriction response', async t => {
   await pending; await tick();
   assert.equal(screen.form.showBookingRestricted, false);
   assert.equal(screen.form.showVerificationRequired, false);
+});
+
+
+test('worker availability has no budget input or summary row and publishes a null price', async t => {
+  const screen = postingScreen(t, 'service');
+  await screen.ready();
+  screen.set(form => { form.setOfferAmount(''); form.handleBack(); });
+  assert.doesNotMatch(screen.text(), /Offer Amount|OFFER AMOUNT|HOMEOWNER'S BUDGET|Offer Rate/);
+  await screen.next(); assert.equal(screen.form.step,3);
+  assert.doesNotMatch(screen.text(), /Offer Amount|Homeowner's Budget|Offer Rate/);
+  await screen.submit(201, {success:true});
+  assert.equal(screen.requests[0].args[1].rate_amount,null);
 });

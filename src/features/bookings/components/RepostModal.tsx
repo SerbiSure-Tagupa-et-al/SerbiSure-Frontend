@@ -31,7 +31,7 @@ export function RepostModal({ post, token, onClose, onSuccess }: {
         bookingType: post.booking_type, startDate, endDate, workHours, days, shift, ongoing,
       });
       if (Date.parse(schedule.start_time) <= Date.now()) throw new Error('Choose a start time that is still ahead.');
-      const payload = { ...schedule, work_days: [...work_days] };
+      const payload = { ...schedule, work_days: [...work_days], ...((post.poster_account_type || post.poster?.account_type) === 'Kasambahay' ? { rate_amount: null } : {}) };
       const body = JSON.stringify(payload);
       if (draft.current?.body !== body) draft.current = { body, key: generateUUID() };
       busy.current = true; setSaving(true);
@@ -53,12 +53,12 @@ export function RepostModal({ post, token, onClose, onSuccess }: {
   return <Modal visible animationType="slide" onRequestClose={() => { if (!busy.current) onClose(); }}>
     <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 24 }}>
       <Text style={{ fontSize: 23, fontWeight: '700', marginBottom: 12 }}>{tr('Repost / Reschedule')}</Text>
-      <Text style={{ marginBottom: 20 }}>{tr('Choose a new schedule. Your service, pay and location stay the same. Previous applications stay with the old post.')}</Text>
+      <Text style={{ marginBottom: 20 }}>{tr((post.poster_account_type || post.poster?.account_type) === 'Kasambahay' ? 'Choose a new schedule. Your service and location stay the same. The new post is open for offers.' : 'Choose a new schedule. Your service, pay and location stay the same. Previous applications stay with the old post.')}</Text>
       <WorkScheduleFields bookingType={post.booking_type} startDate={startDate} endDate={endDate} workHours={workHours}
         days={days} shift={shift} ongoing={ongoing} disabled={saving}
         onStartDate={setStartDate} onEndDate={setEndDate} onWorkHours={setWorkHours} onDays={setDays} onOngoing={setOngoing}
         onShift={value => { setShift(value); const preset = WORK_SHIFTS.find(item => item.value === value); if (preset) setWorkHours(preset.hours); }} />
-      <Text style={{ marginVertical: 16 }}>{post.service_category.join(', ')} · {formatRate(post.rate_amount)} / {post.rate_period}</Text>
+      <Text style={{ marginVertical: 16 }}>{post.service_category.join(', ')} · {(post.poster_account_type || post.poster?.account_type) === 'Kasambahay' ? tr(post.booking_type === 'long_term' ? 'Full-time' : 'Part-time') : `${formatRate(post.rate_amount)} / ${post.rate_period}`}</Text>
       <Pressable disabled={saving} onPress={() => { void submit(); }} style={{ padding: 16, backgroundColor: '#FFB380', borderRadius: 24, alignItems: 'center' }}>
         {saving ? <ActivityIndicator /> : <Text style={{ fontWeight: '700' }}>{tr('Publish New Post')}</Text>}
       </Pressable>

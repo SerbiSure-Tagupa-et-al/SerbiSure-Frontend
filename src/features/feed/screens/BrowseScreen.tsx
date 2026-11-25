@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Animated, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ROLE_CONFIG, type Role } from '../../../app/roleConfig';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
 import THEME from '../../../shared/theme/theme';
 import { useUser } from '../../auth/session/UserContext';
-import { useJobsActivity, type SavedJobItem } from '../../bookings/store/savedJobsStore';
+import { savedJobsStore, useJobsActivity, type SavedJobItem } from '../../bookings/store/savedJobsStore';
 import { useJobApplication } from '../../bookings/hooks/useJobApplication';
 import type { PendingMandatoryReview } from '../../bookings/api/bookingApi';
 import { ReviewModal } from '../../reviews/components/ReviewModal';
@@ -16,6 +16,7 @@ import { BrowseHeader, BrowseFilters } from '../components/BrowseHeader';
 import { BrowsePostCard, BrowseCardBackdrop } from '../components/BrowsePostCard';
 import { BrowseDeckEmpty, BrowseDeckSkeleton, BrowseDeckSwipeControls, BrowseEmptyState, browseDeckStyles as deckStyles } from '../components/BrowseDeck';
 import { FilterModal, DEFAULT_FILTERS, type FeedFilters } from '../components/FilterModal';
+import { ProposalsModal } from '../../bookings/components/ProposalsModal';
 import { JobDetailSheet } from '../components/JobDetailSheet';
 import { activeBrowseChip, quickBrowseFilters, countBrowseFilters, browseHeaderCopy, type BrowseTab } from '../browsePresentation';
 import { mapBrowsePost } from '../feedMapper';
@@ -56,6 +57,8 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
   const [quickFiltersVisible, setQuickFiltersVisible] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [subTab, setSubTab] = useState<BrowseTab>('explore');
+  const [bidPost, setBidPost] = useState<SavedJobItem | null>(null);
+  const [withdrawing, setWithdrawing] = useState<string | number | null>(null);
   const [selectedPost, setSelectedPost] = useState<SavedJobItem | null>(null);
   const [profilePost, setProfilePost] = useState<SavedJobItem | null>(null);
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
@@ -98,7 +101,7 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
     }
 
     // 4. Max Rate filter
-    if (filters.maxRate !== null && filters.maxRate !== undefined) {
+    if (findingJobs && filters.maxRate !== null && filters.maxRate !== undefined) {
       posts = posts.filter(post => {
         const num = parseFloat(String(post.price || '').replace(/[^0-9.]/g, ''));
         return isNaN(num) || num <= filters.maxRate!;
@@ -116,10 +119,10 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
   const currentPost = useRef<SavedJobItem | undefined>(undefined);
   currentPost.current = visiblePosts[0];
 
-  const contactPost = async (post: SavedJobItem, quote = false) => {
+  const contactPost = async (post: SavedJobItem, quote = false, applyBudget = true) => {
     if (!post.partnerId) return false;
-    const application = findingJobs ? await applyJob(post) : null;
-    if (findingJobs && !application) return false;
+    const application = findingJobs && applyBudget ? await applyJob(post) : null;
+    if (findingJobs && applyBudget && !application) return false;
     const partnerId = String(post.partnerId);
     const name = post.employerName || partnerRole;
     const contactRole = findingJobs ? partnerRole : post.roleTag || partnerRole;
@@ -155,8 +158,9 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
     if (loaded) position.setValue({ x: 0, y: 0 });
   };
   const applyFilters = (updated: FeedFilters) => {
-    setFilters(updated);
-    void fetchFeed(true, updated);
+    const safeFilters = findingJobs ? updated : { ...updated, maxRate: null };
+    setFilters(safeFilters);
+    void fetchFeed(true, safeFilters);
   };
   const refresh = async () => {
     setIsRefreshing(true);
@@ -167,7 +171,7 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
   };
 
   useEffect(() => {
-    setFilters(DEFAULT_FILTERS); setSubTab('explore'); setSelectedPost(null); setProfilePost(null); setActiveChat(null); setFilterVisible(false); setQuickFiltersVisible(true);
+    setBidPost(null); setFilters(DEFAULT_FILTERS); setSubTab('explore'); setSelectedPost(null); setProfilePost(null); setActiveChat(null); setFilterVisible(false); setQuickFiltersVisible(true);
     void fetchFeed(true, DEFAULT_FILTERS);
     if (effectiveToken) void refreshSavedFromBackend(effectiveToken);
   }, [role, effectiveToken]);
@@ -175,6 +179,16 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
     if ((subTab === 'saved' || subTab === 'applied') && effectiveToken) void refreshSavedFromBackend(effectiveToken);
   }, [subTab, effectiveToken]);
 
+  const withdraw = (post: SavedJobItem) => Alert.alert(uiText('Withdraw Bid?'), uiText('Withdrawing a pending bid has no cancellation penalty.'), [
+    { text: uiText('Cancel'), style: 'cancel' },
+    { text: uiText('Withdraw Bid'), onPress: async () => {
+      if (withdrawing !== null) return;
+      setWithdrawing(post.id);
+      try { await savedJobsStore.withdrawBid(post, effectiveToken); }
+      catch (error) { Alert.alert(uiText('Unable to Send'), uiText(error instanceof Error ? error.message : 'Please try again.')); }
+      finally { setWithdrawing(null); }
+    } },
+  ]);
   const activeFilterCount = countBrowseFilters(filters);
   const activityPosts = subTab === 'applied' ? appliedJobs : savedJobs;
   const headerCopy = browseHeaderCopy(role, subTab, subTab === 'explore' ? visiblePosts.length : subTab === 'saved' ? savedCount : appliedCount, isLoading, feedError, uiText);
@@ -220,9 +234,12 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
                 applied={findingJobs && (subTab === 'applied' || isApplied(post.id))} closed={findingJobs && (isJobClosed(post) || !canUsePost(post))}
                 onProfile={() => openProfile(post)} onDetails={() => setSelectedPost(post)}
                 onUnsave={subTab === 'saved' ? () => { void toggleSave(post, effectiveToken); } : undefined}
-                onMessage={!findingJobs ? () => contactPost(post) : undefined} />)}</View>}
+                onMessage={() => { void contactPost(post, false, false); }}
+                onWithdraw={subTab === 'applied' && post.application_status === 'applied' && post.proposalId ? () => withdraw(post) : undefined} withdrawing={withdrawing === post.id} />)}</View>}
       </View>}
       <JobDetailSheet visible={!!selectedPost} job={selectedPost} onClose={() => setSelectedPost(null)}
+        onMessage={() => { if (selectedPost) void contactPost(selectedPost, false, false); }}
+        onSubmitBid={() => { setBidPost(selectedPost); setSelectedPost(null); }}
         isApplying={applyingJobId === selectedPost?.id}
         onApply={() => { if (selectedPost) contactPost(selectedPost); }} isApplied={findingJobs && !!selectedPost && isApplied(selectedPost.id)}
         isSaved={!!selectedPost && isSaved(selectedPost.id)} isClosed={detailsClosed}
@@ -230,6 +247,8 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
         onViewProfile={() => { if (selectedPost) { openProfile(selectedPost); setSelectedPost(null); } }}
         ctaText={!findingJobs ? uiText('Message Kasambahay') : undefined}
         ctaNotice={!findingJobs ? uiText('Start a direct chat with this kasambahay') : undefined} token={effectiveToken} />
+      {bidPost && <ProposalsModal visible onClose={() => setBidPost(null)} bookingId={String(bidPost.id)} isPoster={false}
+        currentRate={bidPost.price?.replace(/[^0-9.]/g, '') || null} ratePeriod={bidPost.unit?.includes('month') ? 'month' : 'day'} token={effectiveToken} onUpdated={() => { void refresh(); }} />}
       {activeChat && <ChatDetailScreen visible onClose={() => setActiveChat(null)} {...activeChat}
         contactName={activeChat.name} contactRole={activeChat.role} contactAvatar={activeChat.avatar} userRole={role} token={effectiveToken} />}
       <FilterModal visible={filterVisible} onClose={() => setFilterVisible(false)} onApply={applyFilters} initialFilters={filters} mode={role} />

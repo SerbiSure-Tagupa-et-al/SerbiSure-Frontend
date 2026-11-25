@@ -16,3 +16,9 @@ export function formatRateInput(value: string): string {
   return Number(whole).toLocaleString('en-US', { maximumFractionDigits: 0 })
     + (fraction === undefined ? '' : `.${fraction}`);
 }
+
+/** Hide obsolete advertised rates in worker post descriptions; never rewrite stored text. */
+export function stripLegacyExpectedRate(text?: string | null): string {
+  return (text || '').replace(/(?:^|,?\s+)with an expected rate of\s*(?:₱|PHP)\s*[\d,]+(?:\.\d{1,2})?\s*\/\s*(?:day|month)\.?/gi,
+    (phrase, offset) => offset > 0 && phrase.endsWith('.') ? '.' : '').replace(/\s+([,.])/g, '$1').replace(/\.{2,}/g, '.').trim();
+}

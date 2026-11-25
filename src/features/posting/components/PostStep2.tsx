@@ -82,8 +82,9 @@ export function PostStep2({ form }: { form: PostFormController }) {
       />
 
       {/* 3. Offer Amount */}
+      {config.role === 'homeowner' && <>
       <Text style={[styles.sectionHeader, { marginTop: 14 }]}>
-        {uiText("OFFER AMOUNT")}
+        {uiText('Offer Amount')}
       </Text>
       <View style={[styles.offerInputWrapper, (fieldErrors.rate || isOutsideRange) && styles.offerInputWrapperInvalid]}>
         <Text style={[styles.currencyPrefix, isOutsideRange && { color: '#DC2626' }]}>₱</Text>
@@ -112,6 +113,7 @@ export function PostStep2({ form }: { form: PostFormController }) {
       <Text style={[styles.invalidRateHint, { color: '#6B7280', marginTop: 5 }]}>
         {uiText('Direct payment between Homeowner and Kasambahay · ₱0.00 SerbiSure fee.')}
       </Text>
+      </>}
     </View>
   );
 }

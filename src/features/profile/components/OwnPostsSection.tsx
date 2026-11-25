@@ -1,3 +1,4 @@
+import { stripLegacyExpectedRate } from '../../../shared/utils/rate';
 import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +14,10 @@ function clockLabel(value?: string | null): string {
   if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return '';
   const hour = Number(match[1]);
   return `${String(hour % 12 || 12).padStart(2, '0')}:${match[2]} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
+function workerAvailability(post: BookingItem): boolean {
+  return (post.poster_account_type || post.poster?.account_type) === 'Kasambahay';
 }
 
 function rateParts(post: BookingItem) {
@@ -121,10 +126,10 @@ export function OwnPostsSection({
               </View>
 
               <View style={styles.headerRight}>
-                <View style={styles.rateAmount}>
+                {workerAvailability(post) ? <Text style={[styles.rateDecimalsAndUnit, { fontWeight: '700' }]}>{tr(post.booking_type === 'long_term' ? 'Full-time' : 'Part-time')}</Text> : (<View style={styles.rateAmount}>
                   <Text style={styles.rateMainNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>₱ {whole}</Text>
                   <Text style={styles.rateDecimalsAndUnit}>.{decimals}/{tr(post.rate_period || 'day')}</Text>
-                </View>
+                </View>)}
                 <View style={styles.statusRow}>
                   <View style={[styles.statusDot, { backgroundColor: statusColor }]} accessible={false} />
                   <Text style={[styles.statusText, { color: statusColor }]}>
@@ -150,7 +155,7 @@ export function OwnPostsSection({
             {/* Special Instructions / Notes (only if present, removing redundancy) */}
             {hasInstructions ? (
               <Text style={styles.instructionText} numberOfLines={2} ellipsizeMode="tail">
-                {post.special_instruction}
+                {workerAvailability(post) ? stripLegacyExpectedRate(post.special_instruction) : post.special_instruction}
               </Text>
             ) : null}
 
@@ -190,10 +195,10 @@ export function OwnPostsSection({
                   <Text style={[styles.statusText, { color: statusColors[detailsStatus] || '#6B7280' }]}>{tr(detailsStatus)}</Text>
                 </View>
               </View>
-              <View style={styles.rateAmount}>
+              {!workerAvailability(detailsPost) && (<View style={styles.rateAmount}>
                 <Text style={styles.rateMainNumber}>₱ {detailsWhole}</Text>
                 <Text style={styles.rateDecimalsAndUnit}>.{detailsDecimals} / {tr(detailsPost.rate_period || 'day')}</Text>
-              </View>
+              </View>)}
               <Text style={styles.detailsMeta}>
                 {tr(detailsPost.booking_type === 'short_term' ? 'Part-time' : 'Full-time')} · {tr(workSetupLabel(detailsPost.work_setup))}
               </Text>
@@ -218,7 +223,7 @@ export function OwnPostsSection({
                   <Ionicons name="document-text-outline" size={18} color="#4B5563" accessible={false} />
                   <Text style={styles.sectionTitle}>{tr('About / Instructions')}</Text>
                 </View>
-                <Text style={styles.detailsBody}>{detailsPost.special_instruction.trim()}</Text>
+                <Text style={styles.detailsBody}>{workerAvailability(detailsPost) ? stripLegacyExpectedRate(detailsPost.special_instruction) : detailsPost.special_instruction.trim()}</Text>
               </View>}
             </ScrollView>
             <View style={[styles.detailsFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>

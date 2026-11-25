@@ -97,14 +97,14 @@ test('expiry uses the exact start instant for short/long posts; contract and app
     assert.equal(rules.isPostAvailable(upcoming, now), true);
     assert.equal(rules.postDisplayStatus(upcoming, now + 1), 'Available');
     assert.equal(rules.isScheduleExpired(upcoming, now + 86400000), true);
-    assert.equal(rules.applicationLabel(upcoming, now + 1), 'Application sent');
+    assert.equal(rules.applicationLabel(upcoming, now + 1), 'Pending Review');
   }
   for (const [booking_status, label] of [['Accepted', 'Booked'], ['InProgress', 'Ongoing'], ['Completed', 'Completed'], ['Cancelled', 'Cancelled']]) {
     assert.equal(rules.postDisplayStatus({ ...post, post_status: undefined, booking_status }, now), label);
     assert.equal(rules.isPostAvailable({ ...post, post_status: label }, now), false);
   }
-  assert.equal(rules.applicationLabel({ ...post, application_status: 'accepted' }, now), 'Selected');
-  assert.equal(rules.applicationLabel({ ...post, application_status: 'not_selected' }, now), 'Closed / Not Selected');
+  assert.equal(rules.applicationLabel({ ...post, application_status: 'accepted' }, now), 'Hired');
+  assert.equal(rules.applicationLabel({ ...post, application_status: 'not_selected' }, now), 'Position Filled');
 });
 
 test('open screens react immediately to booking events, refresh on resume/reconnect and expire without polling', t => {

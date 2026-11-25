@@ -39,11 +39,23 @@ export function ProfileAvatar({ uri, name, size = 48 }: Readonly<{ uri?: string 
     );
   }
 
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
+
   if (hasCustomPhoto && photoUri && failedUri !== photoUri) {
-    return <Image source={{ uri: photoUri }} style={[styles.photo, shape]} resizeMode="cover" accessibilityLabel={`${name}'s profile photo`} onError={() => setFailedUri(photoUri)} />;
+    return (
+      <View style={[styles.fallback, shape, styles.photoWrap]}>
+        <Text style={[styles.initials, { fontSize: size * 0.32 }]} accessible={false}>{initials}</Text>
+        <Image
+          source={{ uri: photoUri }}
+          style={[styles.photo, shape]}
+          resizeMode="cover"
+          accessibilityLabel={`${name}'s profile photo`}
+          onError={() => setFailedUri(photoUri)}
+        />
+      </View>
+    );
   }
 
-  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
   return (
     <View style={[styles.fallback, shape]} accessibilityLabel={`${name}'s profile photo placeholder`}>
       <Text style={[styles.initials, { fontSize: size * 0.32 }]}>{initials}</Text>
@@ -52,7 +64,8 @@ export function ProfileAvatar({ uri, name, size = 48 }: Readonly<{ uri?: string 
 }
 
 const styles = StyleSheet.create({
-  photo: { backgroundColor: THEME.colors.brandLight },
+  photoWrap: { overflow: 'hidden', position: 'relative' },
+  photo: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
   fallback: { backgroundColor: THEME.colors.brandLight, alignItems: 'center', justifyContent: 'center' },
   officialContainer: {
     backgroundColor: '#FFFFFF',

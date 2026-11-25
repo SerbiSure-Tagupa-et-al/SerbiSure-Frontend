@@ -70,13 +70,10 @@ export function buildPostDescription(mode: PostingMode, input: {
     ? shortTerm
       ? `I am looking for ${service} at ${location}, available ${time}.`
       : `I am looking for ${service} at ${location}, capable of working on a ${setup} setup.`
-    : shortTerm
-      ? `I am offering ${service} service in ${location}, available ${time}.`
-      : `I am looking for full-time ${service} work in ${location} on a ${setup} arrangement.`;
-  const rateText = buildPostRateText(rate, shortTerm);
+    : `I am offering ${service} service in ${location} for ${shortTerm ? 'Part-time / Daily' : 'Full-time / Monthly'} work, ${setup.toLowerCase().includes('stay-in') ? 'Stay-in (Live-in)' : 'Stay-out (Goes home)'}, available ${time}.`;
+  const rateText = mode === 'job' ? buildPostRateText(rate, shortTerm) : '';
   if (rateText) {
-    const rateLabel = mode === 'job' ? 'offer rate' : 'expected rate';
-    message = `${message.replace(/\.$/, '')} with an ${rateLabel} of ${rateText}.`;
+    message = `${message.replace(/\.$/, '')} with an offer rate of ${rateText}.`;
   }
   if (instructions.trim()) message += `\n\n${mode === 'job' ? 'Specific instructions' : 'About my experience'}:\n${instructions.trim()}`;
   return message;

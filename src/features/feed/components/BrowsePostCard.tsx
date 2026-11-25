@@ -1,4 +1,4 @@
-import { formatRate } from '../../../shared/utils/rate';
+import { formatRate, stripLegacyExpectedRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React, { useState } from 'react';
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -58,9 +58,9 @@ export function BrowsePostCard({ name, avatarUri, authorRole, title, location, d
               <Text style={styles.location} numberOfLines={1}>{location}</Text>
             </View>
             {workerPost && <Text style={styles.serviceTitle} numberOfLines={1}>{title}</Text>}
-            <Text style={styles.description} numberOfLines={2}>{description}</Text>
+            <Text style={styles.description} numberOfLines={2}>{workerPost ? stripLegacyExpectedRate(description) : description}</Text>
             <View style={styles.tags}>
-              {displayTags.map((tag) => (
+              {displayTags.filter(tag => !workerPost || !['Part-time', 'Full-time'].includes(tag)).map((tag) => (
                 <View key={tag} style={styles.tag}>
                   <Text style={styles.tagText}>{uiText(tag)}</Text>
                 </View>
@@ -68,8 +68,10 @@ export function BrowsePostCard({ name, avatarUri, authorRole, title, location, d
             </View>
             <View style={styles.footer}>
               <View style={styles.rate}>
-                <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit>{uiText(formatRate(price))}</Text>
-                <Text style={styles.unit}>{uiText(formatCardUnit(unit))}</Text>
+                {workerPost ? <Text style={{ fontWeight: '700', color: '#FFFFFF', flexShrink: 0 }}>{uiText(tags.includes('Full-time') ? 'Full-time' : 'Part-time')}</Text> : <>
+                  <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit>{uiText(formatRate(price))}</Text>
+                  <Text style={styles.unit}>{uiText(formatCardUnit(unit))}</Text>
+                </>}
               </View>
               <Pressable accessibilityRole="button" onPress={onDetails} style={[styles.details, applied && styles.applied]}>
                 <Text style={[styles.detailsLabel, applied && styles.appliedLabel]}>

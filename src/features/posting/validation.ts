@@ -6,6 +6,7 @@ export const PART_TIME_MAX_RATE = 5000;
 export const FULL_TIME_MAX_RATE = 50000;
 
 export function validatePostingRate(mode: PostingMode, engagement: 'short' | 'long' | null, value: string, policy?: MinimumWageData): { title: string; message: string } | null {
+  if (mode === 'service') return null;
   const amount = Number(value);
   if (!/^\d+(\.\d{1,2})?$/.test(value.trim()) || !Number.isFinite(amount) || amount <= 0)
     return { title: 'Valid Rate Required', message: POSTING_CONFIG[mode].invalidAmount };

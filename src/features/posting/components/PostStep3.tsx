@@ -74,14 +74,14 @@ export function PostStep3({ form }: { form: PostFormController }) {
           </Text>
         </View>
 
+        {config.role === 'homeowner' && <>
         <View style={styles.summaryDivider} />
-
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{uiText("Offer Rate")}</Text>
+          <Text style={styles.summaryLabel}>{uiText('Offer Amount')}</Text>
           <Text style={[styles.summaryValue, { color: '#EA580C', fontWeight: '800' }]}>
             {formatRate(offerAmount)} {engagementType === 'short' ? uiText("/ day") : uiText("/ month")}
           </Text>
-        </View>
+        </View></>}
 
         <View style={styles.summaryDivider} />
 
