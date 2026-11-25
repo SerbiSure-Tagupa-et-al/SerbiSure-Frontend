@@ -1193,6 +1193,18 @@ export const UI_MESSAGES = {
   'Show All {city}': ['Ipakita ang Buong {city}', 'Ipakita ang Tibuok {city}'],
   'Show All Areas': ['Ipakita ang Lahat ng Lugar', 'Ipakita ang Tanang Lugar'],
   'Same City': ['Parehong Lungsod', 'Parehong Siyudad'],
+  'Wrong document detected': ['Maling dokumento ang natukoy', 'Sayop nga dokumento ang nakit-an'],
+  'Photo is too blurry or unreadable': ['Masyadong malabo o hindi mabasa ang larawan', 'Hanap kaayo o dili mabasa ang litrato'],
+  'Document details incomplete or flagged': ['May kulang o may babala sa detalye ng dokumento', 'Kulang o adunay pahimangno ang detalye sa dokumento'],
+  'Expired document detected': ['Paso na ang dokumento', 'Napaso na ang dokumento'],
+  'Re-upload Document': ['I-upload Muli ang Dokumento', 'I-upload Pag-usab ang Dokumento'],
+  'Retake / Re-upload': ['Kumuha Muli / Mag-upload Muli', 'Kuhaa Pag-usab / I-upload Pag-usab'],
+  'Upload Renewed Document': ['I-upload ang Bagong Dokumento', 'I-upload ang Bag-ong Dokumento'],
+  'If there is a typo in your SerbiSure name, message your Barangay official or SerbiSure Admin to update it for you.': [
+    'Kung may maling baybay sa iyong pangalan sa SerbiSure, mag-message sa inyong Barangay official o SerbiSure Admin upang ma-update ito para sa iyo.',
+    'Kon adunay sayop sa spelling sa imong ngalan sa SerbiSure, pag-message sa imong Barangay official o SerbiSure Admin aron ma-update kini alang kanimo.',
+  ],
+  'Please check this document carefully.': ['Pakisuri nang mabuti ang dokumentong ito.', 'Palihog susiha og maayo kini nga dokumento.'],
 } as const satisfies Record<string, readonly [string, string]>;
 
 export type AppLanguage = 'English' | 'Tagalog' | 'Bisaya' | 'Cebuano';

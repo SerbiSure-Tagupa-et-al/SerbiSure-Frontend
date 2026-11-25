@@ -516,13 +516,14 @@ export function VerificationStatusModal({
 
     const isExpanded = !!expandedDocIds[doc.document_id];
     const isRawExpanded = !!expandedRawDocIds[doc.document_id];
-    const hasOcrData = !!(doc.extracted_data && Object.keys(doc.extracted_data).length > 0);
+    const hasOcrData = !!(doc.extracted_data && Object.keys(doc.extracted_data).filter((k) => !k.startsWith('_')).length > 0);
     const hasDiscrepancies = !!(doc.ocr_discrepancies && doc.ocr_discrepancies.length > 0);
     const isProcessingOcr = doc.document_type !== 'profile_photo' && isPending && !doc.ocr_processed_at && !hasOcrData;
+    const screeningAlert = isPending && !isExpired ? (doc.screening?.user_alert ?? null) : null;
 
-    // Filter valid non-empty entries for raw extracted data
+    // Filter valid non-empty entries for raw extracted data (exclude internal metadata keys)
     const validRawEntries = Object.entries(doc.extracted_data || {}).filter(
-      ([, val]) => val !== null && val !== undefined && String(val).trim() !== '' && String(val).trim().toUpperCase() !== 'UNKNOWN'
+      ([key, val]) => !key.startsWith('_') && val !== null && val !== undefined && typeof val !== 'object' && String(val).trim() !== '' && String(val).trim().toUpperCase() !== 'UNKNOWN'
     );
 
     return (
@@ -613,6 +614,36 @@ export function VerificationStatusModal({
               </Pressable>}
             </View>
           </View>
+        ) : screeningAlert ? (
+          <View style={screeningAlert.level === 'error' ? styles.screeningErrorCard : styles.screeningWarningCard}>
+            <View style={styles.rejectedHeader}>
+              <Ionicons
+                name={screeningAlert.level === 'error' ? 'alert-circle' : 'time-outline'}
+                size={18}
+                color={screeningAlert.level === 'error' ? '#DC2626' : '#B45309'}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={screeningAlert.level === 'error' ? styles.rejectedTitle : styles.screeningWarningTitle}>
+                {uiText(screeningAlert.title)}
+              </Text>
+            </View>
+            <Text style={screeningAlert.level === 'error' ? styles.rejectedReasonText : styles.screeningWarningText}>
+              {screeningAlert.message}
+            </Text>
+            <Pressable
+              style={[
+                styles.reuploadFullBtn,
+                screeningAlert.level === 'warning' && styles.screeningWarningBtn,
+                { marginTop: 10, minHeight: 42 },
+              ]}
+              disabled={uploadLoading}
+              onPress={() => handleReupload(doc.document_type)}
+              accessibilityRole="button"
+            >
+              <Ionicons name="camera-outline" size={17} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.reuploadFullBtnText}>{uiText(screeningAlert.action_label)}</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         {/* Reading Document State (Processing) */}
@@ -663,8 +694,8 @@ export function VerificationStatusModal({
 
             {isExpanded && (
               <View style={styles.ocrExpandedContainer}>
-                {/* Reassuring Friendly Callout Box */}
-                {hasDiscrepancies && (
+                {/* Reassuring Friendly Callout Box (only for minor name/field differences, not blocking flags) */}
+                {hasDiscrepancies && !screeningAlert && (
                   <View style={styles.friendlyNoticeBox}>
                     <View style={styles.friendlyNoticeHeader}>
                       <Ionicons name="bulb-outline" size={18} color="#92400E" style={{ marginRight: 6 }} />
@@ -681,30 +712,37 @@ export function VerificationStatusModal({
                     <Text style={styles.discrepancyBoxHeaderLabel}>{uiText("Here is what we noticed:")}</Text>
 
                     {doc.ocr_discrepancies.map((disc, idx) => {
-                      const fieldLabel = EXTRACTED_FIELD_LABELS[disc.field] || disc.field;
+                      const fieldLabel = EXTRACTED_FIELD_LABELS[disc.field] || disc.field.replace(/_/g, ' ');
+                      const hasComparisonValues = Boolean(disc.profile_value || disc.document_value);
                       return (
                         <View key={idx} style={styles.humanDiscrepancyCard}>
                           <Text style={styles.humanFieldBadge}>{fieldLabel.toUpperCase()}</Text>
 
-                          <View style={styles.humanRow}>
-                            <Text style={styles.humanLabel}>{uiText("Your profile says:")}</Text>
-                            <Text style={styles.humanValProfile}>{disc.profile_value || '(Not set)'}</Text>
-                          </View>
+                          {hasComparisonValues ? (
+                            <>
+                              <View style={styles.humanRow}>
+                                <Text style={styles.humanLabel}>{uiText("Your profile says:")}</Text>
+                                <Text style={styles.humanValProfile}>{disc.profile_value || '(Not set)'}</Text>
+                              </View>
 
-                          <View style={styles.humanRowDivider} />
+                              <View style={styles.humanRowDivider} />
 
-                          <View style={styles.humanRow}>
-                            <Text style={styles.humanLabel}>{uiText("Your document shows:")}</Text>
-                            <Text style={styles.humanValDoc}>{disc.document_value || '(Not found)'}</Text>
-                          </View>
+                              <View style={styles.humanRow}>
+                                <Text style={styles.humanLabel}>{uiText("Your document shows:")}</Text>
+                                <Text style={styles.humanValDoc}>{disc.document_value || '(Not found)'}</Text>
+                              </View>
+                            </>
+                          ) : (
+                            <Text style={styles.humanValDoc}>{disc.message || uiText('Please check this document carefully.')}</Text>
+                          )}
                         </View>
                       );
                     })}
 
                     <View style={styles.profileTipRow}>
-                      <Ionicons name="create-outline" size={15} color="#92400E" style={{ marginRight: 6 }} />
+                      <Ionicons name="chatbubble-ellipses-outline" size={15} color="#92400E" style={{ marginRight: 6 }} />
                       <Text style={styles.profileTipText}>
-                        {uiText("If there is a typo in your SerbiSure name, you can update it anytime in Profile Settings.")}</Text>
+                        {uiText("If there is a typo in your SerbiSure name, message your Barangay official or SerbiSure Admin to update it for you.")}</Text>
                     </View>
                   </View>
                 )}
@@ -1503,6 +1541,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     fontFamily: THEME.typography.fontFamily.mainBold,
+  },
+  screeningErrorCard: {
+    marginTop: 10,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    padding: 12,
+  },
+  screeningWarningCard: {
+    marginTop: 10,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    padding: 12,
+  },
+  screeningWarningTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+    flex: 1,
+  },
+  screeningWarningText: {
+    fontSize: 12.5,
+    color: '#78350F',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  screeningWarningBtn: {
+    backgroundColor: '#D97706',
   },
 });
 

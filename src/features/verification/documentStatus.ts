@@ -18,6 +18,8 @@ export function documentLabel(type: string): string {
 
 export function canReplaceDocument(document: DocumentStatusItem): boolean {
   if (document.document_type === 'profile_photo') return document.verification_status === 'Rejected';
+  if (document.can_replace === true) return true;
+  if (document.verification_status === 'Pending' && document.screening?.has_blocking_flag) return true;
   return ['Unverified', 'Rejected'].includes(document.verification_status) ||
     (document.verification_status === 'Verified' && documentIsExpired(document));
 }
