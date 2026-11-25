@@ -1,6 +1,8 @@
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import THEME from '../../../shared/theme/theme';
 import type { WorkSetup } from '../../bookings/workSetup';
+import type { LocationScope } from '../locationFilter';
+import { formatBarangayShort, RADIUS_OPTIONS, shortCityLabel } from '../locationFilter';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable, Modal, TextInput, Dimensions, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Animated, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +18,11 @@ export interface FeedFilters {
   maxRate: number | null;
   ratePeriod?: 'day' | 'month';
   location: string;
-  sortBy: 'newest' | 'rate_asc' | 'rate_desc';
+  locationScope?: LocationScope;
+  radiusKm?: number;
+  originCity?: string;
+  originBarangay?: string;
+  sortBy: 'newest' | 'nearest' | 'rate_asc' | 'rate_desc';
 }
 
 export const DEFAULT_FILTERS: FeedFilters = {
@@ -26,6 +32,10 @@ export const DEFAULT_FILTERS: FeedFilters = {
   maxRate: null,
   ratePeriod: 'day',
   location: '',
+  locationScope: 'all',
+  radiusKm: 5,
+  originCity: '',
+  originBarangay: '',
   sortBy: 'newest',
 };
 
@@ -35,20 +45,22 @@ interface FilterModalProps {
   onApply: (filters: FeedFilters) => void;
   initialFilters: FeedFilters;
   mode: 'homeowner' | 'kasambahay'; // homeowner searches kasambahays; kasambahay searches jobs
+  onPickLocation?: () => void;
 }
 
 export const CATEGORY_OPTIONS = ['All-around', 'Child Care', 'Cleaning', 'Cooking', 'Caregiver', 'Laundry'];
 
 const BOOKING_TYPES = [
   { label: 'All Types', value: null },
-  { label: 'Short-term', value: 'short_term' },
-  { label: 'Long-term', value: 'long_term' },
+  { label: 'Part-time', value: 'short_term' },
+  { label: 'Full-time', value: 'long_term' },
 ];
 
-export const RATE_PRESETS = [400, 500, 600, 800, 1000];
+export const RATE_PRESETS = [600, 800, 1000, 1500, 2000];
 
-export const SORT_OPTIONS: { label: string; value: 'newest'; icon?: keyof typeof Ionicons.glyphMap }[] = [
+export const SORT_OPTIONS: { label: string; value: 'newest' | 'nearest'; icon?: keyof typeof Ionicons.glyphMap }[] = [
   { label: 'Newest first', value: 'newest', icon: 'time-outline' },
+  { label: 'Nearest first', value: 'nearest', icon: 'navigate-outline' },
 ];
 
 export function FilterModal({
@@ -57,6 +69,7 @@ export function FilterModal({
   onApply,
   initialFilters,
   mode,
+  onPickLocation,
 }: FilterModalProps) {
   const { tr: uiText } = useUiLanguage();
   const insets = useSafeAreaInsets();
@@ -70,8 +83,12 @@ export function FilterModal({
     initialFilters.maxRate ? String(initialFilters.maxRate) : ''
   );
   const [location, setLocation] = useState<string>(initialFilters.location || '');
-  const [sortBy, setSortBy] = useState<'newest' | 'rate_asc' | 'rate_desc'>(
-    'newest'
+  const [locationScope, setLocationScope] = useState<LocationScope>(initialFilters.locationScope || 'all');
+  const [radiusKm, setRadiusKm] = useState<number>(initialFilters.radiusKm || 5);
+  const [originCity, setOriginCity] = useState<string>(initialFilters.originCity || '');
+  const [originBarangay, setOriginBarangay] = useState<string>(initialFilters.originBarangay || '');
+  const [sortBy, setSortBy] = useState<'newest' | 'nearest' | 'rate_asc' | 'rate_desc'>(
+    initialFilters.sortBy === 'nearest' ? 'nearest' : 'newest'
   );
 
   const panY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -104,6 +121,10 @@ export function FilterModal({
       maxRate,
       ratePeriod: bookingType === 'long_term' ? 'month' : bookingType === 'short_term' ? 'day' : ratePeriod,
       location: location.trim(),
+      locationScope,
+      radiusKm,
+      originCity,
+      originBarangay,
       sortBy,
     });
     Animated.timing(panY, {
@@ -116,7 +137,7 @@ export function FilterModal({
       currentTranslateY.current = SCREEN_HEIGHT;
       isClosingRef.current = false;
     });
-  }, [onClose, onApply, panY, categories, bookingType, workSetup, maxRate, ratePeriod, location, sortBy]);
+  }, [onClose, onApply, panY, categories, bookingType, workSetup, maxRate, ratePeriod, location, locationScope, radiusKm, originCity, originBarangay, sortBy]);
 
   const handleRelease = useCallback((gestureState: { dy: number; vy: number }) => {
     const { dy, vy } = gestureState;
@@ -144,7 +165,11 @@ export function FilterModal({
       setMaxRate(initialFilters.maxRate || null);
       setCustomRateText(initialFilters.maxRate ? String(initialFilters.maxRate) : '');
       setLocation(initialFilters.location || '');
-      setSortBy('newest');
+      setLocationScope(initialFilters.locationScope || 'all');
+      setRadiusKm(initialFilters.radiusKm || 5);
+      setOriginCity(initialFilters.originCity || '');
+      setOriginBarangay(initialFilters.originBarangay || '');
+      setSortBy(initialFilters.sortBy === 'nearest' ? 'nearest' : 'newest');
 
       isClosingRef.current = false;
       currentTranslateY.current = SCREEN_HEIGHT;
@@ -252,11 +277,7 @@ export function FilterModal({
     setMaxRate(nextRate);
   };
 
-  const handleLocationChange = (text: string) => {
-    setLocation(text);
-  };
-
-  const handleSortChange = (newSort: 'newest' | 'rate_asc' | 'rate_desc') => {
+  const handleSortChange = (newSort: 'newest' | 'nearest' | 'rate_asc' | 'rate_desc') => {
     setSortBy(newSort);
   };
 
@@ -267,6 +288,8 @@ export function FilterModal({
     setMaxRate(null);
     setCustomRateText('');
     setLocation('');
+    setLocationScope(initialFilters.originBarangay && initialFilters.originCity ? 'radius' : initialFilters.originCity ? 'same_city' : 'all');
+    setRadiusKm(5);
     setSortBy('newest');
   };
 
@@ -399,6 +422,9 @@ export function FilterModal({
                     );
                   })}
                 </View>
+                <Text style={styles.sectionHint}>
+                  {uiText("Part-time: 1–7 days (daily pay) · Full-time: 30+ days (monthly pay)")}
+                </Text>
               </View>
 
               <View style={styles.section}>
@@ -412,111 +438,150 @@ export function FilterModal({
                     </Pressable>
                   ))}
                 </View>
+                <Text style={styles.sectionHint}>
+                  {uiText("Stay-in: lives in employer's home · Stay-out: goes home after shift")}
+                </Text>
               </View>
 
               {/* SECTION: Maximum Rate */}
-              <View style={styles.section}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>{uiText('Maximum rate per {period}', { period: uiText(bookingType === 'long_term' ? 'month' : bookingType === 'short_term' ? 'day' : ratePeriod) }).toUpperCase()}</Text>
-                  {maxRate !== null && (
-                    <Pressable
-                      onPress={() => {
-                        setMaxRate(null);
-                        setCustomRateText('');
-                      }}
-                    >
-                      <Text style={styles.clearSectionText}>{uiText("Any Rate")}</Text>
-                    </Pressable>
-                  )}
-                </View>
+              {mode === 'kasambahay' && <>
+                <View style={styles.section}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={styles.sectionTitle}>{uiText('Maximum rate per {period}', { period: uiText(bookingType === 'long_term' ? 'month' : bookingType === 'short_term' ? 'day' : ratePeriod) }).toUpperCase()}</Text>
+                    {maxRate !== null && (
+                      <Pressable
+                        onPress={() => {
+                          setMaxRate(null);
+                          setCustomRateText('');
+                        }}
+                      >
+                        <Text style={styles.clearSectionText}>{uiText("Any Rate")}</Text>
+                      </Pressable>
+                    )}
+                  </View>
 
-                {!bookingType ? (
-                  <View style={styles.periodRow}>
-                    {(['day', 'month'] as const).map(period => {
-                      const isSelected = ratePeriod === period;
+                  {!bookingType ? (
+                    <View style={styles.periodRow}>
+                      {(['day', 'month'] as const).map(period => {
+                        const isSelected = ratePeriod === period;
+                        return (
+                          <Pressable
+                            key={period}
+                            style={[styles.periodBtn, isSelected && styles.periodBtnActive]}
+                            onPress={() => handlePeriodChange(period)}
+                          >
+                            <Text style={[styles.periodBtnText, isSelected && styles.periodBtnTextActive]}>
+                              {period === 'day' ? uiText("Part-time (Daily)") : uiText("Full-time (Monthly)")}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+
+                  {/* Quick Presets */}
+                  <View style={styles.ratePresetsRow}>
+                    {(bookingType === 'long_term' || (!bookingType && ratePeriod === 'month') ? [6500, 8000, 10000, 15000] : RATE_PRESETS).map((rate) => {
+                      const isSelected = maxRate === rate;
                       return (
                         <Pressable
-                          key={period}
-                          style={[styles.periodBtn, isSelected && styles.periodBtnActive]}
-                          onPress={() => handlePeriodChange(period)}
+                          key={rate}
+                          style={[styles.rateChip, isSelected && styles.rateChipActive]}
+                          onPress={() => handleRatePreset(rate)}
                         >
-                          <Text style={[styles.periodBtnText, isSelected && styles.periodBtnTextActive]}>
-                            {period === 'day' ? uiText("Daily Budget") : uiText("Monthly Budget")}
+                          <Text style={[styles.rateChipText, isSelected && styles.rateChipTextActive]}>
+                            ≤ ₱{rate.toLocaleString('en-US')}
                           </Text>
                         </Pressable>
                       );
                     })}
                   </View>
-                ) : null}
 
-                {/* Quick Presets */}
-                <View style={styles.ratePresetsRow}>
-                  {(bookingType === 'long_term' || (!bookingType && ratePeriod === 'month') ? [6500, 8000, 10000, 15000] : RATE_PRESETS).map((rate) => {
-                    const isSelected = maxRate === rate;
+                  {/* Custom Rate Input */}
+                  <View style={styles.inputBox}>
+                    <Text style={styles.currencyPrefix}>₱</Text>
+                    <TextInput
+                      style={styles.rateInput}
+                      placeholder={uiText("Enter custom max budget")}
+                      placeholderTextColor="#888888"
+                      keyboardType="numeric"
+                      value={customRateText}
+                      onChangeText={handleCustomRateChange}
+                    />
+                    {customRateText !== '' && (
+                      <Pressable
+                        onPress={() => {
+                          setCustomRateText('');
+                          setMaxRate(null);
+                        }}
+                      >
+                        <Ionicons name="close-circle" size={18} color="#888888" />
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+
+              </>}
+              {/* SECTION: Distance & Area */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>{uiText("DISTANCE & AREA")}</Text>
+                  {onPickLocation && (
+                    <Pressable onPress={onPickLocation}>
+                      <Text style={styles.clearSectionText}>{uiText("Change Area")}</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <View style={styles.chipGrid}>
+                  <Pressable
+                    style={[styles.chip, locationScope === 'same_barangay' && styles.chipActive]}
+                    onPress={() => setLocationScope('same_barangay')}
+                  >
+                    <Text style={[styles.chipText, locationScope === 'same_barangay' && styles.chipTextActive]}>
+                      {uiText('Same Barangay')}
+                    </Text>
+                  </Pressable>
+                  {RADIUS_OPTIONS.map((km) => {
+                    const active = locationScope === 'radius' && radiusKm === km;
                     return (
                       <Pressable
-                        key={rate}
-                        style={[styles.rateChip, isSelected && styles.rateChipActive]}
-                        onPress={() => handleRatePreset(rate)}
+                        key={km}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => {
+                          setLocationScope('radius');
+                          setRadiusKm(km);
+                        }}
                       >
-                        <Text style={[styles.rateChipText, isSelected && styles.rateChipTextActive]}>
-                          ≤ P{rate}
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {uiText('{km} km', { km })}
                         </Text>
                       </Pressable>
                     );
                   })}
+                  <Pressable
+                    style={[styles.chip, locationScope === 'same_city' && styles.chipActive]}
+                    onPress={() => setLocationScope('same_city')}
+                  >
+                    <Text style={[styles.chipText, locationScope === 'same_city' && styles.chipTextActive]}>
+                      {uiText('All {city}', { city: shortCityLabel(originCity) || uiText('City') })}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.chip, locationScope === 'all' && styles.chipActive]}
+                    onPress={() => setLocationScope('all')}
+                  >
+                    <Text style={[styles.chipText, locationScope === 'all' && styles.chipTextActive]}>
+                      {uiText('All Areas')}
+                    </Text>
+                  </Pressable>
                 </View>
-
-                {/* Custom Rate Input */}
-                <View style={styles.inputBox}>
-                  <Text style={styles.currencyPrefix}>₱</Text>
-                  <TextInput
-                    style={styles.rateInput}
-                    placeholder={uiText("Enter custom max budget")}
-                    placeholderTextColor="#888888"
-                    keyboardType="numeric"
-                    value={customRateText}
-                    onChangeText={handleCustomRateChange}
-                  />
-                  {customRateText !== '' && (
-                    <Pressable
-                      onPress={() => {
-                        setCustomRateText('');
-                        setMaxRate(null);
-                      }}
-                    >
-                      <Ionicons name="close-circle" size={18} color="#888888" />
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-
-              {/* SECTION: Location Search */}
-              <View style={styles.section}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>{uiText("LOCATION / BARANGAY")}</Text>
-                  {location.trim() !== '' && (
-                    <Pressable onPress={() => setLocation('')}>
-                      <Text style={styles.clearSectionText}>{uiText("Clear")}</Text>
-                    </Pressable>
-                  )}
-                </View>
-                <View style={styles.inputBox}>
-                  <Ionicons name="location-outline" size={18} color="#555555" style={{ marginRight: 8 }} />
-                  <TextInput
-                    style={styles.locationInput}
-                    placeholder="e.g. Carmen, Nazareth, Macasandig"
-                    placeholderTextColor="#888888"
-                    value={location}
-                    onChangeText={handleLocationChange}
-                    returnKeyType="done"
-                  />
-                  {location !== '' && (
-                    <Pressable onPress={() => setLocation('')}>
-                      <Ionicons name="close-circle" size={18} color="#888888" />
-                    </Pressable>
-                  )}
-                </View>
+                {(originBarangay || originCity) ? (
+                  <Text style={styles.sectionHint}>
+                    {uiText('Selected area: {area}', {
+                      area: [formatBarangayShort(originBarangay), shortCityLabel(originCity)].filter(Boolean).join(', '),
+                    })}
+                  </Text>
+                ) : null}
               </View>
 
               {/* SECTION: Sort By */}
@@ -696,6 +761,12 @@ const styles = StyleSheet.create({
   toggleBtnTextActive: {
     color: THEME.colors.ink,
     fontWeight: '700',
+  },
+  sectionHint: {
+    fontSize: 11.5,
+    color: '#6B7280',
+    marginTop: 6,
+    lineHeight: 16,
   },
   periodRow: {
     flexDirection: 'row',

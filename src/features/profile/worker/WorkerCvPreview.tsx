@@ -1,3 +1,4 @@
+import { formatRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
@@ -22,12 +23,12 @@ export function WorkerCvPreview({ cv }: { cv: WorkerCv }) {
   const activePhoto = cv.profile_image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=FFB43B&color=fff&size=150`;
 
   // Rates
-  const dailyRate = details.desired_daily_rate ? `PHP ${Number(details.desired_daily_rate).toLocaleString()} / day` : null;
-  const monthlyRate = details.desired_monthly_rate ? `PHP ${Number(details.desired_monthly_rate).toLocaleString()} / month` : null;
+  const dailyRate = details.desired_daily_rate ? `${formatRate(details.desired_daily_rate, '₱')} / day` : null;
+  const monthlyRate = details.desired_monthly_rate ? `${formatRate(details.desired_monthly_rate, '₱')} / month` : null;
 
   // Work Setup & Engagement
-  const workSetupLabel = details.work_setup === 'stay_in' ? 'Stay-in' : details.work_setup === 'stay_out' ? 'Stay-out' : details.work_setup === 'either' ? 'Either (Stay-in / Stay-out)' : 'Not provided';
-  const engagementLabel = details.engagement_preference === 'short_term' ? 'Short-term' : details.engagement_preference === 'long_term' ? 'Long-term' : details.engagement_preference === 'both' ? 'Both (Short & Long-term)' : 'Not provided';
+  const workSetupLabel = details.work_setup === 'stay_in' ? 'Stay-in (Live-in)' : details.work_setup === 'stay_out' ? 'Stay-out (Goes home)' : details.work_setup === 'either' ? 'Either (Stay-in / Stay-out)' : 'Not provided';
+  const engagementLabel = details.engagement_preference === 'short_term' ? 'Part-time / Daily' : details.engagement_preference === 'long_term' ? 'Full-time / Monthly' : details.engagement_preference === 'both' ? 'Both (Part-time & Full-time)' : 'Not provided';
   const availabilityText = details.available_from || 'Not provided';
 
   // Experience
@@ -214,6 +215,35 @@ export function WorkerCvPreview({ cv }: { cv: WorkerCv }) {
               </Text>
             ))}
           </View>
+
+          {/* VERIFIED SERBISURE TRACK RECORD & REFERRALS */}
+          {(cv.performance?.completed_jobs ?? 0) > 0 && (
+            <>
+              <Text style={styles.sectionHeading}>{uiText("VERIFIED SERBISURE TRACK RECORD")}</Text>
+              <View style={styles.languagesBlock}>
+                <Text style={styles.bulletItem}>
+                  • {cv.performance.completed_jobs === 1
+                    ? uiText('1 Completed Job')
+                    : uiText('{count} Completed Jobs', { count: cv.performance.completed_jobs })}
+                  {(cv.performance.recommended_count ?? 0) > 0
+                    ? ` · ${cv.performance.recommended_count === 1
+                      ? uiText('Recommended by 1 Homeowner')
+                      : uiText('Recommended by {count} Homeowners', { count: cv.performance.recommended_count! })}`
+                    : ''}
+                </Text>
+                {(cv.work_history || []).slice(0, 3).map((job) => {
+                  const title = (job.service_labels || []).join(', ') || uiText('Household Service');
+                  const term = job.booking_type === 'long_term' ? uiText('Full-time') : uiText('Part-time');
+                  const parts = [title, term, job.area].filter(Boolean).join(' · ');
+                  return (
+                    <Text key={job.booking_id} style={styles.bulletItem}>
+                      • {parts}{job.would_recommend ? ` (${uiText("Recommended by Homeowner")})` : ''}
+                    </Text>
+                  );
+                })}
+              </View>
+            </>
+          )}
         </View>
       </View>
     </View>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchPublicProfile, type PublicProfile } from '../api/accountApi';
+import { fetchPublicProfile, fetchWorkerWorkHistory, type PublicProfile, type VerifiedWorkHistoryData } from '../api/accountApi';
 import { fetchReviewSummary, fetchUserReviews, type ReviewItem, type ReviewSummaryData } from '../../reviews/api/reviewApi';
 import { fetchPublicPendingPosts, type PublicPendingPost } from '../../bookings/api/bookingApi';
 import { usePostUpdates } from '../../feed/hooks/usePostUpdates';
@@ -8,6 +8,7 @@ export function usePublicProfile(visible: boolean, userId?: string, token?: stri
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [summary, setSummary] = useState<ReviewSummaryData | null>(null);
+  const [workHistory, setWorkHistory] = useState<VerifiedWorkHistoryData | null>(null);
   const [posts, setPosts] = useState<PublicPendingPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [postsLoading, setPostsLoading] = useState(false);
@@ -34,19 +35,23 @@ export function usePublicProfile(visible: boolean, userId?: string, token?: stri
 
   useEffect(() => {
     const session = ++generation.current;
-    setProfile(null); setReviews([]); setSummary(null); setPosts([]);
+    setProfile(null); setReviews([]); setSummary(null); setWorkHistory(null); setPosts([]);
     setProfileError(null); setPostsError(null); setPostsLoading(false); setLoading(false);
     if (!visible || !userId || !token) return;
     setLoading(true);
     refreshPosts();
     Promise.allSettled([
-      fetchPublicProfile(token, userId), fetchReviewSummary(token, userId), fetchUserReviews(token, userId),
-    ]).then(([identity, sentiment, feedback]) => {
+      fetchPublicProfile(token, userId),
+      fetchReviewSummary(token, userId),
+      fetchUserReviews(token, userId),
+      typeof fetchWorkerWorkHistory === 'function' ? fetchWorkerWorkHistory(token, userId) : Promise.resolve(null),
+    ]).then(([identity, sentiment, feedback, history]) => {
       if (generation.current !== session) return;
       if (identity.status === 'fulfilled') setProfile(identity.value);
       else setProfileError('Unable to load this profile. Please reopen it to try again.');
       if (sentiment.status === 'fulfilled') setSummary(sentiment.value);
       if (feedback.status === 'fulfilled') setReviews(feedback.value || []);
+      if (history.status === 'fulfilled') setWorkHistory(history.value);
       setLoading(false);
     });
     return () => { generation.current++; };
@@ -60,6 +65,6 @@ export function usePublicProfile(visible: boolean, userId?: string, token?: stri
     setPostsError(null);
     setPosts(current => current.map(post => post.booking_id === postId ? { ...post, viewer_proposal: proposal } : post));
   };
-  return { profile, reviews, summary, posts: posts.filter(post => updates.canUsePost({ ...post, id: post.booking_id })),
+  return { profile, reviews, summary, workHistory, posts: posts.filter(post => updates.canUsePost({ ...post, id: post.booking_id })),
     canUsePost: updates.canUsePost, loading, postsLoading, profileError, postsError, refreshPosts, markSubmitted };
 }

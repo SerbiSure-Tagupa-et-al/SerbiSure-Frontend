@@ -1,3 +1,4 @@
+import { formatRate } from '../../shared/utils/rate';
 import { formatBookingAddress, type BookingItem } from '../bookings/api/bookingApi';
 import type { WorkSetup } from '../bookings/workSetup';
 
@@ -57,7 +58,7 @@ export function mapBookingCard(offer?: PersistedChatOffer | null): BookingCardIn
   const declined = offer.status === 'Rejected' || offer.status === 'Withdrawn' || offer.status === 'Cancelled';
   const unavailable = !confirmed && !declined && b.booking_status !== 'Pending';
   const hours = b.daily_start_time && b.daily_end_time ? clock(b.daily_start_time) + ' - ' + clock(b.daily_end_time) : '';
-  const rate = offer.proposed_rate || b.rate_amount;
+  const rate = offer.proposed_rate || b.rate_amount || '';
   return {
     title: confirmed ? 'BOOKING CONFIRMED' : declined ? 'BOOKING DECLINED' : unavailable ? 'OFFER UNAVAILABLE' : 'BOOKING OFFER',
     bookedByName: offer.sender_name, bookingId: b.booking_id, passUrl: b.pass_url, proposalId: offer.proposal_id || undefined,
@@ -65,7 +66,7 @@ export function mapBookingCard(offer?: PersistedChatOffer | null): BookingCardIn
     workHours: hours, location: formatBookingAddress(b, ''), region: b.region || '', days: b.work_days || [],
     salary: rate, bookingType: b.booking_type, serviceCategory: b.service_category, workSetup: b.work_setup || null,
     jobRole: b.service_category.map(value => value.replace(/_/g, ' ')).join(', '),
-    details: 'PHP ' + rate + '/' + b.rate_period + (hours ? ' · ' + hours : ''),
+    details: formatRate(rate) + ' / ' + b.rate_period + (hours ? ' · ' + hours : ''),
     isConfirmed: confirmed, isDeclined: declined, isAcquired: unavailable,
   };
 }

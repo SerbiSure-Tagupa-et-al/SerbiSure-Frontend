@@ -1,8 +1,11 @@
+import { formatRate, formatRateInput } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { useUser } from '../../auth/session/UserContext';
 import type { WorkSetup } from '../workSetup';
 import { workSetupLabel } from '../workSetup';
-import { confirmBookingAcceptance, bookingResponseMessage } from '../bookingAcceptance';
+import { confirmBookingAcceptance, bookingResponseMessage, getPendingReviewFromError, promptPendingReview } from '../bookingAcceptance';
+import type { PendingMandatoryReview } from '../api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { bookingStartTime, isAcceptanceExpired, PASSED_SCHEDULE_MESSAGE } from '../postAvailability';
 import { useScheduleClock } from '../hooks/useScheduleClock';
 import { buildEngagementSchedule, normalizeServices, toggleService, SERVICE_CHOICES, WORK_SHIFTS, type WorkShift } from '../engagementForm';
@@ -11,7 +14,7 @@ import { WorkScheduleFields } from './WorkScheduleFields';
 import { WorkLocationFields } from './WorkLocationFields';
 import { workLocationError } from '../workLocation';
 import { useWorkLocation } from '../hooks/useWorkLocation';
-import { validatePostingRate } from '../../posting/validation';
+import { validatePostingRate, PART_TIME_MAX_RATE, FULL_TIME_MAX_RATE } from '../../posting/validation';
 import { ProfileAvatar } from '../../../shared/ui/ProfileAvatar';
 import { PrivacyPolicyModal } from '../../profile/components/PrivacyPolicyModal';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -140,7 +143,7 @@ export function BookingModal({
       if (current && booking?.booking_id === ticketId) {
         setFreshPass({ key: ticketKey, source: savedPassUrl, url: booking.pass_url || null });
       }
-    }).catch(() => {});
+    }).catch(() => { });
     return () => { current = false; };
   }, [visible, readOnly, ticketId, ticketToken]);
   const insets = useSafeAreaInsets();
@@ -171,6 +174,7 @@ export function BookingModal({
   const [savedRegion, setSavedRegion] = useState('');
   const region = readOnly ? savedRegion : address.selectedRegion?.displayName || address.selectedRegion?.name || '';
   const [submitting, setSubmitting] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const submittingRef = useRef(false);
   const [minWageInfo, setMinWageInfo] = useState<MinimumWageData | null>(null);
   const [policyLoading, setPolicyLoading] = useState(false);
@@ -341,7 +345,7 @@ export function BookingModal({
       if (!address.selectedBarangay) errors.barangay = true;
       if (!address.streetAddress.trim()) errors.street = true;
       if (!address.zipcode.trim()) errors.zipcode = true;
-      if (!salary.trim() || isBelowMinWage) errors.salary = true;
+      if (!salary.trim() || salaryError) errors.salary = true;
     }
     return errors;
   };
@@ -401,7 +405,12 @@ export function BookingModal({
       street: address.streetAddress.trim(), floorUnit: address.floorUnit.trim(), zipCode: address.zipcode.trim(),
     })).then(handleClose).catch(error => {
       submittingRef.current = false; setSubmitting(false);
-      Alert.alert(uiText('Cannot Send Offer'), uiText(bookingResponseMessage(error)));
+      const requiredReview = getPendingReviewFromError(error);
+      if (requiredReview) {
+        promptPendingReview(requiredReview, bookingResponseMessage(error), setPendingReview, uiText);
+      } else {
+        Alert.alert(uiText('Cannot Send Offer'), uiText(bookingResponseMessage(error)));
+      }
     });
 
   };
@@ -411,18 +420,20 @@ export function BookingModal({
     submittingRef.current = true; setSubmitting(true);
     void Promise.resolve().then(action).then(handleClose).catch(error => {
       submittingRef.current = false; setSubmitting(false);
-      Alert.alert(uiText('Booking not updated'), uiText(bookingResponseMessage(error)));
+      const requiredReview = getPendingReviewFromError(error);
+      if (requiredReview) {
+        promptPendingReview(requiredReview, bookingResponseMessage(error), setPendingReview, uiText);
+      } else {
+        Alert.alert(uiText('Booking not updated'), uiText(bookingResponseMessage(error)));
+      }
     });
   };
 
-  const salaryNum = parseFloat(salary.replace(/[^0-9.]/g, '')) || 0;
-  const effectiveMinDaily = minWageInfo?.rate_period === 'day' ? Number(minWageInfo.minimum_rate) : null;
-  const effectiveMinMonthly = minWageInfo?.rate_period === 'month' ? Number(minWageInfo.minimum_rate) : null;
-  const isBelowMinWage =
-    salaryNum > 0 &&
-    (selectedBookingType === 'short_term'
-      ? effectiveMinDaily !== null && salaryNum < effectiveMinDaily
-      : effectiveMinMonthly !== null && salaryNum < effectiveMinMonthly);
+  const salaryError = salary.trim()
+    ? validatePostingRate('job', selectedBookingType === 'short_term' ? 'short' : 'long', salary, minWageInfo || undefined) : null;
+  const isInvalidRate = !!salaryError;
+  const minimumRate = Number(minWageInfo?.minimum_rate ?? (selectedBookingType === 'short_term' ? 600 : 6500));
+  const maximumRate = Number(minWageInfo?.maximum_rate ?? (selectedBookingType === 'short_term' ? PART_TIME_MAX_RATE : FULL_TIME_MAX_RATE));
 
 
   const modalContent = (
@@ -436,22 +447,22 @@ export function BookingModal({
         },
       ]}
     >
-        {/* Global Aligned Header Matching Chat Screen */}
-        <View style={styles.header}>
-          <Pressable onPress={handleBack} disabled={submitting} style={styles.backBtn} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
-          </Pressable>
+      {/* Global Aligned Header Matching Chat Screen */}
+      <View style={styles.header}>
+        <Pressable onPress={handleBack} disabled={submitting} style={styles.backBtn} hitSlop={12}>
+          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+        </Pressable>
 
-          <View style={styles.headerTitleCenter}>
-            <Text style={styles.headerTitle}>{readOnly ? 'Booking Details' : 'Booking Offer'}</Text>
-          </View>
-
-          <View style={styles.headerRight}>
-            <Image source={logoSource} style={styles.logo} resizeMode="contain" />
-          </View>
+        <View style={styles.headerTitleCenter}>
+          <Text style={styles.headerTitle}>{readOnly ? 'Booking Details' : 'Booking Offer'}</Text>
         </View>
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.headerRight}>
+          <Image source={logoSource} style={styles.logo} resizeMode="contain" />
+        </View>
+      </View>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {!readOnly && (
           <View style={styles.progressContainer}>
             <Text style={styles.progressText}>
@@ -496,7 +507,7 @@ export function BookingModal({
                 <Text style={styles.workerName} numberOfLines={1}>{contactName}</Text>
                 <Text style={styles.kasambahaySub}>
                   {contactRole}
-                  {selectedBookingType ? ` · ${selectedBookingType === 'short_term' ? uiText("Short-term") : uiText("Long-term")}` : ''}
+                  {selectedBookingType ? ` · ${selectedBookingType === 'short_term' ? uiText("Part-time") : uiText("Full-time")}` : ''}
                 </Text>
               </View>
             </View>
@@ -560,6 +571,7 @@ export function BookingModal({
                 <View style={styles.typeSelectorRow}>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={uiText("Part-time / Daily")}
                     accessibilityState={{ selected: selectedBookingType === 'short_term' }}
                     disabled={submitting}
                     style={[
@@ -575,13 +587,19 @@ export function BookingModal({
                       }
                     }}
                   >
-                    <Ionicons name="time-outline" size={19} color="#1A1A1A" />
-                    <Text style={[styles.termChoiceText, selectedBookingType === 'short_term' && styles.choiceTextActive]}>
-                      {uiText("Short-term")}
+                    <View style={styles.choiceHeaderRow}>
+                      <Ionicons name="time-outline" size={18} color="#1A1A1A" />
+                      <Text style={[styles.termChoiceText, selectedBookingType === 'short_term' && styles.choiceTextActive]}>
+                        {uiText("Part-time / Daily")}
+                      </Text>
+                    </View>
+                    <Text style={[styles.choiceSubtext, selectedBookingType === 'short_term' && styles.choiceSubtextActive]}>
+                      {uiText("1–7 days · Daily pay")}
                     </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={uiText("Full-time / Monthly")}
                     accessibilityState={{ selected: selectedBookingType === 'long_term' }}
                     disabled={submitting}
                     style={[
@@ -597,9 +615,14 @@ export function BookingModal({
                       }
                     }}
                   >
-                    <Ionicons name="calendar-outline" size={19} color="#1A1A1A" />
-                    <Text style={[styles.termChoiceText, selectedBookingType === 'long_term' && styles.choiceTextActive]}>
-                      {uiText("Long-term")}
+                    <View style={styles.choiceHeaderRow}>
+                      <Ionicons name="calendar-outline" size={18} color="#1A1A1A" />
+                      <Text style={[styles.termChoiceText, selectedBookingType === 'long_term' && styles.choiceTextActive]}>
+                        {uiText("Full-time / Monthly")}
+                      </Text>
+                    </View>
+                    <Text style={[styles.choiceSubtext, selectedBookingType === 'long_term' && styles.choiceSubtextActive]}>
+                      {uiText("30+ days · Monthly pay")}
                     </Text>
                   </Pressable>
                 </View>
@@ -614,6 +637,7 @@ export function BookingModal({
                       <Pressable
                         key={value}
                         accessibilityRole="button"
+                        accessibilityLabel={uiText(workSetupLabel(value))}
                         accessibilityState={{ selected }}
                         disabled={submitting}
                         style={[
@@ -626,13 +650,18 @@ export function BookingModal({
                           setFieldErrors(prev => ({ ...prev, workSetup: false }));
                         }}
                       >
-                        <Ionicons
-                          name={value === 'stay_in' ? 'home-outline' : 'footsteps-outline'}
-                          size={19}
-                          color="#1A1A1A"
-                        />
-                        <Text style={[styles.setupChoiceText, selected && styles.choiceTextActive]}>
-                          {uiText(workSetupLabel(value))}
+                        <View style={styles.choiceHeaderRow}>
+                          <Ionicons
+                            name={value === 'stay_in' ? 'home-outline' : 'footsteps-outline'}
+                            size={18}
+                            color="#1A1A1A"
+                          />
+                          <Text style={[styles.setupChoiceText, selected && styles.choiceTextActive]}>
+                            {uiText(workSetupLabel(value))}
+                          </Text>
+                        </View>
+                        <Text style={[styles.choiceSubtext, selected && styles.choiceSubtextActive]}>
+                          {value === 'stay_in' ? uiText("Live-in") : uiText("Goes home")}
                         </Text>
                       </Pressable>
                     );
@@ -719,13 +748,15 @@ export function BookingModal({
                 <Text style={styles.fieldLabel}>
                   {selectedBookingType === 'short_term' ? 'AGREED DAILY RATE' : 'AGREED MONTHLY SALARY'}
                 </Text>
-                <View style={[styles.inputBox, (fieldErrors.salary || isBelowMinWage) && styles.inputBoxInvalid]}>
+                <View style={[styles.inputBox, (fieldErrors.salary || isInvalidRate) && styles.inputBoxInvalid]}>
+                  <Text style={[styles.currencyPrefix, (fieldErrors.salary || isInvalidRate) && { color: '#DC2626' }]}>₱</Text>
                   <TextInput
                     accessibilityLabel={selectedBookingType === 'short_term' ? 'Daily rate' : 'Monthly salary'}
                     style={styles.inputText}
-                    value={salary}
+                    value={formatRateInput(salary)}
+                    onBlur={() => { if (formatRate(salary) !== 'Rate not provided') setSalary(formatRate(salary, '').replace(/,/g, '')); }}
                     onChangeText={text => {
-                      setSalary(text);
+                      setSalary(text.replace(/,/g, ''));
                       if (text.trim()) setFieldErrors(prev => ({ ...prev, salary: false }));
                     }}
                     editable={!submitting}
@@ -737,9 +768,17 @@ export function BookingModal({
                     {selectedBookingType === 'short_term' ? uiText("/ day") : uiText("/ month")}
                   </Text>
                 </View>
-                {isBelowMinWage && (
+                <Text style={styles.helperText}>
+                  {uiText('Allowed range: {minimum} – {maximum} / {period} ({engagement})', {
+                    minimum: formatRate(minimumRate), maximum: formatRate(maximumRate),
+                    period: uiText(selectedBookingType === 'short_term' ? 'day' : 'month'),
+                    engagement: uiText(selectedBookingType === 'short_term' ? 'Part-time / Daily' : 'Full-time / Monthly · RA 10361'),
+                  })}
+                </Text>
+                <Text style={styles.helperText}>{uiText('Direct payment between Homeowner and Kasambahay · ₱0.00 SerbiSure fee.')}</Text>
+                {isInvalidRate && (
                   <Text style={[styles.helperText, styles.invalidRateHint]}>
-                    {uiText("Minimum: ₱")}{Number(minWageInfo?.minimum_rate).toLocaleString('en-PH')} / {minWageInfo?.rate_period === 'day' || selectedBookingType === 'short_term' ? uiText("day") : uiText("month")}
+                    {uiText(salaryError?.message || 'Please enter a valid compensation amount.')}
                   </Text>
                 )}
               </View>
@@ -905,17 +944,28 @@ export function BookingModal({
                   {submitting
                     ? 'Sending…'
                     : offerStep === 3 && policyLoading
-                    ? 'Checking pay…'
-                    : offerStep === 4
-                    ? 'Send Offer'
-                    : uiText("Next")}
+                      ? 'Checking pay…'
+                      : offerStep === 4
+                        ? 'Send Offer'
+                        : uiText("Next")}
                 </Text>
               </Pressable>
             </View>
           )}
         </View>
-        </KeyboardAvoidingView>
-      </Animated.View>
+      </KeyboardAvoidingView>
+      {pendingReview && (
+        <ReviewModal
+          visible
+          bookingId={pendingReview.booking_id}
+          revieweeName={pendingReview.reviewee_name}
+          token={token || user.token}
+          isMandatory
+          onClose={() => setPendingReview(null)}
+          onSuccess={() => setPendingReview(null)}
+        />
+      )}
+    </Animated.View>
   );
 
   if (!useNativeModal) {
@@ -1141,15 +1191,17 @@ const styles = StyleSheet.create({
   },
   termChoice: {
     flex: 1,
-    height: 46,
+    minHeight: 58,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: 'transparent',
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
@@ -1158,20 +1210,22 @@ const styles = StyleSheet.create({
   },
   termChoiceText: {
     color: '#1A1A1A',
-    fontSize: 13.5,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '700',
   },
   setupChoice: {
     flex: 1,
-    height: 46,
+    minHeight: 58,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: 'transparent',
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
@@ -1180,8 +1234,23 @@ const styles = StyleSheet.create({
   },
   setupChoiceText: {
     color: '#1A1A1A',
-    fontSize: 13.5,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  choiceHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  choiceSubtext: {
+    color: '#6B7280',
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  choiceSubtextActive: {
+    color: '#1F2937',
   },
   locationHeaderRow: {
     flexDirection: 'row',
@@ -1225,10 +1294,10 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   currencyPrefix: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#1A1A1A',
-    marginRight: 4,
+    marginRight: 6,
   },
   rateUnitSuffix: {
     fontSize: 13,

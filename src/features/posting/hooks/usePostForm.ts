@@ -1,6 +1,6 @@
 import { toggleService, SERVICE_CHOICES, WORK_SHIFTS, type WorkShift } from '../../bookings/engagementForm';
 import { publicPostHours } from '../workingHours';
-import { fetchMinimumWage, type MinimumWageData } from '../../bookings/api/bookingApi';
+import { fetchMinimumWage, extractPendingReview, type MinimumWageData, type PendingMandatoryReview } from '../../bookings/api/bookingApi';
 import { validatePostingRate } from '../validation';
 import { useState, useRef, useEffect } from 'react';
 import { Animated, Easing, Alert } from 'react-native';
@@ -53,6 +53,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
   const [isPosting, setIsPosting] = useState(false);
   const [showVerificationRequired, setShowVerificationRequired] = useState(false);
   const [showBookingRestricted, setShowBookingRestricted] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<string>('Unverified');
   const requestVersion = useRef(0);
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,6 +65,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
     setPostedSuccess(false);
     setShowVerificationRequired(false);
     setShowBookingRestricted(false);
+    setPendingReview(null);
     setStep(1);
     setFieldErrors({});
     setSelectedServices([]);
@@ -233,14 +235,14 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
   useEffect(() => {
     let current = true;
     setWagePolicy(null);
-    if (engagementType) {
+    if (engagementType && config.role === 'homeowner') {
       void fetchMinimumWage(effectiveToken || undefined, engagementType === 'long' ? 'long_term' : 'short_term',
         selectedCity?.name || '', selectedRegion?.displayName || selectedRegion?.name || '').then(policy => {
           if (current) setWagePolicy(policy);
         });
     }
     return () => { current = false; };
-  }, [effectiveToken, engagementType, selectedRegion?.name, selectedRegion?.displayName, selectedCity?.name]);
+  }, [effectiveToken, engagementType, config.role, selectedRegion?.name, selectedRegion?.displayName, selectedCity?.name]);
 
   const handleNext = async () => {
     if (isPosting) return;
@@ -268,8 +270,12 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
 
       const num = Number(offerAmount.replace(/[^0-9.]/g, ''));
       const minRate = wagePolicy ? Number(wagePolicy.minimum_rate) : null;
-      if (!offerAmount.trim() || !Number.isFinite(num) || num <= 0 || (minRate !== null && num < minRate)) {
+      if (config.role === 'homeowner' && (!offerAmount.trim() || !Number.isFinite(num) || num <= 0 || (minRate !== null && num < minRate))) {
         errors.rate = true;
+      }
+      if (config.role === 'homeowner') {
+        const rateError = validatePostingRate(mode, engagementType, offerAmount, wagePolicy || undefined);
+        if (rateError) { errors.rate = true; Alert.alert(tr(rateError.title), tr(rateError.message)); }
       }
       try {
         scheduleTerms();
@@ -317,7 +323,7 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
           floor_number: config.role === 'kasambahay' ? undefined : (floorUnit.trim() || undefined),
           zip_code: zipcode.trim(),
           special_instruction: autoMessage,
-          rate_amount: offerAmount.trim(),
+          rate_amount: config.role === 'kasambahay' ? null : offerAmount.trim(),
           rate_period: engagementType === 'long' ? 'month' : 'day',
         };
 
@@ -339,6 +345,20 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
             setIsPosting(false);
             setVerificationStatus(errorData?.verification_status || (mode === 'service' ? user?.verificationStatus : null) || 'Unverified');
             setShowVerificationRequired(true);
+            return;
+          }
+
+          const requiredReview = extractPendingReview(errorData);
+          if (requiredReview) {
+            setIsPosting(false);
+            Alert.alert(
+              tr('Review Required'),
+              errorData?.detail ? String(errorData.detail) : tr(`Please submit your review for your completed booking with ${requiredReview.reviewee_name} before creating, applying for, or accepting a new booking.`),
+              [
+                { text: tr('Later'), style: 'cancel' },
+                { text: tr('Write Review Now'), onPress: () => setPendingReview(requiredReview) },
+              ],
+            );
             return;
           }
 
@@ -422,6 +442,9 @@ export function usePostForm({ visible, onClose, mode = 'job', token, onOpenVerif
     setShowVerificationRequired,
     showBookingRestricted,
     setShowBookingRestricted,
+    pendingReview,
+    setPendingReview,
+    effectiveToken: token || user.token,
     verificationStatus,
     applyUserProfileAddress,
     scaleAnim,

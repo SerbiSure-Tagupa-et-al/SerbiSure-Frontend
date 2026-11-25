@@ -25,7 +25,8 @@ export interface PostingPayload {
 
 // Keep the shared contract shape above intact for ChatOfferPayload.
 export type PublicPostingPayload = Omit<PostingPayload,
-  'start_time' | 'end_time' | 'work_days' | 'daily_start_time' | 'daily_end_time'> & {
+  'start_time' | 'end_time' | 'work_days' | 'daily_start_time' | 'daily_end_time' | 'rate_amount'> & {
+  rate_amount: string | null;
   daily_start_time: string;
   daily_end_time: string;
 };

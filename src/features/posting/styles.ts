@@ -162,15 +162,23 @@ export const postingStyles = StyleSheet.create({
   },
   optionBtn: {
     flex: 1,
-    height: 46,
+    minHeight: 58,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  optionBtnHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    gap: 6,
   },
   optionBtnActive: {
     backgroundColor: '#FFB380',
@@ -181,13 +189,22 @@ export const postingStyles = StyleSheet.create({
   },
   optionBtnText: {
     fontFamily: THEME.typography.fontFamily.mainBold,
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#0D0D11',
   },
   optionBtnTextActive: {
     color: '#0D0D11',
     fontWeight: '800',
+  },
+  optionBtnSubtext: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  optionBtnSubtextActive: {
+    color: '#1F2937',
   },
 
   // Step 2 Styles

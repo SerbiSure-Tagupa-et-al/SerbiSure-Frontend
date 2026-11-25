@@ -14,7 +14,12 @@ function load(file, mocks = {}, timers = global) {
   const module = { exports: {} };
   new Function('require', 'module', 'exports', 'setTimeout', 'clearTimeout', source)(name => {
     if (name === 'react') return { ...React, default: React };
+    if (name === '../../../shared/utils/date') return load('src/shared/utils/date.ts');
     if (name in mocks) return mocks[name];
+    // Load the real shared pricing code, retaining strict handling of other imports.
+    if (name.endsWith('/utils/rate')) return load('src/shared/utils/rate.ts');
+    if (name.endsWith('/posting/validation') || name === '../validation') return load('src/features/posting/validation.ts');
+    if (name === './postingConfig') return load('src/features/posting/postingConfig.ts');
     throw new Error('Unexpected dependency: ' + name);
   }, module, module.exports, timers.setTimeout, timers.clearTimeout);
   return module.exports;
@@ -28,13 +33,13 @@ const insertBefore = (parent, child, before) => {
 const renderer = Reconciler({
   supportsMutation: true, isPrimaryRenderer: true, now: Date.now,
   getRootHostContext: () => null, getChildHostContext: () => null, getCurrentEventPriority: () => DefaultEventPriority,
-  prepareForCommit: () => null, resetAfterCommit() {}, shouldSetTextContent: () => false,
+  prepareForCommit: () => null, resetAfterCommit() { }, shouldSetTextContent: () => false,
   createInstance: (type, props) => ({ type, props, children: [] }), createTextInstance: text => ({ text, children: [] }), getPublicInstance: instance => instance,
   appendInitialChild: append, appendChild: append, appendChildToContainer: append, removeChild: remove, removeChildFromContainer: remove,
   insertBefore, insertInContainerBefore: insertBefore,
   prepareUpdate: () => true, commitUpdate(instance, _payload, _type, _old, props) { instance.props = props; }, commitTextUpdate(instance, _old, text) { instance.text = text; },
   finalizeInitialChildren: () => false, clearContainer(parent) { parent.children = []; },
-  scheduleTimeout: setTimeout, cancelTimeout: clearTimeout, noTimeout: -1, detachDeletedInstance() {},
+  scheduleTimeout: setTimeout, cancelTimeout: clearTimeout, noTimeout: -1, detachDeletedInstance() { },
 });
 const tick = async () => { await new Promise(resolve => setImmediate(resolve)); renderer.flushPassiveEffects(); };
 const content = node => node.text || node.children.map(content).join('');
@@ -48,8 +53,10 @@ function screen(t) {
 }
 const rules = load('src/features/bookings/postAvailability.ts', { './engagementForm': load('src/features/bookings/engagementForm.ts') });
 const language = { useLanguage: () => ({ tr: text => text, formatDate: stamp => stamp }) };
-const post = { booking_id: 'old-post', booking_type: 'short_term', service_category: ['Cleaning'], work_days: ['M'],
-  rate_amount: '800', rate_period: 'day', start_time: '2026-10-29T00:00:00Z', booking_status: 'Pending', post_status: 'Expired' };
+const post = {
+  booking_id: 'old-post', booking_type: 'short_term', service_category: ['Cleaning'], work_days: ['M'],
+  rate_amount: '800', rate_period: 'day', start_time: '2026-10-29T00:00:00Z', booking_status: 'Pending', post_status: 'Expired'
+};
 
 test('Expired Schedule uses Philippine calendar days and never makes a Pending post unavailable', () => {
   const original = { ...post, post_status: 'Available', start_time: '2026-10-29T00:00:00Z' };
@@ -64,9 +71,11 @@ test('accept API refuses a passed offer without a request, but still permits dec
   const calls = [];
   const api = load('src/features/chat/api/bookingOffersApi.ts', {
     '../../bookings/postAvailability': rules,
-    '../../../shared/api/httpClient': { requestResponse: async (...args) => {
-      calls.push(args); return { ok: true, json: async () => ({ proposal: { status: 'Rejected' } }) };
-    } },
+    '../../../shared/api/httpClient': {
+      requestResponse: async (...args) => {
+        calls.push(args); return { ok: true, json: async () => ({ proposal: { status: 'Rejected' } }) };
+      }
+    },
   });
   const card = { bookingId: 'old-post', proposalId: 'application', canRespond: true, startTime: '2000-01-01T00:00:00Z' };
   await assert.rejects(api.respondToBookingOffer('token', card, 'accept'), /Please send a new offer in chat/);
@@ -88,14 +97,14 @@ test('expiry uses the exact start instant for short/long posts; contract and app
     assert.equal(rules.isPostAvailable(upcoming, now), true);
     assert.equal(rules.postDisplayStatus(upcoming, now + 1), 'Available');
     assert.equal(rules.isScheduleExpired(upcoming, now + 86400000), true);
-    assert.equal(rules.applicationLabel(upcoming, now + 1), 'Application sent');
+    assert.equal(rules.applicationLabel(upcoming, now + 1), 'Pending Review');
   }
   for (const [booking_status, label] of [['Accepted', 'Booked'], ['InProgress', 'Ongoing'], ['Completed', 'Completed'], ['Cancelled', 'Cancelled']]) {
     assert.equal(rules.postDisplayStatus({ ...post, post_status: undefined, booking_status }, now), label);
     assert.equal(rules.isPostAvailable({ ...post, post_status: label }, now), false);
   }
-  assert.equal(rules.applicationLabel({ ...post, application_status: 'accepted' }, now), 'Selected');
-  assert.equal(rules.applicationLabel({ ...post, application_status: 'not_selected' }, now), 'Closed / Not Selected');
+  assert.equal(rules.applicationLabel({ ...post, application_status: 'accepted' }, now), 'Hired');
+  assert.equal(rules.applicationLabel({ ...post, application_status: 'not_selected' }, now), 'Position Filled');
 });
 
 test('open screens react immediately to booking events, refresh on resume/reconnect and expire without polling', t => {
@@ -146,15 +155,17 @@ test('own history keeps lifecycle states and only the cancel action, with no res
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
     '../../bookings/engagementForm': load('src/features/bookings/engagementForm.ts'),
     '../../bookings/workSetup': load('src/features/bookings/workSetup.ts'),
-    'react-native': { View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', Alert: { alert() {} } },
+    'react-native': { View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', Alert: { alert() { } } },
     '../../../shared/localization/LanguageContext': language,
     '../../bookings/api/bookingApi': { formatBookingAddress: () => 'Pagatpat' }, '../../bookings/postAvailability': rules,
     '../../bookings/components/RepostModal': { RepostModal: 'RepostModal' },
     '../../bookings/components/ScheduleBadge': { ScheduleBadge: 'ScheduleBadge' },
   });
   const view = screen(t);
-  view.render(React.createElement(OwnPostsSection, { posts: [post, ...['Booked', 'Ongoing', 'Completed', 'Cancelled'].map((post_status, i) => ({ ...post, booking_id: String(i), post_status }))],
-    token: 'token', now: Date.now(), loading: false, error: null, onRefresh() {} }));
+  view.render(React.createElement(OwnPostsSection, {
+    posts: [post, ...['Booked', 'Ongoing', 'Completed', 'Cancelled'].map((post_status, i) => ({ ...post, booking_id: String(i), post_status }))],
+    token: 'token', now: Date.now(), loading: false, error: null, onRefresh() { }
+  }));
   const buttons = view.all('Pressable').filter(node => ['Cancel Post', 'Reschedule'].includes(node.props.accessibilityLabel));
   assert.equal(buttons.length, 1);
   assert.equal(buttons[0].props.accessibilityLabel || content(buttons[0]), 'Cancel Post');
@@ -172,9 +183,11 @@ test('Cancel Post requires confirmation and blocks duplicate submissions before 
     '../../bookings/workSetup': load('src/features/bookings/workSetup.ts'),
     'react-native': { View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', Alert: { alert: (...args) => alerts.push(args) } },
     '../../../shared/localization/LanguageContext': language,
-    '../../bookings/api/bookingApi': { formatBookingAddress: () => 'Pagatpat', cancelBooking: (...args) => {
-      calls.push(args); return new Promise(yes => { resolve = yes; });
-    } },
+    '../../bookings/api/bookingApi': {
+      formatBookingAddress: () => 'Pagatpat', cancelBooking: (...args) => {
+        calls.push(args); return new Promise(yes => { resolve = yes; });
+      }
+    },
     '../../bookings/postAvailability': rules,
     '../../bookings/components/RepostModal': { RepostModal: 'RepostModal' },
     '../../bookings/components/ScheduleBadge': { ScheduleBadge: 'ScheduleBadge' },
@@ -197,12 +210,18 @@ function ownDetailsScreen(t, options = {}) {
   const alerts = [], calls = [];
   let refreshes = 0;
   const messages = load('src/shared/localization/messages.ts');
-  const copy = { useLanguage: () => ({ tr: value => messages.translateMessage(options.language || 'English', value),
-    formatDate: (value, style) => messages.formatLocalizedDate(options.language || 'English', value, style) }) };
-  const native = { View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', ActivityIndicator: 'ActivityIndicator',
+  const copy = {
+    useLanguage: () => ({
+      tr: value => messages.translateMessage(options.language || 'English', value),
+      formatDate: (value, style) => messages.formatLocalizedDate(options.language || 'English', value, style)
+    })
+  };
+  const native = {
+    View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', ActivityIndicator: 'ActivityIndicator',
     StyleSheet: { create: value => value, absoluteFill: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 } },
     Modal: props => props.visible ? React.createElement('Modal', props, props.children) : null,
-    Alert: { alert: (...args) => alerts.push(args) } };
+    Alert: { alert: (...args) => alerts.push(args) }
+  };
   const { ScheduleBadge } = load('src/features/bookings/components/ScheduleBadge.tsx', {
     'react-native': native, '../../../shared/localization/LanguageContext': copy, '../postAvailability': rules,
     '../../../shared/theme/theme': { default: { typography: { fontFamily: { secondaryMedium: 'Geist-Medium' } } } },
@@ -215,23 +234,31 @@ function ownDetailsScreen(t, options = {}) {
     '../../bookings/workSetup': load('src/features/bookings/workSetup.ts'),
     '../../bookings/components/ScheduleBadge': { ScheduleBadge },
     '../../bookings/components/RepostModal': { RepostModal: 'RepostModal' },
-    '../../bookings/api/bookingApi': { formatBookingAddress: value => value.full_address || 'Full address not provided',
-      cancelBooking: (...args) => { calls.push(args); return options.cancel ? options.cancel(...args) : Promise.resolve({ success: true }); } },
+    '../../bookings/api/bookingApi': {
+      formatBookingAddress: value => value.full_address || 'Full address not provided',
+      cancelBooking: (...args) => { calls.push(args); return options.cancel ? options.cancel(...args) : Promise.resolve({ success: true }); }
+    },
   });
-  const item = { ...post, work_setup: 'stay_out', end_time: '2026-10-29T09:00:00Z',
+  const item = {
+    ...post, work_setup: 'stay_out', end_time: '2026-10-29T09:00:00Z',
     daily_start_time: '08:00:00', daily_end_time: '17:00:00', work_days: ['Th'],
-    full_address: 'Block 12, Lot 3, Brgy. Canito-an, Cagayan de Oro, 9000', special_instruction: 'Please bring gloves.', ...options.post };
+    full_address: 'Block 12, Lot 3, Brgy. Canito-an, Cagayan de Oro, 9000', special_instruction: 'Please bring gloves.', ...options.post
+  };
   const view = screen(t);
-  let props = { posts: [item], token: 'token', now: Date.parse('2026-10-31T04:00:00Z'), loading: false, error: null,
-    onRefresh: () => refreshes++, ...options.props };
+  let props = {
+    posts: [item], token: 'token', now: Date.parse('2026-10-31T04:00:00Z'), loading: false, error: null,
+    onRefresh: () => refreshes++, ...options.props
+  };
   const render = patch => { props = { ...props, ...patch }; view.render(React.createElement(OwnPostsSection, props)); };
   const descendants = node => [node, ...node.children.flatMap(descendants)];
   const modal = () => view.all('Modal')[0];
   const actions = () => modal() ? descendants(modal()).filter(node => node.type === 'Pressable') : [];
   const card = () => view.all('Pressable').find(node => node.props.accessibilityLabel?.startsWith(messages.translateMessage(options.language || 'English', 'Post Details') + ':'));
   render();
-  return { ...view, render, alerts, calls, item, modal, card, actions, text: () => modal() ? content(modal()) : '',
-    open: () => view.act(() => card().props.onPress()), get refreshes() { return refreshes; } };
+  return {
+    ...view, render, alerts, calls, item, modal, card, actions, text: () => modal() ? content(modal()) : '',
+    open: () => view.act(() => card().props.onPress()), get refreshes() { return refreshes; }
+  };
 }
 
 test('tapping an own post opens essential details without profile or technical clutter and Close dismisses it', t => {
@@ -240,7 +267,7 @@ test('tapping an own post opens essential details without profile or technical c
   view.open();
   assert.equal(view.modal().props.animationType, 'slide');
   assert.equal(view.modal().props.transparent, true);
-  for (const expected of ['Cleaning', 'Available', '₱ 800.00 / day', 'Short-term', 'Stay-out',
+  for (const expected of ['Cleaning', 'Available', '₱ 800.00 / day', 'Part-time', 'Stay-out',
     '08:00 AM – 05:00 PM', view.item.full_address, 'Please bring gloves.']) {
     assert.ok(view.text().includes(expected), expected);
   }
@@ -354,7 +381,8 @@ function repostForm(t) {
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '../../../shared/localization/LanguageContext': language, '../../chat/api/chatApi': { generateUUID: () => `request-${++count}` },
     '../engagementForm': load('src/features/bookings/engagementForm.ts'), './WorkScheduleFields': { WorkScheduleFields: 'Schedule' },
-    '../api/bookingApi': { repostBooking: (...args) => new Promise((resolve, reject) => requests.push({ args, resolve, reject })) },
+    '../api/bookingApi': { repostBooking: (...args) => new Promise((resolve, reject) => requests.push({ args, resolve, reject })), getPendingReviewFromError: () => null },
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
   });
   const view = screen(t);
   view.render(React.createElement(RepostModal, { post, token: 'token', onSuccess: () => successes++, onClose: () => closes++ }));
@@ -414,10 +442,10 @@ test('owner posts and repost API use authenticated routes and forward the stable
 test('realtime client forwards public feed updates only after authenticating the socket', t => {
   let socket;
   const { RealtimeClient } = load('src/shared/realtime/RealtimeClient.ts', {
-    '../api/httpClient': { requestJson: async () => ({}), notifyAccountSuspension() {} },
+    '../api/httpClient': { requestJson: async () => ({}), notifyAccountSuspension() { } },
   });
   const client = new RealtimeClient('https://test.local', () => {
-    socket = { send() {}, close() {} }; return socket;
+    socket = { send() { }, close() { } }; return socket;
   });
   t.after(() => client.stop());
   const received = [];

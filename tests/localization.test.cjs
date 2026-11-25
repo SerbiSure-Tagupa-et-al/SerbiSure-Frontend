@@ -72,19 +72,20 @@ test('job and service feed cards share the full layout, actions and live transla
     });
   }
   const show = (kind, applied = false, saved = false) => render(React.createElement(LanguageProvider, null, React.createElement(Screen, { kind, applied, saved })));
-  let serviceLayout;
   for (const kind of ['service', 'job']) {
     show(kind);
     for (const language of ['English', 'Tagalog', 'Bisaya']) {
       renderer.flushSync(() => changeLanguage(language));
       const text = content(container);
       for (const source of ['Profile', 'Details']) assert.ok(nodes().some(node => node.props?.accessibilityLabel === translateMessage(language, source)), `${kind}: ${language}: ${source}`);
-      for (const value of ['Poster Name', 'Agusan, Cagayan de Oro', '₱ 8,000.00', 'Original listing description.']) assert.ok(text.includes(value));
+      for (const value of ['Poster Name', 'Agusan, Cagayan de Oro', 'Original listing description.']) assert.ok(text.includes(value));
     }
     renderer.flushSync(() => changeLanguage('English'));
-    const layout = nodes().map(node => node.type || node.text);
-    if (kind === 'service') serviceLayout = layout;
-    else assert.deepEqual(layout, serviceLayout);
+    if (kind === 'service') {
+      assert.ok(content(container).includes('Long-term'));
+      assert.doesNotMatch(content(container), /₱|Open for Offer|Homeowner's Budget/);
+    }
+    else assert.ok(content(container).includes('₱ 8,000.00'));
     const press = label => nodes().find(node => node.type === 'Pressable' && node.props.accessibilityLabel === label).props.onPress();
     press('Profile'); press('Details');
     nodes().find(node => node.type === 'Pressable' && node.children.some(child => child.type === 'Icon' && child.props.name === 'bookmark-outline')).props.onPress();

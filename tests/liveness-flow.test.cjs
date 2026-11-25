@@ -140,7 +140,7 @@ function registrationForm(t, role = 'homeowner', actualCamera) {
     '../../../shared/ui/SearchablePickerModal': { SearchablePickerModal: 'LocationPicker' },
     '../../../shared/ui/DateOfBirthPickerModal': { DateOfBirthPickerModal: 'BirthPicker' },
     '../../../shared/ui/DemographicPickerModal': { DemographicPickerModal: 'DemographicPicker' },
-    '../../profile/components/PrivacyPolicyModal': { PrivacyPolicyModal: ({ visible, onAccept }) => { React.useEffect(() => { if (visible && onAccept) onAccept(); }, [visible, onAccept]); return null; } },
+    '../../profile/components/PrivacyPolicyModal': { VerificationPrivacyNotice: 'VerificationPrivacyNotice', PrivacyPolicyModal: ({ visible, onAccept }) => { React.useEffect(() => { if (visible && onAccept) onAccept(); }, [visible, onAccept]); return null; } },
     '../../profile/worker/WorkerCvForm': { WorkerCvForm: 'WorkerForm' },
     '../components/RegistrationStepper': { RegistrationStepper: () => null },
     '../components/RegistrationErrorModal': { RegistrationErrorModal: 'RegistrationError' },
@@ -170,6 +170,7 @@ function registrationForm(t, role = 'homeowner', actualCamera) {
     act(() => node('WorkerForm').props.onChange({ ...node('WorkerForm').props.value,
       service_categories: ['Cleaning'], work_setup: 'stay_out', engagement_preference: 'short_term', desired_daily_rate: '800',
       experience_level: 'new', civil_status: 'Single', number_of_children: '0', available_from: '2026-11-01', available_days: ['M'], preferred_shifts: ['morning'], languages: ['English'],
+      training: [{ name: 'TESDA NC II – Housekeeping', provider: 'TESDA', year: '' }],
     }));
     // Visit the four existing CV pages.
     for (let page = 0; page < 4; page++) act(() => h.button('Next').props.onPress());
@@ -281,6 +282,40 @@ test('submitting documents already on the server still requires a confirmed self
   assert.equal(completed, 0);
   assert.equal(h.alerts.length, 1);
   assert.match(h.alerts[0][1], /Selfie storage/);
+});
+
+test('Kasambahay registration requires all three documents and uploads only the missing certificate', async t => {
+  const requests = [];
+  const previous = global.FormData;
+  global.FormData = class { constructor() { this.values = []; } append(...args) { this.values.push(args); } };
+  t.after(() => { global.FormData = previous; });
+  const h = harness(t, {
+    './IDPhotoModal': { IDPhotoModal: 'PhotoPicker' },
+    '../../../shared/api/httpClient': { fetchWithTimeout: async (_url, options) => {
+      if (options.method === 'POST') { requests.push(options.body.values); return { ok: true, status: 201 }; }
+      return { json: async () => ({ documents: ['nbi_clearance', 'police_clearance'].map(document_type => ({
+        document_id: document_type, document_type, verification_status: 'Pending', created_at: '2026-11-24T00:00:00Z',
+      })) }) };
+    } },
+  });
+  const { DocumentUploadScreen } = h.load('src/features/verification/components/DocumentUploadScreen.tsx');
+  let completed = 0;
+  h.render(React.createElement(DocumentUploadScreen, { role: 'kasambahay', token: 'token', onNext: () => completed++ }));
+  await tick();
+  assert.ok(h.nodes().some(node => node.type === 'ScrollView'));
+  assert.equal(h.nodes().filter(node => node.text === 'Submitted (Under Review)').length, 2);
+  await h.button('Submit').props.onPress();
+  assert.equal(completed, 0);
+  assert.equal(requests.length, 0);
+  assert.match(h.alerts.at(-1)[1], /NBI Clearance, Police Clearance, and TESDA NC II/);
+  const text = node => node.text || node.children.map(text).join('');
+  const box = h.nodes().find(node => node.type === 'Pressable' && text(node).includes('TESDA NC II'));
+  renderer.flushSync(() => box.props.onPress());
+  renderer.flushSync(() => h.nodes().find(node => node.type === 'PhotoPicker').props.onPickedImage('file://tesda_nc2.jpg'));
+  await h.button('Submit').props.onPress();
+  await tick();
+  assert.deepEqual(requests.map(values => values[0]), [['document_type', 'tesda_nc2']]);
+  assert.equal(completed, 1);
 });
 
 test('native capture errors show friendly guidance and Retry retakes the photo without repeating liveness', async t => {

@@ -1,9 +1,13 @@
 import { formatRate } from '../../../shared/utils/rate';
 import { workSetupLabel } from '../workSetup';
 import { useState, useEffect } from 'react';
-import { toggleSavePostApi, fetchSavedPostsApi, fetchMyProposalPosts, formatBookingLocationShort, applyToJobPost } from '../api/bookingApi';
+import { respondToProposal, toggleSavePostApi, fetchSavedPostsApi, fetchMyProposalPosts, formatBookingLocationShort, applyToJobPost, PendingReviewError } from '../api/bookingApi';
 
 export interface SavedJobItem {
+  authorRole?: 'Homeowner' | 'Kasambahay';
+  proposalId?: string;
+  bidAmount?: string;
+  isBudgetAccepted?: boolean;
   id: string | number;
   partnerId?: string | number;
   employerName: string;
@@ -11,6 +15,8 @@ export interface SavedJobItem {
   avatar: string;
   time?: string;
   location?: string;
+  distance_km?: number | null;
+  proximity_label?: string | null;
   roleTag?: string;
   termTag?: string;
   setupTag?: string;
@@ -96,7 +102,7 @@ class SavedJobsStore {
             item.profile_link ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || 'User')}&background=FFB43B&color=fff`;
           const isLongTerm = item.booking_type === 'long_term';
-          const termTag = isLongTerm ? 'Long-term' : 'Short-term';
+          const termTag = isLongTerm ? 'Full-time' : 'Part-time';
           const unit = isLongTerm ? '/ month' : '/ day';
           const loc = formatBookingLocationShort(item, 'Location not provided');
 
@@ -110,7 +116,8 @@ class SavedJobsStore {
             roleTag: categories.join(', '),
             termTag: termTag,
             setupTag: workSetupLabel(item.work_setup),
-            price: formatRate(item.rate_amount),
+            authorRole: item.poster_account_type,
+            price: item.poster_account_type === 'Kasambahay' ? '' : formatRate(item.rate_amount),
             unit: unit,
             aboutText: item.special_instruction || undefined,
             tags: [...categories, ...(item.work_setup ? [workSetupLabel(item.work_setup)] : [])],
@@ -129,8 +136,10 @@ class SavedJobsStore {
             avatar: item.profile_link || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(item.name || 'User'),
             roleTag: (item.service_category || []).join(', '), title: (item.service_category || []).join(', '),
             location: formatBookingLocationShort(item, 'Location not provided'),
-            termTag: item.booking_type === 'long_term' ? 'Long-term' : 'Short-term',
-            price: formatRate(item.rate_amount, 'PHP '), unit: '/ ' + item.rate_period,
+            termTag: item.booking_type === 'long_term' ? 'Full-time' : 'Part-time',
+            authorRole: item.poster_account_type, proposalId: item.application?.proposal_id,
+            bidAmount: item.application?.proposed_rate, isBudgetAccepted: item.application?.is_budget_accepted,
+            price: formatRate(item.application?.proposed_rate ?? item.rate_amount), unit: '/ ' + item.rate_period,
             aboutText: item.special_instruction || '', tags: item.service_category || [],
             start_time: item.start_time, booking_status: item.booking_status, post_status: item.post_status,
             end_time: item.end_time, booking_type: item.booking_type,
@@ -197,7 +206,8 @@ class SavedJobsStore {
   }
 
   isApplied(id: string | number): boolean {
-    return this.appliedMap.has(id);
+    const application = this.appliedMap.get(id);
+    return !!application && !['withdrawn', 'not_selected', 'expired', 'cancelled'].includes(application.application_status || 'applied');
   }
 
   async applyToJob(job: SavedJobItem, token?: string | null): Promise<{ created: boolean } | null> {
@@ -210,15 +220,31 @@ class SavedJobsStore {
       const result = await applyToJobPost(token, String(job.id));
       if (version !== this.sessionVersion) return null;
       if (!result.success || !result.proposal?.proposal_id) {
-        throw new Error(result.error || 'Your application could not be confirmed. Please try again.');
+        const message = result.error || 'Your application could not be confirmed. Please try again.';
+        if (result.pendingReview) throw new PendingReviewError(message, result.pendingReview);
+        throw Object.assign(new Error(message), { code: result.code });
       }
       this.applicationRevision++;
-      this.appliedMap.set(job.id, { ...job, application_status: 'applied' });
+      this.appliedMap.set(job.id, { ...job, application_status: 'applied', proposalId: result.proposal?.proposal_id,
+        bidAmount: result.proposal?.proposed_rate, isBudgetAccepted: result.proposal?.is_budget_accepted,
+        price: result.proposal?.proposed_rate ? formatRate(result.proposal.proposed_rate) : job.price });
       this.notify();
       return { created: !wasApplied && !result.already_applied };
     } finally {
       if (version === this.sessionVersion) this.applying.delete(job.id);
     }
+  }
+
+  async withdrawBid(job: SavedJobItem, token?: string | null) {
+    if (!token || !job.proposalId) throw new Error('Sign in to withdraw your bid.');
+    const version = this.sessionVersion;
+    const result = await respondToProposal(token, job.proposalId, 'withdraw');
+    if (version !== this.sessionVersion) return;
+    if (!result.success) throw new Error(result.error || 'Could not withdraw bid.');
+    this.applicationRevision++;
+    this.appliedMap.set(job.id, { ...job, application_status: 'withdrawn' });
+    this.notify();
+    await this.refreshFromBackend(token);
   }
 
   markJobClosed(id?: string | number | null, ...extraKeys: (string | number | undefined | null)[]) {

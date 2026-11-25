@@ -26,7 +26,7 @@ import { BioSection } from '../components/BioSection';
 import { ReputationSection } from '../worker/ReputationSection';
 import { AvailabilitySection } from '../worker/AvailabilitySection';
 import { SettingsSection } from '../components/SettingsSection';
-import { ReviewsSection } from '../components/ReviewsSection';
+import { ReviewsSection, WorkHistorySection } from '../components/ReviewsSection';
 import { SocialIconsRow } from '../components/SocialIconsRow';
 import { WorkerCvModal } from '../worker/WorkerCvModal';
 import { ProfileTabs } from '../components/ProfileTabs';
@@ -93,6 +93,7 @@ export function ProfileScreen(props: ProfileScreenProps) {
     reloadSocialLinks,
     totalReviews,
   } = profile;
+  const history = profile.workHistory?.summary;
 
   return (
     <View style={styles.container}>
@@ -229,6 +230,37 @@ export function ProfileScreen(props: ProfileScreenProps) {
                 </Text>
               </View>
 
+              {history && (history.completed_jobs_count > 0 || history.recommended_count > 0) && (
+                <View style={styles.trustStripRow}>
+                  {history.completed_jobs_count > 0 && (
+                    <View style={styles.trustPill}>
+                      <Ionicons name="checkmark-circle" size={14} color="#0D0D11" />
+                      <Text style={styles.trustPillText}>
+                        {isWorker
+                          ? (history.completed_jobs_count === 1 ? uiText('1 Completed Job') : uiText('{count} Completed Jobs', { count: history.completed_jobs_count }))
+                          : `${history.completed_jobs_count} ${uiText('Jobs Done')}`}
+                      </Text>
+                    </View>
+                  )}
+                  {history.recommended_count > 0 && (
+                    <View style={[styles.trustPill, styles.trustPillReferral]}>
+                      <Ionicons name="thumbs-up" size={13} color="#166534" />
+                      <Text style={[styles.trustPillText, styles.trustPillReferralText]}>
+                        {history.recommended_count === 1
+                          ? uiText(isWorker ? 'Recommended by 1 Homeowner' : 'Recommended by 1 Kasambahay')
+                          : uiText(isWorker ? 'Recommended by {count} Homeowners' : 'Recommended by {count} Kasambahays', { count: history.recommended_count })}
+                      </Text>
+                    </View>
+                  )}
+                  {history.repeat_employers_count > 0 && (
+                    <View style={styles.trustPill}>
+                      <Ionicons name="repeat" size={13} color="#EA580C" />
+                      <Text style={styles.trustPillText}>{uiText(isWorker ? 'Rehired by {count}' : 'Rehired {count}', { count: history.repeat_employers_count })}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
               {/* Integrated Profile Tags */}
               {tags && tags.length > 0 ? (
                 <View style={styles.heroTagsWrap}>
@@ -249,13 +281,21 @@ export function ProfileScreen(props: ProfileScreenProps) {
             </View>
 
             <BioSection profile={profile} />
-            {isWorker && <ReputationSection profile={profile} />}
-            <ProfileTabs activeTab={profile.activeProfileTab} onChange={profile.setActiveProfileTab}
-              postsCount={profile.pendingPosts.length} reviewsCount={totalReviews} />
+            <ReputationSection profile={profile} />
+            <ProfileTabs
+              activeTab={profile.activeProfileTab}
+              onChange={profile.setActiveProfileTab}
+              postsCount={profile.pendingPosts.length}
+              historyCount={profile.workHistory?.summary?.completed_jobs_count}
+              reviewsCount={totalReviews}
+              showHistory={true}
+            />
             {profile.activeProfileTab === 'posts'
               ? <OwnPostsSection posts={profile.pendingPosts} loading={profile.isLoadingPendingPosts} error={profile.pendingPostsError}
                   token={user.token} now={profile.postsNow} onRefresh={() => { void profile.loadPendingPosts(true); }} />
-              : <ReviewsSection profile={profile} showHeader={false} />}
+              : profile.activeProfileTab === 'history'
+                ? <WorkHistorySection workHistory={profile.workHistory} profileRole={isWorker ? 'Kasambahay' : 'Homeowner'} />
+                : <ReviewsSection profile={profile} showHeader={false} />}
 
             {/* Bottom padding */}
             <View style={{ height: 90 }} />

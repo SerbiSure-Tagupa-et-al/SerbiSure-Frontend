@@ -1,3 +1,4 @@
+import { formatRate, stripLegacyExpectedRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React, { useState } from 'react';
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -11,6 +12,7 @@ interface CardProps {
   readonly authorRole: 'Homeowner' | 'Kasambahay';
   readonly title: string;
   readonly location: string;
+  readonly proximityLabel?: string | null;
   readonly description: string;
   readonly tags: readonly string[];
   readonly price: string;
@@ -22,17 +24,6 @@ interface CardProps {
   readonly onDetails: () => void;
 }
 
-function formatCardPrice(rawPrice: string): string {
-  if (!rawPrice) return 'Php 0';
-  const clean = rawPrice.replace(/^[₱\sPhpPHP]+/i, '').trim();
-  const num = Number.parseFloat(clean.replace(/,/g, ''));
-  if (Number.isNaN(num)) return rawPrice;
-  const formatted = num % 1 === 0
-    ? num.toLocaleString('en-PH')
-    : num.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  return `Php ${formatted}`;
-}
-
 function formatCardUnit(rawUnit: string): string {
   if (!rawUnit) return '';
   const trimmed = rawUnit.trim();
@@ -42,7 +33,7 @@ function formatCardUnit(rawUnit: string): string {
   return trimmed;
 }
 
-export function BrowsePostCard({ name, avatarUri, authorRole, title, location, description, tags, price, unit, saved, applied, startTime, onProfilePress, onSave, onDetails }: CardProps) {
+export function BrowsePostCard({ name, avatarUri, authorRole, title, location, proximityLabel, description, tags, price, unit, saved, applied, startTime, onProfilePress, onSave, onDetails }: CardProps) {
   const { tr: uiText } = useUiLanguage();
   const displayTags = Array.from(new Set(tags.filter((tag) => !tag.startsWith('Verified')))).slice(0, 3);
   const workerPost = authorRole === 'Kasambahay';
@@ -65,12 +56,16 @@ export function BrowsePostCard({ name, avatarUri, authorRole, title, location, d
             </Pressable>
             <View style={styles.locationRow}>
               <Ionicons name="location-sharp" size={14} color="#FFAA77" />
-              <Text style={styles.location} numberOfLines={1}>{location}</Text>
+              <Text style={styles.location} numberOfLines={1}>
+                {proximityLabel
+                  ? `${location.replace(/City of Cagayan De Oro/gi, 'CDO')} · ${uiText(proximityLabel)}`
+                  : location}
+              </Text>
             </View>
             {workerPost && <Text style={styles.serviceTitle} numberOfLines={1}>{title}</Text>}
-            <Text style={styles.description} numberOfLines={2}>{description}</Text>
+            <Text style={styles.description} numberOfLines={2}>{workerPost ? stripLegacyExpectedRate(description) : description}</Text>
             <View style={styles.tags}>
-              {displayTags.map((tag) => (
+              {displayTags.filter(tag => !workerPost || !['Part-time', 'Full-time'].includes(tag)).map((tag) => (
                 <View key={tag} style={styles.tag}>
                   <Text style={styles.tagText}>{uiText(tag)}</Text>
                 </View>
@@ -78,8 +73,10 @@ export function BrowsePostCard({ name, avatarUri, authorRole, title, location, d
             </View>
             <View style={styles.footer}>
               <View style={styles.rate}>
-                <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit>{formatCardPrice(price)}</Text>
-                <Text style={styles.unit}>{uiText(formatCardUnit(unit))}</Text>
+                {workerPost ? <Text style={{ fontWeight: '700', color: '#FFFFFF', flexShrink: 0 }}>{uiText(tags.includes('Full-time') ? 'Full-time' : 'Part-time')}</Text> : <>
+                  <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit>{uiText(formatRate(price))}</Text>
+                  <Text style={styles.unit}>{uiText(formatCardUnit(unit))}</Text>
+                </>}
               </View>
               <Pressable accessibilityRole="button" onPress={onDetails} style={[styles.details, applied && styles.applied]}>
                 <Text style={[styles.detailsLabel, applied && styles.appliedLabel]}>

@@ -1,6 +1,7 @@
 import type { WorkSetup } from '../bookings/workSetup';
 import type { BookingItem } from '../bookings/api/bookingApi';
 import type { SavedJobItem } from '../bookings/store/savedJobsStore';
+import type { LocationScope } from './locationFilter';
 
 export interface BookingFeedDto extends Omit<BookingItem, 'service_category'> {
   poster_id: string;
@@ -31,5 +32,9 @@ export interface FeedQuery {
   maxRate: number | null;
   ratePeriod?: 'day' | 'month';
   location: string;
+  locationScope?: LocationScope;
+  radiusKm?: number;
+  originCity?: string;
+  originBarangay?: string;
   sortBy: string;
 }

@@ -72,14 +72,21 @@ function card(t, props = {}) {
   return { rootNode, calls, options, render, nodes: () => descendants(rootNode) };
 }
 
-test('compact timestamps cover minute/hour/day boundaries and omit unknown dates', t => {
+test('compact timestamps cover minute/hour/day/month/year boundaries and omit unknown dates', t => {
   const now = Date.parse('2026-10-30T12:00:00Z');
   t.mock.method(Date, 'now', () => now);
-  for (const [minutes, expected] of [[0, 'Now'], [1, '1m'], [59, '59m'], [60, '1h'], [540, '9h'], [720, '12h'], [1440, '1d'], [4320, '3d']]) {
+  for (const [minutes, expected] of [[0, 'Now'], [1, '1m'], [59, '59m'], [60, '1h'], [540, '9h'], [720, '12h'], [1439, '23h'], [1440, '1d'], [4320, '3d']]) {
     assert.equal(dates.formatCompactTimeAgo(new Date(now - minutes * 60000).toISOString()), expected);
   }
-  assert.equal(dates.formatCompactTimeAgo('invalid'), '');
-  assert.equal(dates.formatCompactTimeAgo(), '');
+  for (const [days, expected] of [[29, '29d'], [30, '1mo'], [43, '1mo'], [359, '11mo'], [360, '1y'], [367, '1y'], [730, '2y']]) {
+    const date = new Date(now - days * 1440 * 60000).toISOString();
+    assert.equal(dates.formatCompactTimeAgo(date), expected);
+    assert.equal(dates.formatTimeAgo(date), `Posted ${expected} ago`);
+  }
+  for (const input of [undefined, null, '', 'invalid']) {
+    assert.equal(dates.formatCompactTimeAgo(input), '');
+    assert.equal(dates.formatTimeAgo(input), 'Recently');
+  }
 });
 
 for (const kind of ['job', 'service']) {
@@ -102,7 +109,8 @@ for (const kind of ['job', 'service']) {
     assert.deepEqual(screen.calls, ['save', 'profile', 'details']);
     assert.match(content(screen.rootNode), /Canitoan, CDO/);
     assert.match(content(screen.rootNode), /Cleaning· 12h/);
-    assert.match(content(screen.rootNode), /₱ 600\.00\/day/);
+    if (kind === 'job') assert.match(content(screen.rootNode), /₱ 600\.00\/day/);
+    else { assert.match(content(screen.rootNode), /Part-time/); assert.doesNotMatch(content(screen.rootNode), /₱|Open for Offer|Homeowner's Budget/); }
     assert.equal(screen.nodes().some(node => node.type === 'Icon' && /time|clock/.test(node.props.name)), false);
     const snippet = screen.nodes().find(node => node.type === 'Text' && content(node) === post.aboutText);
     assert.equal(snippet.props.numberOfLines, 2);
@@ -148,3 +156,39 @@ test('custom action slots and missing metadata do not create invented values', t
   assert.match(content(screen.rootNode), /Repost/);
   assert.doesNotMatch(content(screen.rootNode), /Recently|Rate not provided\/day|· /);
 });
+
+for (const [price, unit, expected] of [
+  ['₱658', '/ day', '₱ 658.00/day'],
+  ['₱8,500', '/ month', '₱ 8,500.00/month'],
+  ['₱50,000.00', '/ month', '₱ 50,000.00/month'],
+]) {
+  test(`${expected}: full price is a direct sibling of the name with single-line amount parts`, t => {
+    const screen = card(t, { post: { ...post, kind: 'job', authorRole: 'Homeowner', price, unit,
+      employerName: 'A homeowner with a long display name' } });
+    const rate = screen.nodes().find(node => node.type === 'View' && node.props.accessibilityLabel === expected);
+    assert.ok(rate);
+    assert.equal(content(rate), expected);
+    assert.equal(rate.children.length, 2);
+    assert.ok(rate.children.every(node => node.type === 'Text' && node.props.numberOfLines === 1));
+    const row = screen.nodes().find(node => node.children.includes(rate));
+    assert.equal(row.props.style.flexDirection, 'row');
+    assert.ok(row.children.some(node => node.type === 'Text' && content(node) === 'A homeowner with a long display name'));
+    assert.doesNotMatch(content(screen.rootNode), /Homeowner's Budget|Open for Offer/);
+  });
+}
+
+for (const termTag of ['Part-time', 'Full-time']) {
+  test(`${termTag}: worker term is plain bold text beside the name with no price or oval wrapper`, t => {
+    const screen = card(t, { post: { ...post, authorRole: 'Kasambahay', termTag, price: '₱5,000.00' } });
+    const term = screen.nodes().find(node => node.type === 'Text' && content(node) === termTag);
+    assert.ok(term);
+    const style = Object.assign({}, ...[term.props.style].flat());
+    assert.equal(style.flexShrink, 0);
+    assert.match(style.fontFamily, /Bold/);
+    assert.equal(style.backgroundColor, undefined);
+    assert.equal(style.borderRadius, undefined);
+    const row = screen.nodes().find(node => node.children.includes(term));
+    assert.ok(row.children.some(node => node.type === 'Text' && content(node) === post.employerName));
+    assert.doesNotMatch(content(screen.rootNode), /₱|Open for Offer|Homeowner's Budget/);
+  });
+}

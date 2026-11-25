@@ -12,6 +12,15 @@ export function buildFeedPath(filters?: FeedQuery): string {
       : filters.bookingType === 'short_term' ? 'day' : filters.ratePeriod || 'day');
   }
   if (filters?.location.trim()) params.set('location', filters.location.trim());
+  if (filters?.locationScope && filters.locationScope !== 'all') {
+    params.set('scope', filters.locationScope);
+    if (filters.locationScope === 'radius' && filters.radiusKm) {
+      params.set('radius_km', String(filters.radiusKm));
+    }
+  }
+  if (filters?.originCity?.trim()) params.set('origin_city', filters.originCity.trim());
+  if (filters?.originBarangay?.trim()) params.set('origin_barangay', filters.originBarangay.trim());
+  if (filters?.sortBy === 'nearest') params.set('sort', 'nearest');
   const query = params.toString();
   return `/api/v1/booking/feed/${query ? `?${query}` : ''}`;
 }

@@ -2,9 +2,54 @@ import type { WorkSetup } from '../workSetup';
 import { API_BASE_URL } from '../../../shared/api/config';
 import { requestJson, requestResponse } from '../../../shared/api/httpClient';
 
+export interface PendingMandatoryReview {
+  booking_id: string;
+  reviewee_name: string;
+  service_category?: string[];
+}
+
+export class PendingReviewError extends Error {
+  readonly code = 'pending_mandatory_review' as const;
+  readonly pendingReview: PendingMandatoryReview;
+
+  constructor(message: string, pendingReview: PendingMandatoryReview) {
+    super(message);
+    this.name = 'PendingReviewError';
+    this.pendingReview = pendingReview;
+  }
+}
+
+export function extractPendingReview(data: unknown): PendingMandatoryReview | null {
+  if (!data || typeof data !== 'object') return null;
+  const record = data as Record<string, unknown>;
+  if (record.code !== 'pending_mandatory_review') return null;
+  const pending = record.pending_review;
+  if (!pending || typeof pending !== 'object') return null;
+  const bookingId = (pending as Record<string, unknown>).booking_id;
+  if (typeof bookingId !== 'string' || !bookingId.trim()) return null;
+  const revieweeName = (pending as Record<string, unknown>).reviewee_name;
+  const categories = (pending as Record<string, unknown>).service_category;
+  return {
+    booking_id: bookingId.trim(),
+    reviewee_name: typeof revieweeName === 'string' && revieweeName.trim() ? revieweeName.trim() : 'Service Partner',
+    service_category: Array.isArray(categories) ? categories.filter((c): c is string => typeof c === 'string') : undefined,
+  };
+}
+
+export function getPendingReviewFromError(error: unknown): PendingMandatoryReview | null {
+  if (error instanceof PendingReviewError) return error.pendingReview;
+  if (error && typeof error === 'object' && 'pendingReview' in error) {
+    const candidate = (error as { pendingReview?: unknown }).pendingReview;
+    if (candidate && typeof candidate === 'object' && typeof (candidate as PendingMandatoryReview).booking_id === 'string') {
+      return candidate as PendingMandatoryReview;
+    }
+  }
+  return null;
+}
+
 function bookingError(data: unknown, fallback: string): string {
   if (!data || typeof data !== 'object') return fallback;
-  const values = Object.entries(data as Record<string, unknown>).filter(([key]) => key !== 'code');
+  const values = Object.entries(data as Record<string, unknown>).filter(([key]) => key !== 'code' && key !== 'pending_review');
   const text = values.flatMap(([, value]) => typeof value === 'string' ? [value]
     : Array.isArray(value) ? value.filter(v => typeof v === 'string') : []).join(' ');
   return text || fallback;
@@ -32,6 +77,10 @@ export interface BookingParticipant {
 }
 
 export interface BookingItem {
+  poster_account_type?: 'Homeowner' | 'Kasambahay';
+  distance_km?: number | null;
+  proximity_label?: string | null;
+  application?: BookingProposal;
   schedule_expired?: boolean;
   booking_id: string;
   pass_url?: string | null;
@@ -58,7 +107,7 @@ export interface BookingItem {
   floor_number?: string | null;
   zip_code?: string | null;
   special_instruction?: string | null;
-  rate_amount: string;
+  rate_amount: string | null;
   rate_period: 'day' | 'month';
   rate_needs_review?: boolean;
   started_at?: string | null;
@@ -134,6 +183,12 @@ export function formatBookingLocationShort(
 }
 
 export interface BookingProposal {
+  is_verified?: boolean;
+  has_tesda_nc2?: boolean;
+  avg_rating?: number | null;
+  jobs_done_count?: number;
+  recommendation_pct?: number | null;
+  is_budget_accepted?: boolean;
   proposal_id: string;
   booking_id: string;
   proposer_id: string;
@@ -210,7 +265,12 @@ export async function repostBooking(token: string, bookingId: string, schedule: 
     token, method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(schedule),
   });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(bookingError(data, 'Could not repost. Please try again.'));
+  if (!res.ok) {
+    const message = bookingError(data, 'Could not repost. Please try again.');
+    const pendingReview = extractPendingReview(data);
+    if (pendingReview) throw new PendingReviewError(message, pendingReview);
+    throw new Error(message);
+  }
   if (!data?.booking_id) throw new Error('Could not confirm the repost. Please retry with the same details.');
   return data;
 }
@@ -222,7 +282,7 @@ export async function fetchMyAssignedBookings(token: string, statusFilter?: stri
 /**
  * Accept a pending booking
  */
-export async function acceptBooking(token: string, bookingId: string): Promise<{ success: boolean; error?: string; booking?: BookingItem }> {
+export async function acceptBooking(token: string, bookingId: string): Promise<{ success: boolean; error?: string; booking?: BookingItem; pendingReview?: PendingMandatoryReview | null }> {
   try {
     const res = await requestResponse(`${API_BASE_URL}/api/v1/booking/${bookingId}/accept/`, {
       method: 'PATCH',
@@ -232,7 +292,7 @@ export async function acceptBooking(token: string, bookingId: string): Promise<{
       },
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, error: bookingError(data, 'Could not accept booking.') };
+    if (!res.ok) return { success: false, error: bookingError(data, 'Could not accept booking.'), pendingReview: extractPendingReview(data) };
     return { success: true, booking: data.booking };
   } catch (err: any) {
     return { success: false, error: err.message || 'Network error.' };
@@ -312,6 +372,7 @@ export interface BookingPenaltyStatus {
   is_restricted: boolean;
   penalty_month: string;
   resets_at: string;
+  pending_review?: PendingMandatoryReview | null;
 }
 
 export interface CancellationPreview extends BookingPenaltyStatus {
@@ -349,7 +410,7 @@ export async function submitBookingProposal(
   proposedRate: number | string,
   message: string | undefined,
   ratePeriod: 'day' | 'month'
-): Promise<{ success: boolean; error?: string; proposal?: BookingProposal; language_warning?: string | null }> {
+): Promise<{ success: boolean; error?: string; code?: string; proposal?: BookingProposal; language_warning?: string | null; pendingReview?: PendingMandatoryReview | null }> {
   return sendProposal(token, bookingId, { proposed_rate: proposedRate, rate_period: ratePeriod, message });
 }
 
@@ -360,8 +421,10 @@ export async function applyToJobPost(token: string, bookingId: string) {
   });
 }
 
+export const PAIR_BID_CAP_MESSAGE = 'This pair has reached 3 Part-time / Daily bookings this month. You can still choose Full-time / Monthly or a different partner.';
+
 async function sendProposal(token: string, bookingId: string, body: Record<string, unknown>): Promise<{
-  success: boolean; error?: string; proposal?: BookingProposal; language_warning?: string | null; already_applied?: boolean;
+  success: boolean; error?: string; code?: string; proposal?: BookingProposal; language_warning?: string | null; already_applied?: boolean; pendingReview?: PendingMandatoryReview | null;
 }> {
   try {
     const res = await requestResponse(`${API_BASE_URL}/api/v1/booking/${bookingId}/proposals/`, {
@@ -373,7 +436,7 @@ async function sendProposal(token: string, bookingId: string, body: Record<strin
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, error: bookingError(data, 'Could not submit proposal.') };
+    if (!res.ok) return { success: false, code: data.code, error: data.code === 'short_term_monthly_cap' ? PAIR_BID_CAP_MESSAGE : bookingError(data, 'Could not submit proposal.'), pendingReview: extractPendingReview(data) };
     return { success: true, proposal: data.proposal, language_warning: data.language_warning, already_applied: data.already_applied === true };
   } catch (err: any) {
     return { success: false, error: err.message || 'Network error.' };
@@ -399,11 +462,20 @@ export async function fetchBookingProposals(token: string, bookingId: string): P
 /**
  * Respond to a proposal ('accept' or 'reject')
  */
+export interface HireSchedulePayload {
+  start_time: string;
+  end_time: string | null;
+  daily_start_time: string;
+  daily_end_time: string;
+  work_days: string[];
+}
+
 export async function respondToProposal(
   token: string,
   proposalId: string,
-  action: 'accept' | 'reject'
-): Promise<{ success: boolean; error?: string; proposal?: BookingProposal; booking?: BookingItem }> {
+  action: 'accept' | 'reject' | 'withdraw',
+  schedule?: HireSchedulePayload
+): Promise<{ success: boolean; error?: string; code?: string; proposal?: BookingProposal; booking?: BookingItem; pendingReview?: PendingMandatoryReview | null }> {
   try {
     const res = await requestResponse(`${API_BASE_URL}/api/v1/booking/proposals/${proposalId}/respond/`, {
       method: 'PATCH',
@@ -411,10 +483,10 @@ export async function respondToProposal(
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify(schedule ? { action, ...schedule } : { action }),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, error: bookingError(data, 'Could not respond to proposal.') };
+    if (!res.ok) return { success: false, code: data.code, error: data.code === 'short_term_monthly_cap' ? PAIR_BID_CAP_MESSAGE : bookingError(data, 'Could not respond to proposal.'), pendingReview: extractPendingReview(data) };
     return { success: true, proposal: data.proposal, booking: data.booking };
   } catch (err: any) {
     return { success: false, error: err.message || 'Network error.' };
@@ -442,6 +514,9 @@ export interface MinimumWageData {
   booking_type: 'long_term' | 'short_term';
   rate_period: 'day' | 'month';
   minimum_rate: string;
+  maximum_rate?: string;
+  max_daily_rate?: string | null;
+  max_monthly_rate?: string | null;
   min_daily_rate: string | null;
   min_monthly_rate?: string | null;
   working_days_per_month?: number;

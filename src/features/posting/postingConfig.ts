@@ -1,3 +1,4 @@
+import { formatRate } from '../../shared/utils/rate';
 export type PostingMode = 'job' | 'service';
 
 export const POSTING_CONFIG = {
@@ -11,9 +12,9 @@ export const POSTING_CONFIG = {
     notice: 'Your listing will be visible to verified Kasambahays in your area immediately once posted.',
     termsPrefix: 'I agree to the ', termsName: 'SerbiSure Terms of Service', termsSuffix: ' and confirm these household details are accurate.',
     missingTerms: 'Please agree to the Terms of Service to post.',
-    missingEngagement: 'Please select an engagement type (Short-term or Long-term).',
+    missingEngagement: 'Please select an engagement type (Part-time / Daily or Full-time / Monthly).',
     missingSetup: 'Please select your work setup preference (Stay-out or Stay-in).', missingTime: 'Please select what time works best for you.',
-    invalidAmount: 'Please provide a valid offer amount.', dailyMinimumMessage: 'The rate cannot be below ₱600/day on a short-term basis.',
+    invalidAmount: 'Please provide a valid offer amount.', dailyMinimumMessage: 'The rate cannot be below ₱600/day on a part-time / daily basis.',
     monthlyMinimumTitle: 'Minimum Monthly Salary', errorMessage: 'Failed to post job. Please check your entries.',
   },
   service: {
@@ -26,9 +27,9 @@ export const POSTING_CONFIG = {
     notice: 'Your service post will be visible to homeowners searching for household help in your area.',
     termsPrefix: 'I confirm that my service details and availability are accurate and agree to the ', termsName: 'SerbiSure Terms', termsSuffix: '.',
     missingTerms: 'Please confirm that your service details are accurate.',
-    missingEngagement: 'Please select what type of work you want (Short-term or Long-term).',
+    missingEngagement: 'Please select what type of work you want (Part-time / Daily or Full-time / Monthly).',
     missingSetup: 'Please select where you will stay (Stay-out or Stay-in).', missingTime: 'Please select what time you are available.',
-    invalidAmount: 'Please provide a valid asking rate.', dailyMinimumMessage: 'The asking rate cannot be below ₱600/day on a short-term basis.',
+    invalidAmount: 'Please provide a valid asking rate.', dailyMinimumMessage: 'The asking rate cannot be below ₱600/day on a part-time / daily basis.',
     monthlyMinimumTitle: 'Minimum Monthly Rate', errorMessage: 'Failed to post service. Please check your entries.',
   },
 } as const;
@@ -58,7 +59,7 @@ export function buildPostLocation(input: {
 
 function buildPostRateText(rate: string | undefined, shortTerm: boolean): string {
   const amount = rate?.trim().replace(/^₱\s*/, '');
-  return amount ? `₱${amount} / ${shortTerm ? 'day' : 'month'}` : '';
+  return amount ? `${formatRate(amount)} / ${shortTerm ? 'day' : 'month'}` : '';
 }
 
 export function buildPostDescription(mode: PostingMode, input: {
@@ -69,13 +70,10 @@ export function buildPostDescription(mode: PostingMode, input: {
     ? shortTerm
       ? `I am looking for ${service} at ${location}, available ${time}.`
       : `I am looking for ${service} at ${location}, capable of working on a ${setup} setup.`
-    : shortTerm
-      ? `I am offering ${service} service in ${location}, available ${time}.`
-      : `I am looking for long-term ${service} work in ${location} on a ${setup} arrangement.`;
-  const rateText = buildPostRateText(rate, shortTerm);
+    : `I am offering ${service} service in ${location} for ${shortTerm ? 'Part-time / Daily' : 'Full-time / Monthly'} work, ${setup.toLowerCase().includes('stay-in') ? 'Stay-in (Live-in)' : 'Stay-out (Goes home)'}, available ${time}.`;
+  const rateText = mode === 'job' ? buildPostRateText(rate, shortTerm) : '';
   if (rateText) {
-    const rateLabel = mode === 'job' ? 'offer rate' : 'expected rate';
-    message = `${message.replace(/\.$/, '')} with an ${rateLabel} of ${rateText}.`;
+    message = `${message.replace(/\.$/, '')} with an offer rate of ${rateText}.`;
   }
   if (instructions.trim()) message += `\n\n${mode === 'job' ? 'Specific instructions' : 'About my experience'}:\n${instructions.trim()}`;
   return message;

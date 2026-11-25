@@ -58,6 +58,21 @@ const tick = async () => { await new Promise(resolve => setImmediate(resolve)); 
 const localizationMessages = compile('src/shared/localization/messages.ts', {});
 const languageContext = compile('src/shared/localization/LanguageContext.tsx', { './messages': localizationMessages });
 const replyRelationships = compile('src/features/chat/replyRelationships.ts', {});
+const chatCurrency = compile('src/features/chat/chatCurrency.ts', {
+  '../../shared/utils/rate': compile('src/shared/utils/rate.ts', {}),
+});
+
+const chatComposer = chat => chat.nodes().find(node => node.type === 'TextInput' && node.props.placeholder === 'Type a message...');
+const chatNodeText = node => node.text || node.children.map(chatNodeText).join('');
+const chatButton = (chat, label) => chat.nodes().find(node => node.type === 'Pressable' && (node.props.accessibilityLabel === label || chatNodeText(node) === label));
+const chatAction = callback => renderer.flushSync(callback);
+const sendDraft = chat => chatAction(() => chat.nodes().find(node => node.type === 'Pressable' && node.children.some(child => child.type === 'Icon' && child.props.name === 'send')).props.onPress());
+async function negotiation(t, options = {}) {
+  const chat = screen(t, options);
+  chat.update('Partner', true, { contactRole: options.accountType === 'Kasambahay' ? 'Homeowner' : 'Kasambahay' });
+  chat.requests[0].resolve(payload('Hello')); await tick();
+  return chat;
+}
 
 function presenceClient(t) {
   const { RealtimeClient } = compile('src/shared/realtime/RealtimeClient.ts', {
@@ -158,13 +173,15 @@ function screen(t, options = {}) {
     '../../bookings/hooks/useScheduleClock': { useScheduleClock: () => Date.now() },
     '../../bookings/bookingAcceptance': compile('src/features/bookings/bookingAcceptance.ts', { 'react-native': native }),
     '../../bookings/components/BookingModal': { BookingModal: props => { dialogs.push('booking'); bookingModals.push(props); return null; } },
+    '../../reviews/components/ReviewModal': { ReviewModal: () => null },
     '../../profile/components/UserProfileView': { UserProfileView: () => { dialogs.push('profile'); return null; } },
     '../../profile/components/OfficialProfileModal': { OfficialProfileModal: () => { dialogs.push('official'); return null; } },
-    '../hooks/useChatSafety': { useChatSafety: () => null },
+    '../hooks/useChatSafety': { useChatSafety: () => options.safety || null },
     '../api/chatApi': api, '../threadRefreshQueue': { createThreadRefreshQueue },
     '../threadCache': threadCache,
     '../replyRelationships': replyRelationships,
     '../offensiveLanguage': compile('src/features/chat/offensiveLanguage.ts', {}),
+    '../chatCurrency': chatCurrency,
     '../store/chatStore': { chatStore: { isMessageDeleted: id => deleted.has(id), markMessageDeleted: id => deleted.add(id), loadInbox: async () => [], addOrUpdateChat: entry => previews.push(entry) } },
     '../../bookings/store/savedJobsStore': { savedJobsStore: { markJobClosed: id => closedBookings.push(id) } }, '../../../shared/api/config': {}, '../../../shared/api/httpClient': {},
   });
@@ -204,6 +221,128 @@ test('Android chat pads the full-screen modal above the keyboard without fixing 
   const chatModal = chat.nodes().find(node => node.type === 'Modal');
   assert.equal(keyboardAvoider.props.behavior, 'padding');
   assert.equal(chatModal.props.statusBarTranslucent, true);
+});
+
+test('ordinary valid amounts auto-format before sending', async t => {
+  const chat = await negotiation(t);
+  chatAction(() => chatComposer(chat).props.onChangeText('8500'));
+  assert.match(chat.texts(), /Auto-formats as ₱8,500.00/);
+  sendDraft(chat);
+  assert.equal(chat.sends.length, 1);
+  assert.equal(chat.sends[0].args[2], '₱8,500.00');
+  assert.equal(chatComposer(chat).props.value, '');
+  chat.sends[0].resolve({ data: { chat_message_id: 'currency-saved', message_payload: '₱8,500.00' } }); await tick();
+});
+
+test('standalone invalid amounts are blocked, formatted and editable without sending', async t => {
+  const chat = await negotiation(t);
+  for (const value of ['500', '6000', '999999', '5000/month']) {
+    chatAction(() => chatComposer(chat).props.onChangeText(value));
+    sendDraft(chat);
+    assert.equal(chat.sends.length, 0);
+    assert.match(chat.texts(), /Offer amount outside allowed range/);
+    assert.equal(chatComposer(chat).props.value, chatCurrency.analyzeChatCurrency(value).formattedText);
+    chatAction(() => chatButton(chat, 'Edit Message').props.onPress());
+    assert.equal(chat.nodes().some(node => node.props?.testID === 'chat-amount-alert'), false);
+  }
+});
+
+test('a full sentence gets confirmation and clears the typed draft only when sent', async t => {
+  const chat = await negotiation(t);
+  chatAction(() => chatComposer(chat).props.onChangeText('My budget is 500'));
+  sendDraft(chat);
+  assert.equal(chat.sends.length, 0);
+  assert.match(chat.texts(), /Check offered amount/);
+  chatAction(() => chatButton(chat, 'Edit Amount').props.onPress());
+  assert.equal(chatComposer(chat).props.value, 'My budget is ₱500.00');
+  sendDraft(chat);
+  chatAction(() => chatButton(chat, 'Send as ₱500.00').props.onPress());
+  assert.equal(chat.sends.length, 1);
+  assert.equal(chat.sends[0].args[2], 'My budget is ₱500.00');
+  assert.equal(chatComposer(chat).props.value, '');
+  chat.sends[0].resolve({ data: { chat_message_id: 'advisory-saved', message_payload: 'My budget is ₱500.00' } }); await tick();
+});
+
+for (const accountType of ['Homeowner', 'Kasambahay']) {
+  test(`${accountType} quick replies preserve unsent text`, async t => {
+    const chat = await negotiation(t, { accountType });
+    const reply = accountType === 'Homeowner' ? 'How much is your expected rate?' : 'What is the offered budget?';
+    chatAction(() => chatComposer(chat).props.onChangeText('Keep my private draft'));
+    assert.ok(chatButton(chat, reply));
+    chatAction(() => chatButton(chat, reply).props.onPress());
+    assert.equal(chat.sends[0].args[2], reply);
+    assert.equal(chatComposer(chat).props.value, 'Keep my private draft');
+    chat.sends[0].resolve({ data: { chat_message_id: 'pill-saved', message_payload: reply } }); await tick();
+  });
+}
+
+test('rate dialog validates the selected period, sends plain text and preserves the draft', async t => {
+  const chat = await negotiation(t);
+  chatAction(() => chatComposer(chat).props.onChangeText('Keep my draft'));
+  chatAction(() => chatButton(chat, 'Propose a Rate').props.onPress());
+  const amountInput = () => chat.nodes().find(node => node.type === 'TextInput' && node.props.accessibilityLabel === 'Proposed rate');
+  assert.equal(chatButton(chat, 'Send Proposal').props.disabled, true);
+  for (const value of ['500', '8500']) {
+    chatAction(() => amountInput().props.onChangeText(value));
+    assert.equal(chatButton(chat, 'Send Proposal').props.disabled, true);
+  }
+  chatAction(() => chatButton(chat, 'Full-time / Monthly').props.onPress());
+  assert.equal(amountInput().props.value, '');
+  chatAction(() => amountInput().props.onChangeText('5000'));
+  assert.equal(chatButton(chat, 'Send Proposal').props.disabled, true);
+  chatAction(() => amountInput().props.onChangeText('8500'));
+  chatAction(() => amountInput().props.onBlur());
+  assert.equal(amountInput().props.value, '8,500.00');
+  assert.equal(chatButton(chat, 'Send Proposal').props.disabled, false);
+  chatAction(() => chatButton(chat, 'Send Proposal').props.onPress());
+  const proposal = 'Rate proposal (Full-time / Monthly): ₱8,500.00 / month';
+  assert.equal(chat.sends[0].args[2], proposal);
+  assert.equal(chatComposer(chat).props.value, 'Keep my draft');
+  assert.equal(chat.nodes().some(node => node.props?.testID === 'chat-rate-dialog'), false);
+  assert.equal(chat.bookingResponses.length, 0);
+  chat.sends[0].resolve({ data: { chat_message_id: 'proposal-saved', message_payload: proposal } }); await tick();
+});
+
+test('the amount warning can open the rate dialog and closing chat resets it', async t => {
+  const chat = await negotiation(t);
+  chatAction(() => chatComposer(chat).props.onChangeText('999999'));
+  sendDraft(chat);
+  const alert = chat.nodes().find(node => node.props?.testID === 'chat-amount-alert');
+  const walk = node => [node, ...node.children.flatMap(walk)];
+  chatAction(() => walk(alert).find(node => node.type === 'Pressable' && chatNodeText(node) === 'Propose a Rate').props.onPress());
+  assert.equal(chat.nodes().filter(node => node.type === 'Modal').length, 2); // Chat plus one shared currency dialog.
+  assert.ok(chat.nodes().some(node => node.props?.testID === 'chat-rate-dialog'));
+  chat.update('Partner', false);
+  chat.update('Partner', true, { contactRole: 'Kasambahay' });
+  assert.equal(chat.nodes().some(node => node.props?.testID === 'chat-rate-dialog'), false);
+});
+
+test('support and paused conversations do not show negotiation controls', async t => {
+  const support = screen(t);
+  support.update('Support'); support.requests[0].resolve(payload('Support hello')); await tick();
+  assert.equal(chatButton(support, 'Propose a Rate'), undefined);
+  chatAction(() => chatComposer(support).props.onChangeText('999999'));
+  sendDraft(support);
+  assert.equal(support.sends[0].args[2], '999999');
+  support.sends[0].resolve({ data: { chat_message_id: 'support-saved', message_payload: '999999' } }); await tick();
+  const paused = await negotiation(t, { safety: { restricted_until: '2099-01-01T00:00:00Z' } });
+  assert.equal(chatButton(paused, 'Propose a Rate'), undefined);
+  assert.equal(chatComposer(paused).props.editable, false);
+  assert.equal(paused.sends.length, 0);
+});
+
+test('confirming an amount advisory still requires the offensive-language acknowledgement', async t => {
+  const chat = await negotiation(t);
+  chatAction(() => chatComposer(chat).props.onChangeText('My budget is 500 gago'));
+  sendDraft(chat);
+  chatAction(() => chatButton(chat, 'Send as ₱500.00').props.onPress());
+  assert.equal(chat.sends.length, 0);
+  assert.match(chat.texts(), /Review your message/);
+  chatAction(() => chatButton(chat, 'Send Anyway').props.onPress());
+  assert.equal(chat.sends.length, 1);
+  assert.equal(chat.sends[0].args[2], 'My budget is ₱500.00 gago');
+  assert.equal(chat.sends[0].args[4], true);
+  chat.sends[0].resolve({ data: { chat_message_id: 'ack-saved', message_payload: 'My budget is ₱500.00 gago' } }); await tick();
 });
 
 for (const accountType of ['Homeowner', 'Kasambahay']) {

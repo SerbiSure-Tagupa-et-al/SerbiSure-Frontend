@@ -93,31 +93,74 @@ export const FALLBACK_MISAMIS_ORIENTAL_CITIES: CityMunicipality[] = [
     isCity: true,
     aliases: ['cdo', 'cagayan', 'cagayan de oro', 'cagayan de oro city'],
   },
-  { code: '104308000', name: 'City of El Salvador', displayName: 'City of El Salvador', provinceCode: '104300000', isCity: true },
-  { code: '104310000', name: 'City of Gingoog', displayName: 'City of Gingoog', provinceCode: '104300000', isCity: true },
+  { code: '104307000', name: 'City of El Salvador', displayName: 'City of El Salvador', provinceCode: '104300000', isCity: true },
+  { code: '104308000', name: 'City of Gingoog', displayName: 'City of Gingoog', provinceCode: '104300000', isCity: true },
   { code: '104301000', name: 'Alubijid', displayName: 'Alubijid', provinceCode: '104300000' },
   { code: '104302000', name: 'Balingasag', displayName: 'Balingasag', provinceCode: '104300000' },
   { code: '104303000', name: 'Balingoan', displayName: 'Balingoan', provinceCode: '104300000' },
   { code: '104304000', name: 'Binuangan', displayName: 'Binuangan', provinceCode: '104300000' },
   { code: '104306000', name: 'Claveria', displayName: 'Claveria', provinceCode: '104300000' },
   { code: '104309000', name: 'Gitagum', displayName: 'Gitagum', provinceCode: '104300000' },
-  { code: '104311000', name: 'Initao', displayName: 'Initao', provinceCode: '104300000' },
-  { code: '104312000', name: 'Jasaan', displayName: 'Jasaan', provinceCode: '104300000' },
-  { code: '104314000', name: 'Lagonglong', displayName: 'Lagonglong', provinceCode: '104300000' },
-  { code: '104315000', name: 'Laguindingan', displayName: 'Laguindingan', provinceCode: '104300000' },
-  { code: '104316000', name: 'Libertad', displayName: 'Libertad', provinceCode: '104300000' },
-  { code: '104317000', name: 'Lugait', displayName: 'Lugait', provinceCode: '104300000' },
-  { code: '104318000', name: 'Magsaysay', displayName: 'Magsaysay', provinceCode: '104300000' },
-  { code: '104319000', name: 'Manticao', displayName: 'Manticao', provinceCode: '104300000' },
-  { code: '104320000', name: 'Medina', displayName: 'Medina', provinceCode: '104300000' },
-  { code: '104321000', name: 'Naawan', displayName: 'Naawan', provinceCode: '104300000' },
-  { code: '104322000', name: 'Opol', displayName: 'Opol', provinceCode: '104300000' },
-  { code: '104323000', name: 'Salay', displayName: 'Salay', provinceCode: '104300000' },
-  { code: '104324000', name: 'Sugbongcogon', displayName: 'Sugbongcogon', provinceCode: '104300000' },
-  { code: '104325000', name: 'Tagoloan', displayName: 'Tagoloan', provinceCode: '104300000' },
-  { code: '104326000', name: 'Talisayan', displayName: 'Talisayan', provinceCode: '104300000' },
-  { code: '104327000', name: 'Villanueva', displayName: 'Villanueva', provinceCode: '104300000' },
+  { code: '104310000', name: 'Initao', displayName: 'Initao', provinceCode: '104300000' },
+  { code: '104311000', name: 'Jasaan', displayName: 'Jasaan', provinceCode: '104300000' },
+  { code: '104312000', name: 'Kinoguitan', displayName: 'Kinoguitan', provinceCode: '104300000' },
+  { code: '104313000', name: 'Lagonglong', displayName: 'Lagonglong', provinceCode: '104300000' },
+  { code: '104314000', name: 'Laguindingan', displayName: 'Laguindingan', provinceCode: '104300000' },
+  { code: '104315000', name: 'Libertad', displayName: 'Libertad', provinceCode: '104300000' },
+  { code: '104316000', name: 'Lugait', displayName: 'Lugait', provinceCode: '104300000' },
+  { code: '104317000', name: 'Magsaysay', displayName: 'Magsaysay', provinceCode: '104300000' },
+  { code: '104318000', name: 'Manticao', displayName: 'Manticao', provinceCode: '104300000' },
+  { code: '104319000', name: 'Medina', displayName: 'Medina', provinceCode: '104300000' },
+  { code: '104320000', name: 'Naawan', displayName: 'Naawan', provinceCode: '104300000' },
+  { code: '104321000', name: 'Opol', displayName: 'Opol', provinceCode: '104300000' },
+  { code: '104322000', name: 'Salay', displayName: 'Salay', provinceCode: '104300000' },
+  { code: '104323000', name: 'Sugbongcogon', displayName: 'Sugbongcogon', provinceCode: '104300000' },
+  { code: '104324000', name: 'Tagoloan', displayName: 'Tagoloan', provinceCode: '104300000' },
+  { code: '104325000', name: 'Talisayan', displayName: 'Talisayan', provinceCode: '104300000' },
+  { code: '104326000', name: 'Villanueva', displayName: 'Villanueva', provinceCode: '104300000' },
 ];
+
+// Official PSGC barangays for Misamis Oriental cities & municipalities outside CDO
+const FALLBACK_MISOR_BARANGAYS_BY_CITY: Record<string, readonly string[]> = {
+  '104301000': ['Baybay', 'Benigwayan', 'Calatcat', 'Lagtang', 'Lanao', 'Loguilo', 'Lourdes', 'Lumbo', 'Molocboloc', 'Poblacion', 'Sampatulog', 'Sungay', 'Talaba', 'Taparak', 'Tugasnon', 'Tula'],
+  '104302000': ['Balagnan', 'Baliwagan', 'Barangay 1 (Pob.)', 'Barangay 2 (Pob.)', 'Barangay 3 (Pob.)', 'Barangay 4 (Pob.)', 'Barangay 5 (Pob.)', 'Barangay 6 (Pob.)', 'Binitinan', 'Blanco', 'Calawag', 'Camuayan', 'Cogon', 'Dansuli', 'Dumarait', 'Hermano', 'Kibanban', 'Linabu', 'Linggangao', 'Mambayaan', 'Mandangoa', 'Napaliran', 'Quezon', 'Rosario', 'Samay', 'San Francisco', 'San Isidro', 'San Juan', 'Talusan', 'Waterfall'],
+  '104303000': ['Baukbauk Pob.', 'Dahilig', 'Kabangasan', 'Kabulakan', 'Kauswagan', 'Lapinig (Pob.)', 'Mantangale', 'Mapua', 'San Alonzo'],
+  '104304000': ['Dampias', 'Kitamban', 'Kitambis', 'Mabini', 'Mosangot', 'Nabataan', 'Poblacion', 'Valdeconcha'],
+  '104306000': ['Ani-e', 'Aposkahoy', 'Bulahan', 'Cabacungan', 'Gumaod', 'Hinaplanan', 'Kalawitan', 'Lanise', 'Luna', 'Madaguing', 'Malagana', 'Mat-i', 'Minalwang', 'Pambugas', 'Panampawan', 'Patrocenio', 'Pelaez', 'Plaridel', 'Poblacion', 'Punong', 'Rizal', 'Santa Cruz', 'Tamboboan', 'Tipolohon'],
+  '104307000': ['Amoros', 'Bolisong', 'Bolobolo', 'Calongonan', 'Cogon', 'Himaya', 'Hinigdaan', 'Kalabaylabay', 'Kibonbon', 'Molugan', 'Poblacion', 'Sambulawan', 'Sinaloc', 'Taytay', 'Ulaliman'],
+  '104308000': ['Agay-ayan', 'Alagatan', 'Anakan', 'Bagubad', 'Bakidbakid', 'Bal-ason', 'Bantaawan', 'Barangay 1 (Pob.)', 'Barangay 10 (Pob.)', 'Barangay 11 (Pob.)', 'Barangay 12 (Pob.)', 'Barangay 13 (Pob.)', 'Barangay 14 (Pob.)', 'Barangay 15 (Pob.)', 'Barangay 16 (Pob.)', 'Barangay 17 (Pob.)', 'Barangay 18 (Pob.)', 'Barangay 18-A (Pob.)', 'Barangay 19 (Pob.)', 'Barangay 2 (Pob.)', 'Barangay 20 (Pob.)', 'Barangay 21 (Pob.)', 'Barangay 22 (Pob.)', 'Barangay 22-A (Pob.)', 'Barangay 23 (Pob.)', 'Barangay 24 (Pob.)', 'Barangay 24-A (Pob.)', 'Barangay 25 (Pob.)', 'Barangay 26 (Pob.)', 'Barangay 3 (Pob.)', 'Barangay 4 (Pob.)', 'Barangay 5 (Pob.)', 'Barangay 6 (Pob.)', 'Barangay 7 (Pob.)', 'Barangay 8 (Pob.)', 'Barangay 9 (Pob.)', 'Binakalan', 'Capitulangan', 'Daan-Lungsod', 'Dinawehan', 'Eureka', 'Hindangon', 'Kalagonoy', 'Kalipay', 'Kamanikan', 'Kianlagan', 'Kibuging', 'Kipuntos', 'Lawaan', 'Lawit', 'Libertad', 'Libon', 'Lunao', 'Lunotan', 'Malibud', 'Malinao', 'Maribucao', 'Mimbalagon', 'Mimbunga', 'Mimbuntong', 'Minsapinit', 'Murallon', 'Odiongan', 'Pangasihan', 'Pigsaluhan', 'Punong', 'Ricoro', 'Samay', 'San Jose', 'San Juan', 'San Luis', 'San Miguel', 'Sangalan', 'Santiago', 'Tagpako', 'Talisay', 'Talon', 'Tinabalan', 'Tinulongan'],
+  '104309000': ['Burnay', 'Carlos P. Garcia', 'Cogon', 'Gregorio Pelaez', 'Kilangit', 'Matangad', 'Pangayawan', 'Poblacion', 'Quezon', 'Tala-o', 'Ulab'],
+  '104310000': ['Aluna', 'Andales', 'Apas', 'Calacapan', 'Gimangpang', 'Jampason', 'Kamelon', 'Kanitoan', 'Oguis', 'Pagahan', 'Poblacion', 'Pontacon', 'San Pedro', 'Sinalac', 'Tawantawan', 'Tubigan'],
+  '104311000': ['Aplaya', 'Bobontugan', 'Corrales', 'Danao', 'I. S. Cruz', 'Jampason', 'Kimaya', 'Lower Jasaan (Pob.)', 'Luz Banzon', 'Natubo', 'San Antonio', 'San Isidro', 'San Nicolas', 'Solana', 'Upper Jasaan (Pob.)'],
+  '104312000': ['Beray', 'Bolisong', 'Buko', 'Calubo', 'Campo', 'Esperanza', 'Kagumahan', 'Kalitian', 'Kitotok', 'Panabol', 'Poblacion', 'Salicapawan', 'Salubsob', 'Suarez', 'Sumalag'],
+  '104313000': ['Banglay', 'Dampil', 'Gaston', 'Kabulawan', 'Kauswagan', 'Lumbo', 'Manaol', 'Poblacion', 'Tabok', 'Umagos'],
+  '104314000': ['Aromahon', 'Gasi', 'Kibaghot', 'Lapad', 'Liberty', 'Mauswagon', 'Moog', 'Poblacion', 'Sambulawan', 'Sinai', 'Tubajon'],
+  '104315000': ['Dulong', 'Gimaylan', 'Kimalok', 'Lubluban', 'Poblacion', 'Retablo', 'Santo Niño', 'Tangcub', 'Taytayan'],
+  '104316000': ['Aya-aya', 'Betahon', 'Biga', 'Calangahan', 'Kaluknayan', 'Lower Talacogon', 'Poblacion', 'Upper Talacogon'],
+  '104317000': ['Abunda', 'Artadi', 'Bonifacio Aquino', 'Cabalawan', 'Cabantian', 'Cabubuhan', 'Candiis', 'Consuelo', 'Damayuhan', 'Gumabon', 'Katipunan', 'Kauswagan', 'Kibungsod', 'Mahayahay', 'Mindulao', 'Pag-asa', 'Poblacion', 'San Isidro', 'San Vicente', 'Santa Cruz', 'Tama', 'Tibon-tibon', 'Tinaan', 'Tulang', 'Villa Felipa'],
+  '104318000': ['Argayoso', 'Balintad', 'Cabalantian', 'Camanga', 'Digkilaan', 'Mahayahay', 'Pagawan', 'Paniangan', 'Patag', 'Poblacion', 'Punta Silum', 'Tuod', 'Upper Malubog'],
+  '104319000': ['Bangbang', 'Bulwa', 'Cabug', 'Dig-aguyan', 'Duka', 'Gasa', 'Maanas', 'Mananum Bag-o', 'Mananum Daan', 'North Poblacion', 'Pahindong', 'Portulin', 'San Isidro', 'San Jose', 'San Roque', 'San Vicente', 'South Poblacion', 'Tambagan', 'Tup-on'],
+  '104320000': ['Don Pedro', 'Linangkayan', 'Lubilan', 'Mapulog', 'Maputi', 'Mat-i', 'Patag', 'Poblacion', 'Tagbalogo', 'Tuboran'],
+  '104321000': ['Awang', 'Bagocboc', 'Barra', 'Bonbon', 'Cauyonan', 'Igpit', 'Limonda', 'Luyongbonbon', 'Malanang', 'Nangcaon', 'Patag', 'Poblacion', 'Taboc', 'Tingalan'],
+  '104322000': ['Alipuaton', 'Ampenican', 'Bunal', 'Casulog', 'Dinagsaan', 'Guinalaban', 'Ili-ilihon', 'Inobulan', 'Looc', 'Matampa', 'Membuli', 'Poblacion', 'Salagsag', 'Salay River I', 'Salay River II', 'Saray', 'Tinagaan', 'Yungod'],
+  '104323000': ['Alicomohan', 'Ampianga', 'Kaulayanan', 'Kidampas', 'Kiraging', 'Mangga', 'Mimbuahan', 'Poblacion', 'Santa Cruz', 'Silad'],
+  '104324000': ['Baluarte', 'Casinglot', 'Gracia', 'Mohon', 'Natumolan', 'Poblacion', 'Rosario', 'Santa Ana', 'Santa Cruz', 'Sugbongcogon'],
+  '104325000': ['Bugdang', 'Calamcam', 'Casibole', 'Macopa', 'Magkarila', 'Mahayag', 'Mandahilag', 'Mintabon', 'Pangpangon', 'Poblacion', 'Pook', 'Punta Santiago', 'Puting Balas', 'San Jose', 'Santa Ines', 'Sibantang', 'Sindangan', 'Tagbocboc'],
+  '104326000': ['Balacanas', 'Dayawan', 'Imelda', 'Katipunan', 'Kimaya', 'Looc', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'San Martin', 'Tambobong'],
+};
+
+export function getFallbackBarangays(cityCode: string): Barangay[] {
+  if (cityCode === '104305000') return FALLBACK_CDO_BARANGAYS;
+  const names = FALLBACK_MISOR_BARANGAYS_BY_CITY[cityCode];
+  if (!names) return [];
+  const prefix = cityCode.slice(0, 6);
+  return names.map((name, index) => ({
+    code: `${prefix}${String(index + 1).padStart(3, '0')}`,
+    name,
+    displayName: name.startsWith('Barangay') ? name : `Brgy. ${name}`,
+    cityCode,
+  }));
+}
 
 export const FALLBACK_CDO_BARANGAYS: Barangay[] = [
   'Agusan', 'Baikingon', 'Bulua', 'Balubal', 'Balulang',
@@ -371,9 +414,10 @@ export async function getBarangays(cityCode: string): Promise<Barangay[]> {
     console.warn(`[locationService] Failed to fetch barangays for city ${cityCode}:`, err);
   }
 
-  // CDO fallback
-  if (cityCode === '104305000') {
-    return FALLBACK_CDO_BARANGAYS;
+  // Offline Misamis Oriental fallback (CDO + all 25 municipalities/cities)
+  const fallback = getFallbackBarangays(cityCode);
+  if (fallback.length > 0) {
+    return fallback;
   }
 
   return [];

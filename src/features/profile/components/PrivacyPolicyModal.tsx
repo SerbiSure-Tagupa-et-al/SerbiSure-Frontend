@@ -124,6 +124,24 @@ export function PrivacyPolicyModal({
   );
 }
 
+export function VerificationPrivacyNotice({ isHomeowner = false }: { isHomeowner?: boolean }) {
+  const { tr: uiText } = useUiLanguage();
+  const [policyOpen, setPolicyOpen] = useState(false);
+  return (
+    <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 12, marginVertical: 12, gap: 6 }}>
+      <Text style={{ color: '#1E3A8A', fontSize: 13, fontWeight: '700' }}>{uiText('Data Privacy Notice (RA 10173)')}</Text>
+      <Text style={{ color: '#334155', fontSize: 12, lineHeight: 18 }}>{uiText('ID, clearance and TESDA NC II images are confidential to authorized Barangay Desk Officers and System Administrators. Other users cannot view them.')}</Text>
+      <Text style={{ color: '#334155', fontSize: 12, lineHeight: 18 }}>{uiText('Google Cloud Vision API and Groq AI assist with reading document images and organizing text for manual review.')}</Text>
+      <Text style={{ color: '#334155', fontSize: 12, lineHeight: 18 }}>{uiText('Raw ID and clearance images are deleted 30 days after approval or rejection. Your verification record is kept.')}</Text>
+      {isHomeowner && <Text style={{ color: '#334155', fontSize: 12, lineHeight: 18 }}>{uiText('Homeowners submit a PhilSys National ID to help prevent fake employer accounts and protect Kasambahays entering private homes.')}</Text>}
+      <Pressable accessibilityRole="button" accessibilityLabel={uiText('Read Full Privacy Policy')} onPress={() => setPolicyOpen(true)}>
+        <Text style={{ color: '#1D4ED8', fontSize: 12, fontWeight: '700', textDecorationLine: 'underline' }}>{uiText('Read Full Privacy Policy')}</Text>
+      </Pressable>
+      {policyOpen && <PrivacyPolicyModal visible onClose={() => setPolicyOpen(false)} document="privacy" />}
+    </View>
+  );
+}
+
 function TermsContent() {
   const { tr: uiText } = useUiLanguage();
 
@@ -249,7 +267,7 @@ function PrivacyContent({ handleOpenEmail }: { handleOpenEmail: () => void }) {
         <View style={styles.bulletItem}>
           <Text style={styles.bulletDot}>•</Text>
           <Text style={styles.bulletText}>
-            <Text style={styles.boldText}>{uiText("Identity Documents:")}</Text> {uiText("National ID (PhilSys), NBI Clearances, Police Clearances, and facial liveness verification photos.")}
+            <Text style={styles.boldText}>{uiText("Identity Documents:")}</Text> {uiText("National ID (PhilSys), NBI Clearance, Police Clearance, TESDA NC II Skill Certification, and facial liveness verification photos.")}
           </Text>
         </View>
         <View style={styles.bulletItem}>
@@ -268,6 +286,9 @@ function PrivacyContent({ handleOpenEmail }: { handleOpenEmail: () => void }) {
 
       <View style={styles.sectionBlock}>
         <Text style={styles.sectionTitle}>{uiText("2. How We Use Information")}</Text>
+        <Text style={styles.boldText}>{uiText('Why Homeowners Submit a PhilSys National ID')}</Text>
+        <Text style={styles.paragraph}>{uiText('Kasambahays enter private homes to work. Homeowner identity screening helps prevent fake employer accounts, fraud and unsafe households, and supports Barangay safety accountability alongside RA 10361. This is a SerbiSure requirement; RA 10361 does not require uploading a PhilSys National ID.')}</Text>
+        <Text style={styles.paragraph}>{uiText('ID, clearance and TESDA NC II images are confidential to authorized Barangay Desk Officers and System Administrators. Other users cannot view them.')}</Text>
         <Text style={styles.paragraph}>
           {uiText("Your data is collected strictly for legitimate platform purposes:")}
         </Text>
@@ -355,8 +376,12 @@ function PrivacyContent({ handleOpenEmail }: { handleOpenEmail: () => void }) {
         <View style={styles.bulletItem}>
           <Text style={styles.bulletDot}>•</Text>
           <Text style={styles.bulletText}>
-            <Text style={styles.boldText}>{uiText("Cloud OCR service:")}</Text> {uiText("extracts text from submitted identity and clearance documents for assisted review.")}
+            <Text style={styles.boldText}>{uiText("Google Cloud Vision API:")}</Text> {uiText("extracts text from submitted ID, clearance and TESDA NC II images for verification screening.")}
           </Text>
+        </View>
+        <View style={styles.bulletItem}>
+          <Text style={styles.bulletDot}>•</Text>
+          <Text style={styles.bulletText}><Text style={styles.boldText}>{uiText('Groq AI:')}</Text> {uiText('structures extracted OCR text into readable fields for manual review. If text extraction fails, Groq AI may also read the document image as a fallback.')}</Text>
         </View>
       </View>
 
@@ -373,11 +398,16 @@ function PrivacyContent({ handleOpenEmail }: { handleOpenEmail: () => void }) {
       <View style={styles.sectionBlock}>
         <Text style={styles.sectionTitle}>{uiText("7. Retention and Disposal")}</Text>
         <Text style={styles.paragraph}>
-          {uiText("Verification documents, liveness media, and account records are retained only for as long as needed for verification, safety, legal compliance, and documented platform operations.")}
+          {uiText('Rejected ID, clearance and TESDA NC II images: deleted 30 days after rejection, including flagged submissions.')}
         </Text>
         <Text style={styles.paragraph}>
-          {uiText("Expired or rejected clearances are marked for review and disposal according to applicable retention requirements. When an account is terminated, records are deleted or anonymized when there is no legal or safety reason to retain them.")}
+          {uiText('Approved ID, clearance and TESDA NC II images: deleted 30 days after approval. Verification status, reviewer, issue and expiry dates, and audit records are retained.')}
         </Text>
+        <Text style={styles.paragraph}>{uiText('Replaced or expired documents: old raw images are deleted 30 days after replacement or expiry.')}</Text>
+        <Text style={styles.paragraph}>{uiText('Pending documents: flagged for review at 30 days; unreviewed images are deleted after 60 days and must be uploaded again.')}</Text>
+        <Text style={styles.paragraph}>{uiText('Profile photos: your current avatar is retained while your account is active. Raw images, including your avatar, are deleted within 30 days of account closure.')}</Text>
+        <Text style={styles.paragraph}>{uiText('Retention starts on November 25, 2026. Existing images receive the full retention period from that date; later decisions start a new period.')}</Text>
+        <Text style={styles.paragraph}>{uiText('The 30- and 60-day periods are SerbiSure retention policy; RA 10173 does not set these fixed periods.')}</Text>
       </View>
 
       <View style={styles.sectionBlock}>

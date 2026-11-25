@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
 import { useUser } from '../../auth/session/UserContext';
 import { fetchReceivedReviews, fetchReviewSummary, ReviewItem, ReviewSummaryData } from '../../reviews/api/reviewApi';
-import { fetchUserAbout, fetchUserTags, updateUserTags, fetchContactPrivacy, updateContactPrivacy, fetchUserSocialLinks, type SocialLinkItem } from '../api/accountApi';
+import { fetchUserAbout, fetchUserTags, updateUserTags, fetchContactPrivacy, updateContactPrivacy, fetchUserSocialLinks, fetchWorkerWorkHistory, type SocialLinkItem, type VerifiedWorkHistoryData } from '../api/accountApi';
 import type { VerificationStatusResponse } from '../../verification/api/verificationApi';
 import { fetchNotifications } from '../../notifications/api/notificationsApi';
 
@@ -43,6 +43,7 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
 
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [summary, setSummary] = useState<ReviewSummaryData | null>(null);
+  const [workHistory, setWorkHistory] = useState<VerifiedWorkHistoryData | null>(null);
 
   const [bio, setBio] = useState<string>(user.userAbout || '');
   const [isLoadingBio, setIsLoadingBio] = useState(false);
@@ -93,7 +94,7 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
   const postsRequest = useRef(0);
   const postsSession = useRef('');
   postsSession.current = `${user.id}:${user.token}`;
-  const [activeProfileTab, setActiveProfileTab] = useState<'posts' | 'reviews'>('posts');
+  const [activeProfileTab, setActiveProfileTab] = useState<'posts' | 'history' | 'reviews'>('posts');
   const [bookingsModalInitialTab, setBookingsModalInitialTab] = useState<'active' | 'pending' | 'completed' | 'cancelled'>('pending');
 
   const openMyBookings = (initialTab: 'active' | 'pending' | 'completed' | 'cancelled' = 'pending') => {
@@ -157,6 +158,13 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
               if (sum) setSummary(sum);
             }).catch(() => { })
           );
+          if (typeof fetchWorkerWorkHistory === 'function') {
+            promises.push(
+              fetchWorkerWorkHistory(user.token, user.id).then((hist) => {
+                if (hist) setWorkHistory(hist);
+              }).catch(() => { })
+            );
+          }
         }
         promises.push(
           fetchNotifications(user.token).then((res) => {
@@ -255,6 +263,14 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
             if (sum) setSummary(sum);
           })
           .catch((err) => console.warn('[KasambahayProfile] Review summary error:', err));
+
+        if (typeof fetchWorkerWorkHistory === 'function') {
+          fetchWorkerWorkHistory(user.token, user.id)
+            .then((hist) => {
+              if (hist) setWorkHistory(hist);
+            })
+            .catch((err) => console.warn('[KasambahayProfile] Work history error:', err));
+        }
       }
 
       fetchNotifications(user.token)
@@ -306,7 +322,7 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
 
   const totalReviews = summary?.total_reviews ?? reviews.length;
   const positivePercentage =
-    summary && summary.total_reviews > 0
+    totalReviews === 0 ? null : summary && summary.total_reviews > 0
       ? Math.round((summary.sentiment_breakdown.Positive / summary.total_reviews) * 100)
       : reviews.length > 0
         ? Math.round((reviews.filter((r) => r.nlp_sentiment === 'Positive').length / reviews.length) * 100)
@@ -380,6 +396,7 @@ export function useProfile({ role: requestedRole, avatarUri, initialView = 'main
     pendingPostsError,
     activeProfileTab,
     setActiveProfileTab,
+    workHistory,
     bookingsModalInitialTab,
     openMyBookings,
     loadPendingPosts,

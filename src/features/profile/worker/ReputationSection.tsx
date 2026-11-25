@@ -14,6 +14,11 @@ export function ReputationSection({ profile }: { profile: ProfileController }) {
     summary,
     positivePercentage,
   } = profile;
+  const history = profile.workHistory?.summary;
+  const recommendedCount = history?.recommended_count ?? 0;
+  const jobsDone = analyticsData?.total_jobs_completed ?? history?.completed_jobs_count;
+  const totalReviews = analyticsData?.total_reviews || profile.totalReviews || summary?.total_reviews || 0;
+  const positive = analyticsData?.total_reviews ? analyticsData.positive_percentage : positivePercentage;
   return (<>
     {/* Reputation & Performance Section */}
     <View style={styles.sectionCard}>
@@ -40,7 +45,7 @@ export function ReputationSection({ profile }: { profile: ProfileController }) {
 
         <View style={styles.metricTile}>
           <Text style={styles.metricVal}>
-            {analyticsData ? analyticsData.total_jobs_completed : '—'}
+            {jobsDone ?? '—'}
           </Text>
           <View style={styles.metricLabelRow}>
             <Text style={styles.metricLabel}>{uiText("Jobs Done")}</Text>
@@ -49,13 +54,25 @@ export function ReputationSection({ profile }: { profile: ProfileController }) {
 
         <View style={styles.metricTile}>
           <Text style={styles.metricVal}>
-            {analyticsData?.total_reviews ? `${analyticsData.positive_percentage}%` : (positivePercentage !== null ? `${positivePercentage}%` : '—')}
+            {totalReviews > 0 && positive != null ? `${positive}%` : '—'}
           </Text>
           <View style={styles.metricLabelRow}>
             <Text style={styles.metricLabel}>{uiText("Positive")}</Text>
           </View>
         </View>
       </View>
+      {recommendedCount > 0 && (
+        <View style={[styles.trustStripRow, { marginTop: 12, marginBottom: 0 }]}>
+          <View style={[styles.trustPill, styles.trustPillReferral]}>
+            <Ionicons name="thumbs-up" size={13} color="#15803D" />
+            <Text style={[styles.trustPillText, styles.trustPillReferralText]}>
+              {recommendedCount === 1
+                ? uiText(profile.isWorker ? 'Recommended by 1 Homeowner' : 'Recommended by 1 Kasambahay')
+                : uiText(profile.isWorker ? 'Recommended by {count} Homeowners' : 'Recommended by {count} Kasambahays', { count: recommendedCount })}
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   </>);
 }

@@ -6,6 +6,7 @@ import { MapPinIcon } from '../../../shared/components/icons/LucideIcons';
 import { ProfileAvatar } from '../../../shared/ui/ProfileAvatar';
 import THEME from '../../../shared/theme/theme';
 import type { FeedPost } from '../types';
+import { stripLegacyExpectedRate } from '../../../shared/utils/rate';
 
 export interface FeedPostCardProps {
   readonly post: FeedPost;
@@ -60,7 +61,9 @@ export function FeedPostCard({
             >
               {post.employerName}
             </Text>
-            {formattedPrice ? (
+            {(post.authorRole === 'Kasambahay' || post.kind === 'service') ? (
+              <Text style={[styles.serviceText, { flexShrink: 0 }]}>{uiText(post.termTag || 'Part-time')}</Text>
+            ) : formattedPrice ? (
               <View style={styles.rateGroup} accessible accessibilityLabel={`₱ ${formattedPrice}${unit ? `/${uiText(unit)}` : ''}`}>
                 <Text style={styles.rateMainNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                   ₱ {whole}
@@ -86,7 +89,9 @@ export function FeedPostCard({
         <View style={styles.locationRow}>
           <MapPinIcon size={13} color="#6B7280" />
           <Text style={styles.locationText} numberOfLines={1}>
-            {post.location}
+            {post.proximity_label
+              ? `${post.location.replace(/City of Cagayan De Oro/gi, 'CDO')} · ${uiText(post.proximity_label)}`
+              : post.location}
           </Text>
         </View>
       ) : null}
@@ -99,7 +104,7 @@ export function FeedPostCard({
           accessibilityRole={onDetails ? 'button' : undefined}
           onPress={onDetails}
         >
-          {post.aboutText}
+          {(post.authorRole === 'Kasambahay' || post.kind === 'service') ? stripLegacyExpectedRate(post.aboutText) : post.aboutText}
         </Text>
       ) : null}
 

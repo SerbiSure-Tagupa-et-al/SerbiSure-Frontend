@@ -31,7 +31,10 @@ function load(filename, mocks = {}) {
     if (name === 'react') return { ...React, default: React };
     if (name in mocks) return mocks[name];
     if (name.endsWith('/utils/rate')) return load('src/shared/utils/rate.ts');
+    if (name === '../../../shared/utils/date') return load('src/shared/utils/date.ts');
     if (name.endsWith('/reviews/ratings') || name === '../ratings') return load('src/features/reviews/ratings.ts');
+    if (name.endsWith('/bookings/components/ProposalsModal')) return { ProposalsModal: 'ProposalsModal' };
+    if (name.endsWith('/chat/components/ChatDetailScreen')) return { ChatDetailScreen: 'ChatDetailScreen' };
     throw new Error('Unexpected dependency: ' + name);
   }, module, module.exports);
   return module.exports;
@@ -120,6 +123,7 @@ function bookingDetails(t, role, bookingType, ongoing = false, options = {}) {
     '../hooks/useWorkLocation': realLocation || { useWorkLocation: () => address }, '../../posting/validation': load('src/features/posting/validation.ts', { './postingConfig': load('src/features/posting/postingConfig.ts') }),
     '../../../shared/ui/ProfileAvatar': { ProfileAvatar: 'ProfileAvatar' }, '../api/bookingApi': { fetchBookingDetail: options.fetchBookingDetail || (async () => null), formatBookingAddress: addressApi.formatBookingAddress, fetchMinimumWage: async (_token, type) => ({ booking_type: type, rate_period: type === 'long_term' ? 'month' : 'day', minimum_rate: type === 'long_term' ? '6500' : '600' }) },
     '../../profile/components/PrivacyPolicyModal': { PrivacyPolicyModal: props => props.visible ? React.createElement('PrivacyPolicyModal', props) : null },
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../../shared/theme/theme': theme, '../../../../assets/serbisure-logo.png': 1, '../../../../assets/serbisure-icon.png': 1,
   });
   const render = (status = {}) => screen.render(React.createElement(BookingModal, {
@@ -357,7 +361,7 @@ for (const role of ['homeowner', 'kasambahay']) {
       serviceCategory: ['Cleaning'], workSetup: 'stay_in', workHours: '09:00 AM - 02:00 PM', days: ['Th'],
     } }); await tick();
     assert.match(screen.text(), /WORK SETUP/);
-    screen.press('Short-term'); screen.press('Stay-out'); await tick();
+    screen.press('Part-time / Daily'); screen.press('Stay-out'); await tick();
     screen.press('Next');
     assert.match(screen.text(), /Select daily working hours/);
     assert.match(screen.text(), /WORK SCHEDULE/);
@@ -475,16 +479,20 @@ function browse(t, role) {
   let swipe;
   const { BrowseScreen } = load('src/features/feed/screens/BrowseScreen.tsx', {
     'react-native': native, 'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0 }) },
-    '../../../app/roleConfig': load('src/app/roleConfig.ts'), '../../../shared/theme/theme': { default: { colors: {} } },
+    '@expo/vector-icons': { Ionicons: 'Ionicons' },
+    '../../../app/roleConfig': load('src/app/roleConfig.ts'), '../../../shared/theme/theme': { default: { colors: {}, typography: { fontFamily: {} }, roundness: { pill: 999 } } },
     '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: (text, params) => localization.translateMessage(language, text, params) }) },
     '../../../shared/components/AppHeader': { AppHeader: 'AppHeader' }, '../../auth/session/UserContext': { useUser: () => ({ user }) },
     '../../bookings/store/savedJobsStore': { useJobsActivity: () => store }, '../../chat/components/ChatDetailScreen': { ChatDetailScreen: 'ChatDetailScreen' },
     '../../bookings/hooks/useJobApplication': { useJobApplication: () => ({ applyJob: async () => ({ created: true }), applyingJobId: null }) },
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../chat/store/chatStore': { chatStore: { addOrUpdateChat: chat => chats.push(chat) } }, '../../notifications/NotificationContext': { NotificationBell: 'NotificationBell' },
     '../../profile/components/UserProfileModal': { UserProfileModal: 'UserProfileModal' }, '../components/BrowseActivityCard': { BrowseActivityCard: 'BrowseActivityCard' },
     '../components/BrowseHeader': { BrowseHeader: 'BrowseHeader', BrowseFilters: 'BrowseFilters' }, '../components/BrowsePostCard': { BrowsePostCard: 'BrowsePostCard', BrowseCardBackdrop: 'BrowseCardBackdrop' },
     '../components/BrowseDeck': { ...Object.fromEntries(['BrowseDeckEmpty', 'BrowseDeckSkeleton', 'BrowseDeckSwipeControls', 'BrowseEmptyState'].map(name => [name, name])), browseDeckStyles: {} },
     '../components/FilterModal': { FilterModal: 'FilterModal', DEFAULT_FILTERS: defaultFilters }, '../components/JobDetailSheet': { JobDetailSheet: 'JobDetailSheet' },
+    '../components/LocationRadiusModal': { LocationRadiusModal: 'LocationRadiusModal' },
+    '../locationFilter': load('src/features/feed/locationFilter.ts'),
     '../browsePresentation': load('src/features/feed/browsePresentation.ts'), '../feedMapper': mapper, '../hooks/useExploreFeed': { useExploreFeed },
     '../hooks/usePostUpdates': { usePostUpdates: () => ({ canUsePost: () => true, now: Date.now() }) },
     '../hooks/useBrowseSwipeDeck': { useBrowseSwipeDeck: (_id, onSwipe) => { swipe = onSwipe; return { position: { x: 0, y: 0, setValue() {} }, rotateCard: 0, panHandlers: {}, swipeCard: direction => swipe(direction === 'right') }; } },
@@ -523,7 +531,7 @@ for (const role of ['homeowner', 'kasambahay']) {
     assert.equal(screen.find('ChatDetailScreen').props.partnerId, 'author');
     assert.equal(screen.find('ChatDetailScreen').props.userRole, role);
     screen.act(() => screen.find('ChatDetailScreen').props.onClose());
-    screen.act(() => screen.find('BrowseFilters').props.onChipPress('Long-term'));
+    screen.act(() => screen.find('BrowseFilters').props.onChipPress('Full-time'));
     screen.requests.at(-1).resolve([screen.post()]); await tick();
     assert.equal(screen.requests.at(-1).args[2].bookingType, 'long_term');
     assert.equal(screen.requests.at(-1).args[3], true);
@@ -536,13 +544,13 @@ for (const role of ['homeowner', 'kasambahay']) {
     await tick();
     assert.equal(screen.chats.at(-1).partnerId, 'author');
     assert.equal(screen.find('ChatDetailScreen').props.initialReplyTo.author, role === 'homeowner' ? 'Service Post' : 'Job Post');
-    assert.ok(screen.find('ChatDetailScreen').props.initialReplyTo.text.includes('₱8000'));
+    assert.equal(screen.find('ChatDetailScreen').props.initialReplyTo.text.includes('₱8,000.00'), role === 'kasambahay');
     screen.act(() => screen.find('ChatDetailScreen').props.onClose());
     screen.store.savedJobs = [screen.saves[0][0]]; screen.store.savedCount = 1;
     screen.act(() => screen.find('BrowseHeader').props.onTabChange('saved'));
     const saved = screen.find('BrowseActivityCard');
     assert.equal(saved.props.post.partnerId, 'author');
-    assert.equal(typeof saved.props.onMessage, role === 'homeowner' ? 'function' : 'undefined');
+    assert.equal(typeof saved.props.onMessage, 'function');
     screen.act(() => saved.props.onUnsave()); assert.equal(screen.saves.length, 2);
     assert.equal(screen.find('BrowseHeader').props.appliedCount, role === 'kasambahay' ? 0 : undefined);
     screen.language('Bisaya');
@@ -602,7 +610,7 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     let language = 'English';
     const user = { id: 'viewer', accountType };
     const otherRole = accountType === 'Homeowner' ? 'Kasambahay' : 'Homeowner';
-    const booking = { booking_id: 'own', poster: participant('viewer', accountType), assigned_partner: null, recipient: null,
+    const booking = { booking_id: 'own', proposals_count: 2, poster: participant('viewer', accountType), assigned_partner: null, recipient: null,
       service_category: ['Cleaning'], booking_type: 'short_term', booking_status: 'Pending', rate_amount: '600', rate_period: 'day', start_time: '2026-10-20', end_time: '2026-10-20' };
     const assignedBooking = { ...booking, booking_id: 'other', poster: participant('other', otherRole), recipient: participant('viewer', accountType) };
     let initialTab;
@@ -620,6 +628,7 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
       'react-native': reactNativeMock, '@expo/vector-icons': { Ionicons: 'Icon' },
       'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
       '../../../shared/localization/LanguageContext': { useLanguage: () => ({ tr: text => text }) },
+      '../../auth/session/UserContext': { useUser: () => ({ user }) },
       '../../chat/api/chatApi': { generateUUID: () => 'c44113ea-6392-462f-b55b-2eed6bb9c180' },
       '../api/reviewApi': { submitReview: () => submission.promise },
     });
@@ -677,6 +686,14 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     }
     initialTab = 'pending'; booking.booking_status = assignedBooking.booking_status = 'Pending';
     assignedBooking.poster.rating = 0; render(); await tick();
+    const applicants = accountType === 'Homeowner' ? 'Applicants & Bids (2)' : 'Incoming Offers (2)';
+    const openApplicants = screen.all('Pressable').filter(node => content(node) === applicants);
+    assert.equal(openApplicants.length, 1, 'Multiple applicants do not duplicate the owner card');
+    screen.act(() => openApplicants[0].props.onPress());
+    assert.equal(screen.find('ProposalsModal').props.bookingId, 'own');
+    assert.equal(screen.find('ProposalsModal').props.isPoster, true);
+    assert.equal(screen.find('ProposalsModal').props.posterRole, accountType);
+    screen.act(() => screen.find('ProposalsModal').props.onClose());
     const details = () => screen.all('Pressable').filter(node => content(node) === 'Details');
     assert.equal(details().length, 2);
     screen.act(() => details()[0].props.onPress());
@@ -709,6 +726,7 @@ for (const accountType of ['Homeowner', 'Kasambahay']) {
     assert.ok(screen.all('Text').some(node => content(node) === 'other Name?'));
     screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Rate 5 out of 5 stars').props.onPress());
     screen.act(() => screen.find('TextInput').props.onChangeText('Excellent service.'));
+    screen.act(() => screen.all('Pressable').find(node => node.props.accessibilityLabel === 'Yes, I recommend').props.onPress());
     screen.act(() => header('Submit Review').props.onPress());
     screen.act(() => bookingsModal.props.onRequestClose());
     assert.ok(header('Please wait…'));

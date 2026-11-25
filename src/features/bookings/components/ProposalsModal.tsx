@@ -1,69 +1,71 @@
-import { formatRate } from '../../../shared/utils/rate';
+import { validatePostingRate } from '../../posting/validation';
+import { formatRate, formatRateInput } from '../../../shared/utils/rate';
 import { validRating } from '../../reviews/ratings';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { realtime } from '../../../shared/realtime';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TextInput, Pressable, Modal, ActivityIndicator, Alert, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { BookingProposal, fetchBookingProposals, submitBookingProposal, respondToProposal, confirmPostRate } from '../api/bookingApi';
+import { BookingProposal, fetchBookingProposals, submitBookingProposal, respondToProposal, confirmPostRate, type PendingMandatoryReview } from '../api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
+import { buildEngagementSchedule, WORK_SHIFTS, type WorkShift } from '../engagementForm';
+import { WorkScheduleFields } from './WorkScheduleFields';
 
 export interface ProposalsModalProps {
   visible: boolean;
   onClose: () => void;
   bookingId: string;
   isPoster: boolean;
-  currentRate: string;
+  currentRate: string | null;
   ratePeriod: 'day' | 'month';
+  posterRole?: 'Homeowner' | 'Kasambahay';
+  bookingType?: 'short_term' | 'long_term';
+  initialWorkHours?: string;
+  requireScheduleOnHire?: boolean;
   rateNeedsReview?: boolean;
   token?: string | null;
   onUpdated?: () => void;
+  onMessage?: (proposal: BookingProposal) => void;
 }
 
-export function ProposalsModal({
-  visible,
-  onClose,
-  bookingId,
-  isPoster,
-  currentRate,
-  ratePeriod,
-  rateNeedsReview = false,
-  token,
-  onUpdated,
-}: ProposalsModalProps) {
+export function ProposalsModal({ visible, onClose, bookingId, isPoster, currentRate, ratePeriod,
+  posterRole = 'Homeowner', bookingType, initialWorkHours = '', requireScheduleOnHire = false,
+  rateNeedsReview = false, token, onUpdated, onMessage }: ProposalsModalProps) {
   const { tr: uiText } = useUiLanguage();
   const insets = useSafeAreaInsets();
-
   const [proposals, setProposals] = useState<BookingProposal[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  // Form states for non-poster (making an offer)
+  const busy = useRef(false);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const [counterRate, setCounterRate] = useState('');
   const [message, setMessage] = useState('');
-  const [showOfferForm, setShowOfferForm] = useState(!isPoster);
+  const [hireTarget, setHireTarget] = useState<BookingProposal | null>(null);
+  const [hireStartDate, setHireStartDate] = useState('');
+  const [hireEndDate, setHireEndDate] = useState('');
+  const [hireWorkHours, setHireWorkHours] = useState('');
+  const [hireDays, setHireDays] = useState<string[]>([]);
+  const [hireShift, setHireShift] = useState<WorkShift | null>(null);
+  const [hireOngoing, setHireOngoing] = useState(false);
+  const resolvedBookingType: 'short_term' | 'long_term' = bookingType || (ratePeriod === 'month' ? 'long_term' : 'short_term');
+  const jobPost = posterRole === 'Homeowner';
+  const amountText = (amount: unknown, period = ratePeriod) => `${formatRate(amount)} / ${uiText(period)}`;
 
   const loadProposals = async () => {
     if (!token || !bookingId) return;
     setLoading(true);
-    try {
-      const data = await fetchBookingProposals(token, bookingId);
-      setProposals(data);
-    } catch (err) {
-      console.warn('[ProposalsModal] loadProposals failed:', err);
-    } finally {
-      setLoading(false);
-    }
+    try { setProposals(await fetchBookingProposals(token, bookingId)); }
+    finally { setLoading(false); }
   };
-
   useEffect(() => {
     if (visible && bookingId) {
-      loadProposals();
-      setShowOfferForm(!isPoster);
-      setCounterRate(currentRate ? currentRate.replace(/[^0-9.]/g, '') : '');
+      void loadProposals();
+      setCounterRate(currentRate || '');
+      setMessage('');
+      setHireTarget(null);
     }
-  }, [visible, bookingId, isPoster, currentRate]);
-
+  }, [visible, bookingId, currentRate, token]);
   useEffect(() => {
     if (!visible || !bookingId) return;
     return realtime.subscribe(event => {
@@ -71,223 +73,218 @@ export function ProposalsModal({
     });
   }, [visible, bookingId, token]);
 
-  const confirmLegacyRate = async () => {
-    if (!token) return;
-    setSubmitting(true);
-    try {
-      await confirmPostRate(token, bookingId, counterRate, ratePeriod);
-      Alert.alert('Monthly Amount Confirmed', 'The post can now receive new proposals. Old pending proposals were invalidated.');
-      onUpdated?.();
-      onClose();
-    } catch (error) {
-      Alert.alert('Unable to Confirm', error instanceof Error ? error.message : 'Please try again.');
-    } finally { setSubmitting(false); }
+  const showFailure = (result: { error?: string; code?: string; pendingReview?: PendingMandatoryReview | null }) => {
+    if (result.pendingReview) {
+      const pending = result.pendingReview;
+      Alert.alert(uiText('Review Required'), uiText(result.error || 'Please submit your pending review first.'), [
+        { text: uiText('Later'), style: 'cancel' },
+        { text: uiText('Write Review Now'), onPress: () => setPendingReview(pending) },
+      ]);
+    } else {
+      Alert.alert(uiText(result.code === 'short_term_monthly_cap' ? 'Monthly Booking Limit' : 'Unable to Send'), uiText(result.error || 'Please try again.'));
+    }
   };
-
-  const handleSubmitProposal = async () => {
-    if (!token) return;
-    const numRate = parseFloat(counterRate);
-    if (isNaN(numRate) || numRate <= 0) {
-      Alert.alert('Invalid Rate', 'Please enter a valid compensation amount.');
+  const submitBid = async () => {
+    if (!token || busy.current) return;
+    const error = validatePostingRate('job', ratePeriod === 'month' ? 'long' : 'short', counterRate);
+    if (error) { Alert.alert(uiText(error.title), uiText(error.message)); return; }
+    busy.current = true; setSubmitting(true);
+    try {
+      const result = await submitBookingProposal(token, bookingId, Number(counterRate), message.trim(), ratePeriod);
+      if (!result.success) { showFailure(result); return; }
+      onUpdated?.(); onClose();
+      Alert.alert(uiText('Proposal Sent'), result.language_warning || uiText('The owner will review your proposal before confirming a booking.'));
+    } finally { busy.current = false; setSubmitting(false); }
+  };
+  const openHireSchedule = (item: BookingProposal) => {
+    const trimmedHours = initialWorkHours.trim();
+    const matchedShift = WORK_SHIFTS.find(preset => preset.hours === trimmedHours)?.value || (trimmedHours ? 'custom' : null);
+    setHireStartDate('');
+    setHireEndDate('');
+    setHireWorkHours(trimmedHours);
+    setHireDays([]);
+    setHireShift(matchedShift);
+    setHireOngoing(false);
+    setHireTarget(item);
+  };
+  const confirmHireWithSchedule = async () => {
+    if (!token || !hireTarget || busy.current) return;
+    let schedule: ReturnType<typeof buildEngagementSchedule>;
+    try {
+      schedule = buildEngagementSchedule({
+        bookingType: resolvedBookingType,
+        startDate: hireStartDate,
+        endDate: hireEndDate,
+        workHours: hireWorkHours,
+        days: hireDays,
+        shift: hireShift,
+        ongoing: hireOngoing,
+      });
+      if (Date.parse(schedule.start_time) <= Date.now()) {
+        throw new Error('Choose a start time that is still ahead.');
+      }
+    } catch (error) {
+      Alert.alert(uiText('Invalid Schedule'), uiText(error instanceof Error ? error.message : 'Please select valid dates and working hours.'));
       return;
     }
-
-    setSubmitting(true);
-    const res = await submitBookingProposal(token, bookingId, numRate, message.trim(), ratePeriod);
-    setSubmitting(false);
-
-    if (res.success) {
-      Alert.alert(res.language_warning ? 'Notice' : 'Offer Submitted', res.language_warning || 'Your proposed rate has been sent to the poster!');
-      setMessage('');
-      setShowOfferForm(false);
-      loadProposals();
-      onUpdated?.();
-    } else {
-      Alert.alert('Submission Failed', res.error || 'Could not submit proposal.');
+    busy.current = true; setSubmitting(true);
+    try {
+      const result = await respondToProposal(token, hireTarget.proposal_id, 'accept', {
+        ...schedule,
+        work_days: [...schedule.work_days],
+      });
+      if (!result.success) { showFailure(result); return; }
+      setHireTarget(null);
+      onUpdated?.(); onClose();
+    } finally { busy.current = false; setSubmitting(false); }
+  };
+  const hire = (item: BookingProposal) => {
+    if (busy.current) return;
+    if (requireScheduleOnHire) {
+      openHireSchedule(item);
+      return;
     }
+    Alert.alert(uiText(jobPost ? 'Hire Applicant?' : 'Accept Offer?'),
+      uiText('Confirm {name} at {amount}? This confirms the booking and closes all other applicants.',
+        { name: item.proposer_name, amount: amountText(item.proposed_rate, item.rate_period) }), [
+      { text: uiText('Cancel'), style: 'cancel' },
+      { text: uiText(jobPost ? 'Hire' : 'Accept Offer'), onPress: async () => {
+        if (!token || busy.current) return;
+        busy.current = true; setSubmitting(true);
+        try {
+          const result = await respondToProposal(token, item.proposal_id, 'accept');
+          if (!result.success) { showFailure(result); return; }
+          onUpdated?.(); onClose();
+        } finally { busy.current = false; setSubmitting(false); }
+      } },
+    ]);
+  };
+  const confirmLegacyRate = async () => {
+    if (!token || busy.current) return;
+    const error = validatePostingRate('job', ratePeriod === 'month' ? 'long' : 'short', counterRate);
+    if (error) { Alert.alert(uiText(error.title), uiText(error.message)); return; }
+    busy.current = true; setSubmitting(true);
+    try { await confirmPostRate(token, bookingId, counterRate, ratePeriod); onUpdated?.(); onClose(); }
+    catch (error) { showFailure({ error: error instanceof Error ? error.message : undefined }); }
+    finally { busy.current = false; setSubmitting(false); }
   };
 
-  const handleRespond = async (proposalId: string, action: 'accept' | 'reject') => {
-    if (!token) return;
-    Alert.alert(
-      action === 'accept' ? 'Accept Offer?' : 'Decline Offer?',
-      action === 'accept'
-        ? 'Accepting confirms this booking at the proposed amount and payment period.'
-        : 'Are you sure you want to decline this proposal?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: action === 'accept' ? 'Confirm Accept' : 'Decline',
-          style: action === 'accept' ? 'default' : 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            const res = await respondToProposal(token, proposalId, action);
-            setLoading(false);
-            if (res.success) {
-              Alert.alert(
-                'Updated',
-                action === 'accept' ? 'Offer accepted! Booking is now confirmed.' : 'Offer declined.'
-              );
-              loadProposals();
-              onUpdated?.();
-              if (action === 'accept') {
-                onClose();
-              }
-            } else {
-              Alert.alert('Error', res.error || 'Failed to respond.');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-          <Pressable onPress={onClose} style={styles.backBtn} hitSlop={12}>
-            <Ionicons name="close" size={24} color="#1A1A1A" />
-          </Pressable>
-          <Text style={styles.headerTitle}>{isPoster ? 'Proposals & Offers' : 'Make Counter-Offer'}</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        <ScrollView
-          style={styles.scrollBody}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Current Rate Banner */}
-          {isPoster && rateNeedsReview ? <View style={{ padding: 16, backgroundColor: '#FFF4ED', borderRadius: 16, marginBottom: 12 }}>
-              <Text style={{ fontWeight: '700' }}>{uiText("Confirm the monthly salary")}</Text>
-              <Text>{uiText("This older post used an ambiguous rate field. Enter the actual monthly amount before accepting any proposal.")}</Text>
-              <TextInput value={counterRate} onChangeText={setCounterRate} keyboardType="decimal-pad" style={{ padding: 12, backgroundColor: '#FFFFFF', marginVertical: 8 }} />
-              <Pressable disabled={submitting} onPress={confirmLegacyRate}><Text style={{ color: '#C2410C', fontWeight: '700' }}>{submitting ? 'Confirming...' : 'Confirm Monthly Amount'}</Text></Pressable>
-            </View> : null}
-            <View style={styles.rateBanner}>
-            <Text style={styles.rateBannerLabel}>{uiText("LISTED RATE")}</Text>
-            <Text style={styles.rateBannerVal}>{uiText(formatRate(currentRate))} / {ratePeriod}</Text>
-          </View>
-
-          {/* Offer Form for Worker */}
-          {!isPoster && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{uiText("Your Proposed Rate")}</Text>
-              <View style={styles.inputBox}>
-                <Text style={styles.pesoSign}>₱</Text>
-                <TextInput
-                  style={styles.rateInput}
-                  keyboardType="numeric"
-                  placeholder="e.g. 650"
-                  placeholderTextColor="#9CA3AF"
-                  value={counterRate}
-                  onChangeText={setCounterRate}
-                />
-                <Text style={styles.perDay}>/ {ratePeriod}</Text>
-              </View>
-
-              <Text style={[styles.cardTitle, { marginTop: 14 }]}>{uiText("Note / Message (Optional)")}</Text>
-              <TextInput
-                style={styles.textArea}
-                multiline
-                numberOfLines={3}
-                placeholder="Add a friendly note about your experience or travel considerations..."
-                placeholderTextColor="#9CA3AF"
-                value={message}
-                onChangeText={setMessage}
-              />
-
-              <Pressable
-                style={({ pressed }) => [styles.submitBtn, pressed && { opacity: 0.9 }]}
-                onPress={handleSubmitProposal}
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.submitBtnText}>{uiText("Submit Counter-Offer")}</Text>
-                )}
-              </Pressable>
-            </View>
-          )}
-
-          {/* Proposals List Section */}
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>
-              {isPoster ? 'Incoming Offers' : 'Previous Proposals'}
-            </Text>
-            <Text style={styles.countBadge}>{proposals.length}</Text>
-          </View>
-
-          {loading ? (
-            <ActivityIndicator color="#FFB43B" style={{ marginVertical: 24 }} />
-          ) : proposals.length > 0 ? (
-            proposals.map((item) => {
-              const avatarUri =
-                item.proposer_avatar ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(item.proposer_name)}&background=FFB43B&color=fff`;
-
-              return (
-                <View key={item.proposal_id} style={styles.proposalCard}>
-                  <View style={styles.proposalTopRow}>
-                    <Image source={{ uri: avatarUri }} style={styles.proposerAvatar} />
-                    <View style={styles.proposerInfo}>
-                      <Text style={styles.proposerName}>{item.proposer_name}</Text>
-                      <View style={styles.roleRatingRow}>
-                        <Text style={styles.proposerRole}>{item.proposer_role}</Text>
-                        <View style={styles.ratingPill}>
-                          {validRating(item.proposer_rating) !== null && <Ionicons name="star" size={11} color="#FFB43B" />}
-                          <Text style={styles.ratingText}>{validRating(item.proposer_rating)?.toFixed(1) || uiText('New')}</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    <View style={styles.offerBadge}>
-                      <Text style={styles.offerAmount}>₱{item.proposed_rate} / {item.rate_period}</Text>
-                      <Text style={styles.offerStatus}>{item.status}</Text>
-                    </View>
-                  </View>
-
-                  {item.message ? (
-                    <Text style={styles.proposalMsg}>"{item.message}"</Text>
-                  ) : null}
-
-                  {isPoster && item.status === 'Pending' ? (
-                    <View style={styles.actionBtnRow}>
-                      <Pressable
-                        style={styles.declineBtn}
-                        onPress={() => handleRespond(item.proposal_id, 'reject')}
-                      >
-                        <Text style={styles.declineBtnText}>{uiText("Decline")}</Text>
-                      </Pressable>
-                      <Pressable
-                        style={styles.acceptBtn}
-                        onPress={() => handleRespond(item.proposal_id, 'accept')}
-                      >
-                        <Text style={styles.acceptBtnText}>{uiText("Accept Offer")}</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })
-          ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons name="pricetags-outline" size={32} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>{uiText("No proposals yet")}</Text>
-              <Text style={styles.emptySubtitle}>
-                {isPoster
-                  ? 'Counter-offers from interested workers will appear here.'
-                  : 'Submit a counter-offer above to negotiate rates.'}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+  return <Modal visible={visible} animationType="slide" onRequestClose={() => { if (hireTarget) setHireTarget(null); else onClose(); }}>
+    <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <Pressable onPress={() => { if (hireTarget) setHireTarget(null); else onClose(); }} style={styles.backBtn} accessibilityLabel={uiText(hireTarget ? 'Back' : 'Close')}>
+          <Ionicons name={hireTarget ? 'arrow-back' : 'close'} size={24} />
+        </Pressable>
+        <Text style={styles.headerTitle}>{uiText(hireTarget ? 'Confirm Hire & Set Dates' : isPoster ? jobPost ? 'Applicants & Bids' : 'Incoming Offers' : jobPost ? 'Submit a Bid' : 'Offer to Hire')}</Text>
+        <View style={{ width: 40 }} />
       </View>
-    </Modal>
-  );
+      {hireTarget ? (
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 24) }]} keyboardShouldPersistTaps="handled">
+          <View style={styles.rateBanner}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={styles.rateBannerLabel}>{uiText('HIRING')}</Text>
+              <Text style={styles.proposerName}>{hireTarget.proposer_name}</Text>
+            </View>
+            <Text style={styles.rateBannerVal}>{amountText(hireTarget.proposed_rate, hireTarget.rate_period)}</Text>
+          </View>
+          <View style={styles.card}>
+            <Text style={[styles.proposerRole, { marginBottom: 12 }]}>
+              {uiText('Pick the service start date and schedule. Confirming will book this worker and automatically close all other applicants.')}
+            </Text>
+            <WorkScheduleFields
+              bookingType={resolvedBookingType}
+              startDate={hireStartDate}
+              endDate={hireEndDate}
+              workHours={hireWorkHours}
+              days={hireDays}
+              shift={hireShift}
+              ongoing={hireOngoing}
+              disabled={submitting}
+              onStartDate={setHireStartDate}
+              onEndDate={setHireEndDate}
+              onWorkHours={setHireWorkHours}
+              onDays={setHireDays}
+              onOngoing={setHireOngoing}
+              onShift={value => {
+                setHireShift(value);
+                const preset = WORK_SHIFTS.find(presetItem => presetItem.value === value);
+                if (preset) setHireWorkHours(preset.hours);
+              }}
+            />
+            <Pressable style={styles.submitBtn} disabled={submitting} onPress={() => { void confirmHireWithSchedule(); }}>
+              {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitBtnText}>{uiText('Confirm Hire')}</Text>}
+            </Pressable>
+            <Pressable style={[styles.declineBtn, { marginTop: 10, flex: 0 }]} disabled={submitting} onPress={() => setHireTarget(null)}>
+              <Text style={styles.declineBtnText}>{uiText('Back')}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      ) : (
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 16) }]} keyboardShouldPersistTaps="handled">
+        {jobPost ? <View style={styles.rateBanner}>
+          <Text style={styles.rateBannerLabel}>{uiText('Listed Rate')}</Text>
+          <Text style={styles.rateBannerVal}>{amountText(currentRate)}</Text>
+        </View> : <Text style={styles.cardTitle}>{uiText(ratePeriod === 'month' ? 'Full-time / Monthly' : 'Part-time / Daily')}</Text>}
+        {isPoster && jobPost && rateNeedsReview ? <View style={styles.card}>
+          <Text style={styles.cardTitle}>{uiText('Confirm the monthly salary')}</Text>
+          <Text>{uiText('This older post used an ambiguous rate field. Enter the actual monthly amount before accepting any proposal.')}</Text>
+          <TextInput value={formatRateInput(counterRate)} onChangeText={text => setCounterRate(text.replace(/,/g, ''))} keyboardType="decimal-pad" style={styles.rateInput} />
+          <Pressable disabled={submitting} onPress={confirmLegacyRate}><Text>{uiText('Confirm Monthly Amount')}</Text></Pressable>
+        </View> : null}
+        {!isPoster && <View style={styles.card}>
+          <Text style={styles.cardTitle}>{uiText('Your Proposed Rate')}</Text>
+          <View style={styles.inputBox}>
+            <Text style={styles.pesoSign}>₱</Text>
+            <TextInput accessibilityLabel={uiText('Your Proposed Rate')} style={styles.rateInput} keyboardType="decimal-pad"
+              value={formatRateInput(counterRate)} onChangeText={text => setCounterRate(text.replace(/,/g, ''))}
+              onBlur={() => { if (/^\d+(?:\.\d{0,2})?$/.test(counterRate)) setCounterRate(Number(counterRate).toFixed(2)); }} />
+            <Text style={styles.perDay}>/ {uiText(ratePeriod)}</Text>
+          </View>
+          <Text style={styles.proposerRole}>{uiText(ratePeriod === 'month' ? 'Allowed range: ₱6,500.00 – ₱50,000.00 / month (Region X · RA 10361)' : 'Allowed range: ₱600.00 – ₱5,000.00 / day')}</Text>
+          <TextInput accessibilityLabel={uiText('Note / Message (Optional)')} style={[styles.textArea, { minHeight: 44, height: 44 }]}
+            maxLength={200} placeholder={uiText('e.g., Includes deep kitchen cleaning')} value={message} onChangeText={setMessage} />
+          <Pressable style={styles.submitBtn} disabled={submitting} onPress={submitBid}>
+            {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitBtnText}>{uiText(jobPost ? 'Submit a Bid' : 'Send Proposal')}</Text>}
+          </Pressable>
+        </View>}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>{uiText(isPoster ? jobPost ? 'Applicants & Bids' : 'Incoming Offers' : 'Previous Proposals')}</Text>
+          <Text style={styles.countBadge}>{proposals.length}</Text>
+        </View>
+        {loading ? <ActivityIndicator /> : proposals.length ? proposals.map(item => <View key={item.proposal_id} style={styles.proposalCard}>
+          <View style={styles.proposalTopRow}>
+            <Image source={{ uri: item.proposer_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.proposer_name)}` }} style={styles.proposerAvatar} />
+            <View style={styles.proposerInfo}>
+              <Text style={styles.proposerName}>{item.proposer_name}</Text>
+              <Text style={styles.proposerRole}>{[item.is_verified && uiText('Verified'), item.has_tesda_nc2 && uiText('TESDA NC II')].filter(Boolean).join(' · ')}</Text>
+              <Text style={styles.proposerRole}>★ {validRating(item.avg_rating ?? item.proposer_rating)?.toFixed(1) || uiText('New')} · {uiText('Jobs Done')}: {item.jobs_done_count ?? 0}</Text>
+              <Text style={styles.proposerRole}>{uiText('Recommended')}: {item.recommendation_pct == null ? '—' : `${item.recommendation_pct}%`}</Text>
+            </View>
+          </View>
+          <View style={styles.bidStatusRow}>
+            <Text style={[styles.offerAmount, { color: item.is_budget_accepted ? '#047857' : '#92400E', flexShrink: 1 }]}>
+              {item.is_budget_accepted ? uiText('Accepted Your Budget') : uiText('Bid')}: {amountText(item.proposed_rate, item.rate_period)}
+            </Text>
+            <Text style={[
+              styles.offerStatusText,
+              item.status === 'Pending' && styles.offerStatusPending,
+              item.status === 'Accepted' && styles.offerStatusAccepted,
+            ]}>
+              {uiText(({ Pending: 'Pending', Accepted: 'Hired', Rejected: 'Position Filled', Withdrawn: 'Withdrawn' } as Record<string, string>)[item.status] || item.status)}
+            </Text>
+          </View>
+          {item.message ? <Text style={styles.proposalMsg}>{item.message}</Text> : null}
+          {isPoster && item.status === 'Pending' && <View style={styles.actionBtnRow}>
+            {onMessage && <Pressable style={styles.declineBtn} onPress={() => onMessage(item)}><Text style={styles.declineBtnText}>{uiText('Message')}</Text></Pressable>}
+            <Pressable style={styles.acceptBtn} disabled={submitting || (jobPost && rateNeedsReview)} onPress={() => hire(item)}><Text style={styles.acceptBtnText}>{uiText(jobPost ? 'Hire' : 'Accept Offer')}</Text></Pressable>
+          </View>}
+        </View>) : <View style={styles.emptyCard}><Text style={styles.emptyTitle}>{uiText('No proposals yet')}</Text></View>}
+      </ScrollView>
+      )}
+    </View>
+    {pendingReview && <ReviewModal visible bookingId={pendingReview.booking_id} revieweeName={pendingReview.reviewee_name} token={token} isMandatory
+      onClose={() => setPendingReview(null)} onSuccess={() => setPendingReview(null)} />}
+  </Modal>;
 }
 
 const styles = StyleSheet.create({
@@ -451,6 +448,25 @@ const styles = StyleSheet.create({
   proposalTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  bidStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 12,
+  },
+  offerStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    flexShrink: 0,
+  },
+  offerStatusPending: {
+    color: '#B45309',
+  },
+  offerStatusAccepted: {
+    color: '#047857',
   },
   proposerAvatar: {
     width: 44,

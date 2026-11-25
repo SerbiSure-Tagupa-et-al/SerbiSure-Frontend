@@ -1,5 +1,6 @@
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { formatRate } from '../../../shared/utils/rate';
+import { formatCompactTimeAgo } from '../../../shared/utils/date';
 import { realtime } from '../../../shared/realtime';
 import { AppState } from 'react-native';
 import { workSetupLabel } from '../workSetup';
@@ -13,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BookingItem, formatBookingAddress, fetchMyBookings, fetchMyAssignedBookings, startBooking, completeBooking, fetchBookingPenaltyStatus, type BookingPenaltyStatus } from '../api/bookingApi';
 import { CancelBookingModal } from './CancelBookingModal';
 import { ReviewModal, type ReviewModalHandle } from '../../reviews/components/ReviewModal';
+import { ChatDetailScreen } from '../../chat/components/ChatDetailScreen';
 import { ProposalsModal } from './ProposalsModal';
 import { BookingModal } from './BookingModal';
 import { UserProfileModal } from '../../profile/components/UserProfileModal';
@@ -101,13 +103,18 @@ export function MyBookingsModal({
   } | null>(null);
   const reviewRef = useRef<ReviewModalHandle>(null);
 
+  const [bidChat, setBidChat] = useState<{ partnerId: string; contactName: string; contactAvatar?: string; contactRole: string } | null>(null);
   // Proposals Modal State
   const [proposalsTarget, setProposalsTarget] = useState<{
     id: string;
     isPoster: boolean;
-    currentRate: string;
+    currentRate: string | null;
     ratePeriod: 'day' | 'month';
     rateNeedsReview?: boolean;
+    posterRole?: 'Homeowner' | 'Kasambahay';
+    bookingType?: 'short_term' | 'long_term';
+    initialWorkHours?: string;
+    requireScheduleOnHire?: boolean;
   } | null>(null);
 
   // User Profile Modal State
@@ -408,450 +415,487 @@ export function MyBookingsModal({
         transparent={true}
         onRequestClose={reviewBooking ? () => reviewRef.current?.requestClose() : handleClose}
       >
-      {/* Keep a single native modal so returning from the review restores touch to bookings. */}
-      {reviewBooking ? (
-        <ReviewModal
-          ref={reviewRef}
-          visible={visible}
-          useNativeModal={false}
-          onClose={() => setReviewBooking(null)}
-          bookingId={reviewBooking.id}
-          revieweeName={reviewBooking.revieweeName}
-          isMandatory={reviewBooking.isMandatory ?? true}
-          token={token}
-          onSuccess={() => loadData()}
-        />
-      ) : (
-      <View style={styles.modalOverlay}>
-        <Animated.View style={[styles.modalBackdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.sheetContainer,
-            {
-              paddingBottom: Math.max(insets.bottom, 16),
-              transform: [{ translateY: panY }],
-            },
-          ]}
-          {...panResponder.panHandlers}
-        >
-          {/* Swipable Header Area */}
-          <View {...headerPanResponder.panHandlers}>
-            {/* Sheet Handle */}
-            <BottomSheetHandle onPress={handleClose} />
-
-            {/* Title */}
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>
-                {uiText(accountType === 'Kasambahay' ? 'My Jobs & Contracts' : 'My Bookings & Hires')}
-              </Text>
-            </View>
-          </View>
-
-        {penalty && penalty.penalty_points > 0 && showPenaltyBanner && (
-          <Animated.View style={[styles.penaltyBanner, { opacity: penaltyOpacity }]}>
-            <View style={styles.penaltyIconWrap}>
-              <Ionicons name="alert-circle" size={17} color="#EA580C" />
-            </View>
-            <Text style={styles.penaltyText}>
-              <Text style={styles.penaltyTextBold}>{penalty.penalty_points}/3 {uiText("penalty points this month.")} </Text>
-              {penalty.is_restricted
-                ? uiText("Booking and posting are restricted until the 1st of next month.")
-                : uiText("Points reset on the 1st of next month.")}
-            </Text>
-            <Pressable
-              onPress={dismissPenaltyBanner}
-              hitSlop={12}
-              style={styles.penaltyCloseBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss penalty alert"
+        {/* Keep a single native modal so returning from the review restores touch to bookings. */}
+        {reviewBooking ? (
+          <ReviewModal
+            ref={reviewRef}
+            visible={visible}
+            useNativeModal={false}
+            onClose={() => setReviewBooking(null)}
+            bookingId={reviewBooking.id}
+            revieweeName={reviewBooking.revieweeName}
+            isMandatory={reviewBooking.isMandatory ?? true}
+            token={token}
+            onSuccess={() => loadData()}
+          />
+        ) : (
+          <View style={styles.modalOverlay}>
+            <Animated.View style={[styles.modalBackdrop, { opacity: backdropOpacity }]}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+            </Animated.View>
+            <Animated.View
+              style={[
+                styles.sheetContainer,
+                {
+                  paddingBottom: Math.max(insets.bottom, 16),
+                  transform: [{ translateY: panY }],
+                },
+              ]}
+              {...panResponder.panHandlers}
             >
-              <Ionicons name="close" size={16} color="#727272" />
-            </Pressable>
-          </Animated.View>
-        )}
+              {/* Swipable Header Area */}
+              <View {...headerPanResponder.panHandlers}>
+                {/* Sheet Handle */}
+                <BottomSheetHandle onPress={handleClose} />
 
-        {/* Mandatory Quality Feedback Banner for Completed Bookings */}
-        {(() => {
-          const pendingFeedback = bookings.find((b) => b.booking_status === 'Completed' && !b.has_reviewed);
-          if (!pendingFeedback) return null;
-          const target = getBookingCounterparty(pendingFeedback, user.id);
-          const targetName = target ? target.name : 'Partner';
-
-          return (
-            <Pressable
-              style={styles.mandatoryFeedbackBanner}
-              onPress={() => {
-                setReviewBooking({
-                  id: pendingFeedback.booking_id,
-                  revieweeName: targetName,
-                  isMandatory: true,
-                });
-              }}
-            >
-              <View style={styles.mandatoryFeedbackIconWrap}>
-                <Ionicons name="chatbubbles" size={18} color="#D97706" />
+                {/* Title */}
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitle}>
+                    {uiText(accountType === 'Kasambahay' ? 'My Jobs & Contracts' : 'My Bookings & Hires')}
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.mandatoryFeedbackTitle}>{uiText("Mandatory Service Feedback")}</Text>
-                <Text style={styles.mandatoryFeedbackSub} numberOfLines={2}>
-                  {uiText("You have a completed booking with")} {targetName} {uiText("awaiting required review. Tap to complete.")}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#D97706" />
-            </Pressable>
-          );
-        })()}
 
-        {/* Tab Switcher */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.tabsRow}>
-          {TABS.map((tab) => {
-            const isCurrent = activeTab === tab.key;
-            return (
-              <Pressable
-                key={tab.key}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: isCurrent }}
-                style={[styles.tabItem, isCurrent && styles.tabItemActive]}
-                onPress={() => setActiveTab(tab.key)}
-              >
-                <Text style={[styles.tabText, isCurrent && styles.tabTextActive]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {/* Content List */}
-        <ScrollView
-          style={styles.scrollBody}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          onScroll={(e) => {
-            scrollOffset.current = e.nativeEvent.contentOffset.y;
-          }}
-          scrollEventThrottle={16}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                loadData(true);
-              }}
-              colors={['#FFB43B']}
-            />
-          }
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFB43B" size="large" style={{ marginTop: 40 }} />
-          ) : errorMessage ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="cloud-offline-outline" size={44} color="#EF4444" />
-              <Text style={styles.emptyTitle}>{uiText("Unable to Load Bookings")}</Text>
-              <Text style={styles.emptySubtitle}>{errorMessage}</Text>
-              <Pressable
-                style={styles.retryBtn}
-                onPress={() => loadData()}
-              >
-                <Ionicons name="refresh" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.retryBtnText}>{uiText("Retry")}</Text>
-              </Pressable>
-            </View>
-          ) : bookings.length > 0 ? (
-            bookings.map((booking) => {
-              const counterparty = getBookingCounterparty(booking, user.id);
-              const partnerInfo = counterparty || (booking.poster?.id !== user.id ? booking.poster : null);
-              const displayName = partnerInfo?.name || uiText("Waiting for Kasambahay");
-              const displayRole = partnerInfo?.account_type || uiText("Kasambahay");
-              const rating = partnerInfo?.rating;
-              const hasRating = typeof rating === 'number' && Number.isFinite(rating) && rating >= 1 && rating <= 5;
-              const avatarUri = partnerInfo?.profile_link ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=FFB380&color=fff`;
-
-              const categoryName = (
-                Array.isArray(booking.service_category)
-                  ? booking.service_category[0]
-                  : booking.service_category
-              ) || 'Service not specified';
-              const formattedCategory = categoryName.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-
-              const durationLabel = booking.booking_type === 'long_term' ? 'Long-term' : 'Short-term';
-              const setupRaw = booking.work_setup;
-              const setupLabel = workSetupLabel(setupRaw);
-              const combinedTerms = `${durationLabel} · ${setupLabel}`;
-
-              const canStart = booking.booking_status === 'Accepted' || (booking.booking_status === 'InProgress' && !booking.started_at);
-              const canComplete = booking.booking_status === 'InProgress' && !!booking.started_at;
-              const isCompleted = booking.booking_status === 'Completed';
-              const canCancel = ['Pending', 'Accepted', 'InProgress'].includes(booking.booking_status);
-
-              return (
-                <View key={booking.booking_id} style={styles.card}>
-                  {/* Top Row: Avatar, Name, Category Badge, Role & Rating */}
+              {penalty && penalty.penalty_points > 0 && showPenaltyBanner && (
+                <Animated.View style={[styles.penaltyBanner, { opacity: penaltyOpacity }]}>
+                  <View style={styles.penaltyIconWrap}>
+                    <Ionicons name="alert-circle" size={17} color="#EA580C" />
+                  </View>
+                  <Text style={styles.penaltyText}>
+                    <Text style={styles.penaltyTextBold}>{penalty.penalty_points}/3 {uiText("penalty points this month.")} </Text>
+                    {penalty.is_restricted
+                      ? uiText("Booking and posting are restricted until the 1st of next month.")
+                      : uiText("Points reset on the 1st of next month.")}
+                  </Text>
                   <Pressable
-                    style={styles.cardHeaderRow}
+                    onPress={dismissPenaltyBanner}
+                    hitSlop={12}
+                    style={styles.penaltyCloseBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Dismiss penalty alert"
+                  >
+                    <Ionicons name="close" size={16} color="#727272" />
+                  </Pressable>
+                </Animated.View>
+              )}
+
+              {/* Mandatory Quality Feedback Banner for Completed Bookings */}
+              {(() => {
+                const pendingFeedback = bookings.find((b) => b.booking_status === 'Completed' && !b.has_reviewed);
+                const pendingFromStatus = penalty?.pending_review;
+                if (!pendingFeedback && !pendingFromStatus) return null;
+                const target = pendingFeedback ? getBookingCounterparty(pendingFeedback, user.id) : null;
+                const bookingId = pendingFeedback?.booking_id || pendingFromStatus!.booking_id;
+                const targetName = target?.name || pendingFromStatus?.reviewee_name || 'Partner';
+
+                return (
+                  <Pressable
+                    style={styles.mandatoryFeedbackBanner}
                     onPress={() => {
-                      if (partnerInfo) {
-                        setProfileTarget({
-                          id: partnerInfo.id,
-                          name: partnerInfo.name,
-                          avatar: partnerInfo.profile_link || undefined,
-                          role: partnerInfo.account_type,
-                        });
-                      }
+                      setReviewBooking({
+                        id: bookingId,
+                        revieweeName: targetName,
+                        isMandatory: true,
+                      });
                     }}
                   >
-                    <Image
-                      source={{ uri: avatarUri }}
-                      style={styles.cardAvatar}
-                    />
-                    <View style={styles.cardHeaderTextCol}>
-                      <View style={styles.cardHeaderTopLine}>
-                        <Text style={styles.cardPartnerName} numberOfLines={1}>{displayName}</Text>
-                        <View style={styles.categoryBadge}>
-                          <Text style={styles.categoryBadgeText}>{formattedCategory}</Text>
+                    <View style={styles.mandatoryFeedbackIconWrap}>
+                      <Ionicons name="chatbubbles" size={18} color="#D97706" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.mandatoryFeedbackTitle}>{uiText("Mandatory Service Feedback")}</Text>
+                      <Text style={styles.mandatoryFeedbackSub} numberOfLines={2}>
+                        {uiText("You have a completed booking with")} {targetName} {uiText("awaiting required review. Tap to complete.")}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#D97706" />
+                  </Pressable>
+                );
+              })()}
+
+              {/* Tab Switcher */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.tabsRow}>
+                {TABS.map((tab) => {
+                  const isCurrent = activeTab === tab.key;
+                  return (
+                    <Pressable
+                      key={tab.key}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: isCurrent }}
+                      style={[styles.tabItem, isCurrent && styles.tabItemActive]}
+                      onPress={() => setActiveTab(tab.key)}
+                    >
+                      <Text style={[styles.tabText, isCurrent && styles.tabTextActive]}>
+                        {tab.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Content List */}
+              <ScrollView
+                style={styles.scrollBody}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                onScroll={(e) => {
+                  scrollOffset.current = e.nativeEvent.contentOffset.y;
+                }}
+                scrollEventThrottle={16}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => {
+                      setRefreshing(true);
+                      loadData(true);
+                    }}
+                    colors={['#FFB43B']}
+                  />
+                }
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFB43B" size="large" style={{ marginTop: 40 }} />
+                ) : errorMessage ? (
+                  <View style={styles.emptyCard}>
+                    <Ionicons name="cloud-offline-outline" size={44} color="#EF4444" />
+                    <Text style={styles.emptyTitle}>{uiText("Unable to Load Bookings")}</Text>
+                    <Text style={styles.emptySubtitle}>{errorMessage}</Text>
+                    <Pressable
+                      style={styles.retryBtn}
+                      onPress={() => loadData()}
+                    >
+                      <Ionicons name="refresh" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.retryBtnText}>{uiText("Retry")}</Text>
+                    </Pressable>
+                  </View>
+                ) : bookings.length > 0 ? (
+                  bookings.map((booking) => {
+                    const postedAgo = formatCompactTimeAgo(booking.createdAt);
+                    const counterparty = getBookingCounterparty(booking, user.id);
+                    const partnerInfo = counterparty || (booking.poster?.id !== user.id ? booking.poster : null);
+                    const displayName = partnerInfo?.name || uiText("Waiting for Kasambahay");
+                    const displayRole = partnerInfo?.account_type || uiText("Kasambahay");
+                    const rating = partnerInfo?.rating;
+                    const hasRating = typeof rating === 'number' && Number.isFinite(rating) && rating >= 1 && rating <= 5;
+                    const avatarUri = partnerInfo?.profile_link ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=FFB380&color=fff`;
+
+                    const categoryName = (
+                      Array.isArray(booking.service_category)
+                        ? booking.service_category[0]
+                        : booking.service_category
+                    ) || 'Service not specified';
+                    const formattedCategory = categoryName.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+
+                    const durationLabel = booking.booking_type === 'long_term' ? 'Full-time' : 'Part-time';
+                    const setupRaw = booking.work_setup;
+                    const setupLabel = workSetupLabel(setupRaw);
+                    const combinedTerms = `${durationLabel} · ${setupLabel}`;
+
+                    const owner = isBookingPoster(booking, user.id);
+                    const availability = booking.booking_status === 'Pending' && (booking.poster_account_type || booking.poster?.account_type) === 'Kasambahay' && !booking.assigned_partner;
+                    const canStart = booking.booking_status === 'Accepted' || (booking.booking_status === 'InProgress' && !booking.started_at);
+                    const canComplete = booking.booking_status === 'InProgress' && !!booking.started_at;
+                    const isCompleted = booking.booking_status === 'Completed';
+                    const canCancel = ['Pending', 'Accepted', 'InProgress'].includes(booking.booking_status);
+
+                    return (
+                      <View key={booking.booking_id} style={styles.card}>
+                        {/* Top Row: Avatar, Name, Category Badge, Role & Rating */}
+                        <Pressable
+                          style={styles.cardHeaderRow}
+                          onPress={() => {
+                            if (partnerInfo) {
+                              setProfileTarget({
+                                id: partnerInfo.id,
+                                name: partnerInfo.name,
+                                avatar: partnerInfo.profile_link || undefined,
+                                role: partnerInfo.account_type,
+                              });
+                            }
+                          }}
+                        >
+                          <Image
+                            source={{ uri: avatarUri }}
+                            style={styles.cardAvatar}
+                          />
+                          <View style={styles.cardHeaderTextCol}>
+                            <View style={styles.cardHeaderTopLine}>
+                              <Text style={styles.cardPartnerName} numberOfLines={1}>{displayName}</Text>
+                              <View style={styles.categoryBadge}>
+                                <Text style={styles.categoryBadgeText}>{formattedCategory}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.cardSubRow}>
+                              <Text style={styles.cardRoleText}>{displayRole}</Text>
+                              {partnerInfo && (hasRating ? (
+                                <>
+                                  <Text style={styles.ratingSeparator}>·</Text>
+                                  <Ionicons name="star-outline" size={13.5} color="#FFB380" style={styles.starIcon} />
+                                  <Text style={styles.cardRatingText}>{rating.toFixed(1)}</Text>
+                                </>
+                              ) : (
+                                <View style={styles.newBadge}>
+                                  <Text style={styles.newBadgeText}>{uiText('New')}</Text>
+                                </View>
+                              ))}
+                              {postedAgo ? (
+                                <>
+                                  <Text style={styles.ratingSeparator}>·</Text>
+                                  <Text style={styles.cardRoleText}>{postedAgo}</Text>
+                                </>
+                              ) : null}
+                            </View>
+                          </View>
+                        </Pressable>
+
+                        {/* Middle Row: Rate & Combined Terms Badge */}
+                        <View style={styles.cardMiddleRow}>
+                          {!availability && (<View style={styles.rateContainer}>
+                            <Text style={styles.rateAmount}>{uiText(formatRate(booking.rate_amount))}</Text>
+                            <Text style={styles.ratePeriod}>
+                              / {booking.rate_period || (booking.booking_type === 'long_term' ? 'month' : 'day')}
+                            </Text>
+                          </View>)}
+                          <View style={styles.combinedTermsPill}>
+                            <Text style={styles.combinedTermsPillText}>
+                              {combinedTerms}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {booking.rate_needs_review ? (
+                          <Text style={{ color: '#B45309', marginBottom: 8, fontSize: 12 }}>
+                            {uiText("Legacy rate: the monthly amount needs confirmation.")}
+                          </Text>
+                        ) : null}
+                        {booking.contract_summary ? <ContractDownloadCard summary={booking.contract_summary} /> : null}
+
+                        {owner && booking.booking_status === 'Pending' && !booking.recipient_id && <Pressable style={[styles.detailsBtn, { marginBottom: 10, paddingVertical: 12 }]} onPress={() => {
+                          const toClock12 = (clock?: string | null) => {
+                            const m = /^(\d{2}):(\d{2})/.exec(String(clock || '').trim());
+                            if (!m) return '';
+                            const h24 = Number(m[1]);
+                            return `${String(h24 % 12 || 12).padStart(2, '0')}:${m[2]} ${h24 >= 12 ? 'PM' : 'AM'}`;
+                          };
+                          const start12 = toClock12(booking.daily_start_time);
+                          const end12 = toClock12(booking.daily_end_time);
+                          setProposalsTarget({
+                            id: booking.booking_id, isPoster: true, currentRate: booking.rate_amount,
+                            ratePeriod: booking.rate_period, rateNeedsReview: booking.rate_needs_review,
+                            posterRole: (booking.poster_account_type || booking.poster?.account_type) === 'Kasambahay' ? 'Kasambahay' : 'Homeowner',
+                            bookingType: booking.booking_type,
+                            initialWorkHours: start12 && end12 ? `${start12} - ${end12}` : '',
+                            requireScheduleOnHire: !booking.work_days || booking.work_days.length === 0,
+                          });
+                        }}>
+                          <Text style={styles.detailsBtnText}>{uiText((booking.poster_account_type || booking.poster?.account_type) === 'Kasambahay' ? 'Incoming Offers' : 'Applicants & Bids')} ({booking.proposals_count || 0})</Text>
+                        </Pressable>}
+                        {/* Action Buttons Row */}
+                        <View style={styles.actionRow}>
+                          {/* Details button */}
+                          <Pressable
+                            style={styles.detailsBtn}
+                            onPress={() => setSelectedBookingForDetails(booking)}
+                          >
+                            <Text style={styles.detailsBtnText}>{uiText("Details")}</Text>
+                          </Pressable>
+
+                          {/* Middle button: Start Job / Complete / Leave Review */}
+                          {canStart && (
+                            <Pressable
+                              style={styles.startJobBtn}
+                              disabled={actionInProgress}
+                              onPress={() => handleStart(booking.booking_id)}
+                            >
+                              <Text style={styles.startJobBtnText}>{uiText("Start Job")}</Text>
+                            </Pressable>
+                          )}
+
+                          {canComplete && (
+                            <Pressable
+                              style={[styles.startJobBtn, { backgroundColor: '#00B13B' }]}
+                              disabled={actionInProgress}
+                              onPress={() => handleComplete(booking.booking_id)}
+                            >
+                              <Text style={styles.startJobBtnText}>{uiText("Complete")}</Text>
+                            </Pressable>
+                          )}
+
+                          {isCompleted && (
+                            <Pressable
+                              style={[
+                                styles.startJobBtn,
+                                booking.has_reviewed && { backgroundColor: '#EAEAEA' },
+                              ]}
+                              disabled={booking.has_reviewed || actionInProgress}
+                              onPress={() => {
+                                const targetName = partnerInfo ? partnerInfo.name : 'Partner';
+                                setReviewBooking({
+                                  id: booking.booking_id,
+                                  revieweeName: targetName,
+                                });
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.startJobBtnText,
+                                  booking.has_reviewed && { color: '#6B7280' },
+                                ]}
+                              >
+                                {booking.has_reviewed ? uiText("Reviewed") : uiText("Leave Review")}
+                              </Text>
+                            </Pressable>
+                          )}
+
+                          {/* Cancel button */}
+                          {canCancel && (
+                            <Pressable
+                              style={styles.cancelBtn}
+                              disabled={actionInProgress}
+                              onPress={() => handleCancel(booking.booking_id)}
+                            >
+                              <Text style={styles.cancelBtnText}>{uiText("Cancel")}</Text>
+                            </Pressable>
+                          )}
                         </View>
                       </View>
-                      <View style={styles.cardSubRow}>
-                        <Text style={styles.cardRoleText}>{displayRole}</Text>
-                        {partnerInfo && (hasRating ? (
-                          <>
-                            <Text style={styles.ratingSeparator}>·</Text>
-                            <Ionicons name="star-outline" size={13.5} color="#FFB380" style={styles.starIcon} />
-                            <Text style={styles.cardRatingText}>{rating.toFixed(1)}</Text>
-                          </>
-                        ) : (
-                          <View style={styles.newBadge}>
-                            <Text style={styles.newBadgeText}>{uiText('New')}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  </Pressable>
-
-                  {/* Middle Row: Rate & Combined Terms Badge */}
-                  <View style={styles.cardMiddleRow}>
-                    <View style={styles.rateContainer}>
-                      <Text style={styles.rateAmount}>{uiText(formatRate(booking.rate_amount).replace(/\.00$/, ''))}</Text>
-                      <Text style={styles.ratePeriod}>
-                        / {booking.rate_period || (booking.booking_type === 'long_term' ? 'month' : 'day')}
-                      </Text>
-                    </View>
-                    <View style={styles.combinedTermsPill}>
-                      <Text style={styles.combinedTermsPillText}>
-                        {combinedTerms}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {booking.rate_needs_review ? (
-                    <Text style={{ color: '#B45309', marginBottom: 8, fontSize: 12 }}>
-                      {uiText("Legacy rate: the monthly amount needs confirmation.")}
+                    );
+                  })
+                ) : (
+                  <View style={styles.emptyCard}>
+                    <Ionicons
+                      name={
+                        activeTab === 'active'
+                          ? 'briefcase-outline'
+                          : activeTab === 'ongoing'
+                            ? 'time-outline'
+                            : activeTab === 'pending'
+                              ? 'hourglass-outline'
+                              : activeTab === 'completed'
+                                ? 'checkmark-done-circle-outline'
+                                : 'close-circle-outline'
+                      }
+                      size={52}
+                      color="#0D0D11"
+                    />
+                    <Text style={styles.emptyTitle}>
+                      {activeTab === 'active'
+                        ? 'No Active Contracts'
+                        : activeTab === 'ongoing'
+                          ? 'No Ongoing Contracts'
+                          : activeTab === 'pending'
+                            ? 'No Pending Postings'
+                            : activeTab === 'completed'
+                              ? 'No Completed Bookings'
+                              : 'No Cancelled Bookings'}
                     </Text>
-                  ) : null}
-                  {booking.contract_summary ? <ContractDownloadCard summary={booking.contract_summary} /> : null}
-
-                  {/* Action Buttons Row */}
-                  <View style={styles.actionRow}>
-                    {/* Details button */}
-                    <Pressable
-                      style={styles.detailsBtn}
-                      onPress={() => setSelectedBookingForDetails(booking)}
-                    >
-                      <Text style={styles.detailsBtnText}>{uiText("Details")}</Text>
-                    </Pressable>
-
-                    {/* Middle button: Start Job / Complete / Leave Review */}
-                    {canStart && (
-                      <Pressable
-                        style={styles.startJobBtn}
-                        disabled={actionInProgress}
-                        onPress={() => handleStart(booking.booking_id)}
-                      >
-                        <Text style={styles.startJobBtnText}>{uiText("Start Job")}</Text>
-                      </Pressable>
-                    )}
-
-                    {canComplete && (
-                      <Pressable
-                        style={[styles.startJobBtn, { backgroundColor: '#00B13B' }]}
-                        disabled={actionInProgress}
-                        onPress={() => handleComplete(booking.booking_id)}
-                      >
-                        <Text style={styles.startJobBtnText}>{uiText("Complete")}</Text>
-                      </Pressable>
-                    )}
-
-                    {isCompleted && (
-                      <Pressable
-                        style={[
-                          styles.startJobBtn,
-                          booking.has_reviewed && { backgroundColor: '#EAEAEA' },
-                        ]}
-                        disabled={booking.has_reviewed || actionInProgress}
-                        onPress={() => {
-                          const targetName = partnerInfo ? partnerInfo.name : 'Partner';
-                          setReviewBooking({
-                            id: booking.booking_id,
-                            revieweeName: targetName,
-                          });
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.startJobBtnText,
-                            booking.has_reviewed && { color: '#6B7280' },
-                          ]}
-                        >
-                          {booking.has_reviewed ? uiText("Reviewed") : uiText("Leave Review")}
-                        </Text>
-                      </Pressable>
-                    )}
-
-                    {/* Cancel button */}
-                    {canCancel && (
-                      <Pressable
-                        style={styles.cancelBtn}
-                        disabled={actionInProgress}
-                        onPress={() => handleCancel(booking.booking_id)}
-                      >
-                        <Text style={styles.cancelBtnText}>{uiText("Cancel")}</Text>
-                      </Pressable>
-                    )}
+                    <Text style={styles.emptySubtitle}>
+                      {activeTab === 'active'
+                        ? 'Accepted bookings waiting to start will appear here.'
+                        : activeTab === 'ongoing'
+                          ? 'Jobs that have started and are still in progress will appear here.'
+                          : activeTab === 'pending'
+                            ? 'Open postings waiting for worker assignment, acceptance, or counter-offers will appear here.'
+                            : activeTab === 'completed'
+                              ? 'Domestic work contracts that have reached completion will appear here.'
+                              : 'Bookings that were cancelled or withdrawn will appear here.'}
+                    </Text>
                   </View>
-                </View>
-              );
-            })
-          ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons
-                name={
-                  activeTab === 'active'
-                    ? 'briefcase-outline'
-                    : activeTab === 'ongoing'
-                      ? 'time-outline'
-                      : activeTab === 'pending'
-                        ? 'hourglass-outline'
-                        : activeTab === 'completed'
-                          ? 'checkmark-done-circle-outline'
-                          : 'close-circle-outline'
-                }
-                size={52}
-                color="#0D0D11"
-              />
-              <Text style={styles.emptyTitle}>
-                {activeTab === 'active'
-                  ? 'No Active Contracts'
-                  : activeTab === 'ongoing'
-                    ? 'No Ongoing Contracts'
-                    : activeTab === 'pending'
-                      ? 'No Pending Postings'
-                      : activeTab === 'completed'
-                        ? 'No Completed Bookings'
-                        : 'No Cancelled Bookings'}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {activeTab === 'active'
-                  ? 'Accepted bookings waiting to start will appear here.'
-                  : activeTab === 'ongoing'
-                    ? 'Jobs that have started and are still in progress will appear here.'
-                    : activeTab === 'pending'
-                      ? 'Open postings waiting for worker assignment, acceptance, or counter-offers will appear here.'
-                      : activeTab === 'completed'
-                        ? 'Domestic work contracts that have reached completion will appear here.'
-                        : 'Bookings that were cancelled or withdrawn will appear here.'}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+                )}
+              </ScrollView>
 
-        {/* Modals */}
-        {cancelTarget && token && <CancelBookingModal key={cancelTarget} bookingId={cancelTarget} token={token}
-          onClose={() => setCancelTarget(null)} onCancelled={safety => {
-            setCancelTarget(null);
-            if (safety) { onClose(); onSafetyAcknowledged?.(); }
-            else void loadData();
-          }} />}
-        {proposalsTarget && (
-          <ProposalsModal
-            visible={!!proposalsTarget}
-            onClose={() => setProposalsTarget(null)}
-            bookingId={proposalsTarget.id}
-            isPoster={proposalsTarget.isPoster}
-            currentRate={proposalsTarget.currentRate}
-            ratePeriod={proposalsTarget.ratePeriod}
-            rateNeedsReview={proposalsTarget.rateNeedsReview}
-            token={token}
-            onUpdated={() => loadData()}
-          />
+              {/* Modals */}
+              {cancelTarget && token && <CancelBookingModal key={cancelTarget} bookingId={cancelTarget} token={token}
+                onClose={() => setCancelTarget(null)} onCancelled={safety => {
+                  setCancelTarget(null);
+                  if (safety) { onClose(); onSafetyAcknowledged?.(); }
+                  else void loadData();
+                }} />}
+              {proposalsTarget && (
+                <ProposalsModal
+                  visible={!!proposalsTarget}
+                  onClose={() => setProposalsTarget(null)}
+                  bookingId={proposalsTarget.id}
+                  isPoster={proposalsTarget.isPoster}
+                  currentRate={proposalsTarget.currentRate}
+                  ratePeriod={proposalsTarget.ratePeriod}
+                  rateNeedsReview={proposalsTarget.rateNeedsReview}
+                  posterRole={proposalsTarget.posterRole}
+                  bookingType={proposalsTarget.bookingType}
+                  initialWorkHours={proposalsTarget.initialWorkHours}
+                  requireScheduleOnHire={proposalsTarget.requireScheduleOnHire}
+                  token={token}
+                  onMessage={proposal => { setProposalsTarget(null); setBidChat({ partnerId: proposal.proposer_id, contactName: proposal.proposer_name, contactAvatar: proposal.proposer_avatar || undefined, contactRole: proposal.proposer_role }); }}
+                  onUpdated={() => loadData()}
+                />
+              )}
+
+              {bidChat && <ChatDetailScreen visible onClose={() => setBidChat(null)} {...bidChat} token={token} userRole={accountType === 'Kasambahay' ? 'kasambahay' : 'homeowner'} />}
+              {profileTarget && (
+                <UserProfileModal
+                  visible={!!profileTarget}
+                  onClose={() => setProfileTarget(null)}
+                  userId={profileTarget.id}
+                  token={token}
+                  prefilledName={profileTarget.name}
+                  prefilledAvatar={profileTarget.avatar}
+                  prefilledRole={profileTarget.role}
+                />
+              )}
+
+            </Animated.View>
+          </View>
         )}
+      </Modal>
 
-        {profileTarget && (
-          <UserProfileModal
-            visible={!!profileTarget}
-            onClose={() => setProfileTarget(null)}
-            userId={profileTarget.id}
-            token={token}
-            prefilledName={profileTarget.name}
-            prefilledAvatar={profileTarget.avatar}
-            prefilledRole={profileTarget.role}
-          />
-        )}
-
-        </Animated.View>
-      </View>
+      {selectedBookingForDetails && (
+        <BookingModal
+          visible={!!selectedBookingForDetails}
+          useNativeModal={true}
+          onClose={() => setSelectedBookingForDetails(null)}
+          contactName={
+            getBookingCounterparty(selectedBookingForDetails, user.id)?.name ||
+            selectedBookingForDetails.poster?.name ||
+            'Kasambahay'
+          }
+          contactRole={
+            getBookingCounterparty(selectedBookingForDetails, user.id)?.account_type ||
+            selectedBookingForDetails.poster?.account_type ||
+            'Kasambahay'
+          }
+          contactAvatar={
+            getBookingCounterparty(selectedBookingForDetails, user.id)?.profile_link ||
+            selectedBookingForDetails.poster?.profile_link ||
+            undefined
+          }
+          readOnly={true}
+          bookingType={selectedBookingForDetails.booking_type}
+          bookingId={selectedBookingForDetails.booking_id}
+          isConfirmed={['Accepted', 'InProgress', 'Completed'].includes(selectedBookingForDetails.booking_status)}
+          isDeclined={selectedBookingForDetails.booking_status === 'Cancelled'}
+          initialDetails={{
+            serviceCategory: Array.isArray(selectedBookingForDetails.service_category)
+              ? selectedBookingForDetails.service_category
+              : selectedBookingForDetails.service_category ? [selectedBookingForDetails.service_category] : [],
+            workSetup: selectedBookingForDetails.work_setup || null,
+            region: selectedBookingForDetails.region || '',
+            startDate: selectedBookingForDetails.start_time || '',
+            endDate: selectedBookingForDetails.end_time || '',
+            workHours: (selectedBookingForDetails.daily_start_time && selectedBookingForDetails.daily_end_time)
+              ? `${selectedBookingForDetails.daily_start_time} - ${selectedBookingForDetails.daily_end_time}`
+              : '',
+            location: formatBookingAddress(selectedBookingForDetails),
+            days: selectedBookingForDetails.work_days || [],
+            salary: selectedBookingForDetails.rate_amount || '',
+            bookingType: selectedBookingForDetails.booking_type,
+            bookingId: selectedBookingForDetails.booking_id,
+            passUrl: selectedBookingForDetails.pass_url,
+            id: selectedBookingForDetails.booking_id,
+          }}
+          token={token}
+        />
       )}
-    </Modal>
-
-    {selectedBookingForDetails && (
-      <BookingModal
-        visible={!!selectedBookingForDetails}
-        useNativeModal={true}
-        onClose={() => setSelectedBookingForDetails(null)}
-        contactName={
-          getBookingCounterparty(selectedBookingForDetails, user.id)?.name ||
-          selectedBookingForDetails.poster?.name ||
-          'Kasambahay'
-        }
-        contactRole={
-          getBookingCounterparty(selectedBookingForDetails, user.id)?.account_type ||
-          selectedBookingForDetails.poster?.account_type ||
-          'Kasambahay'
-        }
-        contactAvatar={
-          getBookingCounterparty(selectedBookingForDetails, user.id)?.profile_link ||
-          selectedBookingForDetails.poster?.profile_link ||
-          undefined
-        }
-        readOnly={true}
-        bookingType={selectedBookingForDetails.booking_type}
-        bookingId={selectedBookingForDetails.booking_id}
-        isConfirmed={['Accepted', 'InProgress', 'Completed'].includes(selectedBookingForDetails.booking_status)}
-        isDeclined={selectedBookingForDetails.booking_status === 'Cancelled'}
-        initialDetails={{
-          serviceCategory: Array.isArray(selectedBookingForDetails.service_category)
-            ? selectedBookingForDetails.service_category
-            : selectedBookingForDetails.service_category ? [selectedBookingForDetails.service_category] : [],
-          workSetup: selectedBookingForDetails.work_setup || null,
-          region: selectedBookingForDetails.region || '',
-          startDate: selectedBookingForDetails.start_time || '',
-          endDate: selectedBookingForDetails.end_time || '',
-          workHours: (selectedBookingForDetails.daily_start_time && selectedBookingForDetails.daily_end_time)
-            ? `${selectedBookingForDetails.daily_start_time} - ${selectedBookingForDetails.daily_end_time}`
-            : '',
-          location: formatBookingAddress(selectedBookingForDetails),
-          days: selectedBookingForDetails.work_days || [],
-          salary: selectedBookingForDetails.rate_amount || '',
-          bookingType: selectedBookingForDetails.booking_type,
-          bookingId: selectedBookingForDetails.booking_id,
-          passUrl: selectedBookingForDetails.pass_url,
-          id: selectedBookingForDetails.booking_id,
-        }}
-        token={token}
-      />
-    )}
-  </>
+    </>
   );
 }
 

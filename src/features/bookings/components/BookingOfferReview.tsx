@@ -65,7 +65,7 @@ export function BookingOfferReview(props: Props) {
   const showDateRange = !short || (!!props.endDate.trim() && startDate !== endDate);
   const openEnded = !short && (props.ongoing || !props.endDate.trim());
   const amount = props.salary.trim() && Number.isFinite(Number(props.salary))
-    ? `₱${Number(props.salary).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
+    ? `₱${Number(props.salary).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : props.salary || uiText('Not provided');
 
   const primaryServiceChoice = SERVICE_CHOICES.find(item => props.serviceCategory.includes(item.id));
@@ -102,7 +102,7 @@ export function BookingOfferReview(props: Props) {
           <View style={styles.participantInfo}>
             <Text style={styles.participantName} numberOfLines={1}>{displayName}</Text>
             <Text style={styles.participantSubtitle}>
-              {props.contactRole || uiText("Kasambahay")} · {short ? uiText("Short-term") : uiText("Long-term")}
+              {props.contactRole || uiText("Kasambahay")} · {short ? uiText("Part-time") : uiText("Full-time")}
             </Text>
           </View>
           <View style={styles.rateHighlight}>
@@ -165,7 +165,7 @@ export function BookingOfferReview(props: Props) {
           <View style={styles.gridCol}>
             <Text style={styles.fieldLabel}>{short ? uiText("Engagement") : uiText("Work setup")}</Text>
             <Text style={styles.fieldValue}>
-              {short ? uiText("Short-term") : uiText(workSetupLabel(props.workSetup))}
+              {short ? uiText("Part-time") : uiText(workSetupLabel(props.workSetup))}
             </Text>
           </View>
           <View style={styles.gridCol}>

@@ -68,7 +68,7 @@ export function PostStep1({ form }: { form: PostFormController }) {
       <View style={styles.optionRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Short-term"
+          accessibilityLabel={uiText("Part-time / Daily")}
           style={[
             styles.optionBtn,
             engagementType === 'short' && styles.optionBtnActive,
@@ -76,19 +76,24 @@ export function PostStep1({ form }: { form: PostFormController }) {
           ]}
           onPress={() => handleEngagementChange('short')}
         >
-          <Ionicons
-            name="time-outline"
-            size={18}
-            color="#0D0D11"
-          />
-          <Text style={[styles.optionBtnText, engagementType === 'short' && styles.optionBtnTextActive]}>
-            {uiText("Short-term")}
+          <View style={styles.optionBtnHeader}>
+            <Ionicons
+              name="time-outline"
+              size={17}
+              color="#0D0D11"
+            />
+            <Text style={[styles.optionBtnText, engagementType === 'short' && styles.optionBtnTextActive]}>
+              {uiText("Part-time / Daily")}
+            </Text>
+          </View>
+          <Text style={[styles.optionBtnSubtext, engagementType === 'short' && styles.optionBtnSubtextActive]}>
+            {uiText("1–7 days · Daily pay")}
           </Text>
         </Pressable>
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Long-term"
+          accessibilityLabel={uiText("Full-time / Monthly")}
           style={[
             styles.optionBtn,
             engagementType === 'long' && styles.optionBtnActive,
@@ -96,13 +101,18 @@ export function PostStep1({ form }: { form: PostFormController }) {
           ]}
           onPress={() => handleEngagementChange('long')}
         >
-          <Ionicons
-            name="calendar-outline"
-            size={18}
-            color="#0D0D11"
-          />
-          <Text style={[styles.optionBtnText, engagementType === 'long' && styles.optionBtnTextActive]}>
-            {uiText("Long-term")}
+          <View style={styles.optionBtnHeader}>
+            <Ionicons
+              name="calendar-outline"
+              size={17}
+              color="#0D0D11"
+            />
+            <Text style={[styles.optionBtnText, engagementType === 'long' && styles.optionBtnTextActive]}>
+              {uiText("Full-time / Monthly")}
+            </Text>
+          </View>
+          <Text style={[styles.optionBtnSubtext, engagementType === 'long' && styles.optionBtnSubtextActive]}>
+            {uiText("30+ days · Monthly pay")}
           </Text>
         </Pressable>
       </View>
@@ -112,7 +122,7 @@ export function PostStep1({ form }: { form: PostFormController }) {
       <View style={styles.optionRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Stay-in"
+          accessibilityLabel={uiText("Stay-in")}
           style={[
             styles.optionBtn,
             setupPreference === 'stay-in' && styles.optionBtnActive,
@@ -120,19 +130,24 @@ export function PostStep1({ form }: { form: PostFormController }) {
           ]}
           onPress={() => handleSetupPreference('stay-in')}
         >
-          <Ionicons
-            name="home-outline"
-            size={18}
-            color="#0D0D11"
-          />
-          <Text style={[styles.optionBtnText, setupPreference === 'stay-in' && styles.optionBtnTextActive]}>
-            {uiText("Stay-in")}
+          <View style={styles.optionBtnHeader}>
+            <Ionicons
+              name="home-outline"
+              size={17}
+              color="#0D0D11"
+            />
+            <Text style={[styles.optionBtnText, setupPreference === 'stay-in' && styles.optionBtnTextActive]}>
+              {uiText("Stay-in")}
+            </Text>
+          </View>
+          <Text style={[styles.optionBtnSubtext, setupPreference === 'stay-in' && styles.optionBtnSubtextActive]}>
+            {uiText("Live-in")}
           </Text>
         </Pressable>
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Stay-out"
+          accessibilityLabel={uiText("Stay-out")}
           style={[
             styles.optionBtn,
             setupPreference === 'stay-out' && styles.optionBtnActive,
@@ -140,13 +155,18 @@ export function PostStep1({ form }: { form: PostFormController }) {
           ]}
           onPress={() => handleSetupPreference('stay-out')}
         >
-          <Ionicons
-            name="footsteps-outline"
-            size={18}
-            color="#0D0D11"
-          />
-          <Text style={[styles.optionBtnText, setupPreference === 'stay-out' && styles.optionBtnTextActive]}>
-            {uiText("Stay-out")}
+          <View style={styles.optionBtnHeader}>
+            <Ionicons
+              name="footsteps-outline"
+              size={17}
+              color="#0D0D11"
+            />
+            <Text style={[styles.optionBtnText, setupPreference === 'stay-out' && styles.optionBtnTextActive]}>
+              {uiText("Stay-out")}
+            </Text>
+          </View>
+          <Text style={[styles.optionBtnSubtext, setupPreference === 'stay-out' && styles.optionBtnSubtextActive]}>
+            {uiText("Goes home")}
           </Text>
         </Pressable>
       </View>

@@ -9,6 +9,7 @@ import { IDPhotoModal } from './IDPhotoModal';
 import { API_BASE_URL } from '../../../shared/api/config';
 import { fetchWithTimeout } from '../../../shared/api/httpClient';
 import { canReplaceDocument, currentDocuments, documentIsExpired, documentLabel } from '../documentStatus';
+import { VerificationPrivacyNotice } from '../../profile/components/PrivacyPolicyModal';
 
 const logoSource = require('../../../../assets/serbisure-icon.png');
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -33,6 +34,9 @@ const EXTRACTED_FIELD_LABELS: Record<string, string> = {
   last_name: 'Last Name',
   date_of_birth: 'Date of Birth',
   clearance_number: 'Clearance No.',
+  certificate_number: 'Certificate No.',
+  qualification_title: 'Qualification',
+  issuing_body: 'Issuing Body',
   philsys_number: 'PhilSys Card No.',
   document_number: 'Document No.',
   date_issued: 'Date Issued',
@@ -123,9 +127,10 @@ export function VerificationStatusModal({
   const insets = useSafeAreaInsets();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [idPhotoVisible, setIdPhotoVisible] = useState(false);
-  const [activeBox, setActiveBox] = useState<'nbi' | 'police' | 'national_front' | 'national_back' | null>(null);
+  const [activeBox, setActiveBox] = useState<'nbi' | 'police' | 'tesda' | 'national_front' | 'national_back' | null>(null);
   const [nbiImage, setNbiImage] = useState<string | null>(null);
   const [policeImage, setPoliceImage] = useState<string | null>(null);
+  const [tesdaImage, setTesdaImage] = useState<string | null>(null);
   const [nationalFrontImage, setNationalFrontImage] = useState<string | null>(null);
   const [nationalBackImage, setNationalBackImage] = useState<string | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -170,6 +175,7 @@ export function VerificationStatusModal({
   const handleClose = () => {
     setNbiImage(null);
     setPoliceImage(null);
+    setTesdaImage(null);
     setNationalFrontImage(null);
     setNationalBackImage(null);
     setActiveBox(null);
@@ -179,7 +185,7 @@ export function VerificationStatusModal({
     onClose();
   };
 
-  const handleBoxPress = (box: 'nbi' | 'police' | 'national_front' | 'national_back') => {
+  const handleBoxPress = (box: 'nbi' | 'police' | 'tesda' | 'national_front' | 'national_back') => {
     setActiveBox(box);
     setIdPhotoVisible(true);
   };
@@ -187,6 +193,7 @@ export function VerificationStatusModal({
   const handlePickedImage = (uri: string) => {
     if (activeBox === 'nbi') setNbiImage(uri);
     else if (activeBox === 'police') setPoliceImage(uri);
+    else if (activeBox === 'tesda') setTesdaImage(uri);
     else if (activeBox === 'national_front') setNationalFrontImage(uri);
     else if (activeBox === 'national_back') setNationalBackImage(uri);
   };
@@ -198,6 +205,7 @@ export function VerificationStatusModal({
     }
     else if (docType === 'nbi_clearance') handleBoxPress('nbi');
     else if (docType === 'police_clearance') handleBoxPress('police');
+    else if (docType === 'tesda_nc2') handleBoxPress('tesda');
     else if (docType === 'national_id_front') handleBoxPress('national_front');
     else if (docType === 'national_id_back') handleBoxPress('national_back');
   };
@@ -241,11 +249,12 @@ export function VerificationStatusModal({
 
   const needsNbi = effectiveRole === 'kasambahay' && (!activeTypes.has('nbi_clearance') || !!nbiImage);
   const needsPolice = effectiveRole === 'kasambahay' && (!activeTypes.has('police_clearance') || !!policeImage);
+  const needsTesda = effectiveRole === 'kasambahay' && (!activeTypes.has('tesda_nc2') || !!tesdaImage);
   const needsFront = effectiveRole === 'homeowner' && (!activeTypes.has('national_id_front') || !!nationalFrontImage);
   const needsBack = effectiveRole === 'homeowner' && (!activeTypes.has('national_id_back') || !!nationalBackImage);
 
-  const hasAnyNeeds = needsNbi || needsPolice || needsFront || needsBack;
-  const hasAnySelected = !!(nbiImage || policeImage || nationalFrontImage || nationalBackImage);
+  const hasAnyNeeds = needsNbi || needsPolice || needsTesda || needsFront || needsBack;
+  const hasAnySelected = !!(nbiImage || policeImage || tesdaImage || nationalFrontImage || nationalBackImage);
 
   const handleUploadAll = async () => {
     if (uploading.current) return;
@@ -268,12 +277,9 @@ export function VerificationStatusModal({
       if (nationalFrontImage && !activeTypes.has('national_id_front')) uploads.push({ type: 'national_id_front', uri: nationalFrontImage });
       if (nationalBackImage && !activeTypes.has('national_id_back')) uploads.push({ type: 'national_id_back', uri: nationalBackImage });
     } else {
-      if (needsNbi && !nbiImage && needsPolice && !policeImage) {
-        Alert.alert('Missing Documents', 'Please upload at least one clearance document.');
-        return;
-      }
       if (nbiImage && !activeTypes.has('nbi_clearance')) uploads.push({ type: 'nbi_clearance', uri: nbiImage });
       if (policeImage && !activeTypes.has('police_clearance')) uploads.push({ type: 'police_clearance', uri: policeImage });
+      if (tesdaImage && !activeTypes.has('tesda_nc2')) uploads.push({ type: 'tesda_nc2', uri: tesdaImage });
     }
 
     if (uploads.length === 0) {
@@ -316,6 +322,7 @@ export function VerificationStatusModal({
         }
         if (upload.type === 'nbi_clearance') setNbiImage(null);
         else if (upload.type === 'police_clearance') setPoliceImage(null);
+        else if (upload.type === 'tesda_nc2') setTesdaImage(null);
         else if (upload.type === 'national_id_front') setNationalFrontImage(null);
         else setNationalBackImage(null);
       }
@@ -323,6 +330,7 @@ export function VerificationStatusModal({
       Alert.alert(uiText('Success'), uiText("Your documents are submitted. We'll notify you after review."));
       setNbiImage(null);
       setPoliceImage(null);
+      setTesdaImage(null);
       setNationalFrontImage(null);
       setNationalBackImage(null);
     } catch (error: any) {
@@ -377,7 +385,7 @@ export function VerificationStatusModal({
                 : isRejected
                   ? uiText("Action Required")
                   : isUnderReview
-                    ? uiText("Under Review")
+                    ? hasAnyNeeds ? uiText('Complete your verification') : uiText("Under Review")
                     : uiText("Verify Your Identity")}
             </Text>
             <Text style={styles.bannerSubtitle}>
@@ -387,7 +395,9 @@ export function VerificationStatusModal({
                 : isRejected
                   ? uiText("One of your documents was not accepted. Please check the notes below.")
                   : isUnderReview
-                    ? uiText("Your documents are currently being reviewed by Barangay Officials.")
+                    ? hasAnyNeeds
+                      ? uiText('Upload your remaining required documents below to complete verification.')
+                      : uiText("Your documents are currently being reviewed by Barangay Officials.")
                     : uiText("Upload your valid identity documents to unlock verified credentials.")}
             </Text>
           </View>
@@ -506,13 +516,14 @@ export function VerificationStatusModal({
 
     const isExpanded = !!expandedDocIds[doc.document_id];
     const isRawExpanded = !!expandedRawDocIds[doc.document_id];
-    const hasOcrData = !!(doc.extracted_data && Object.keys(doc.extracted_data).length > 0);
+    const hasOcrData = !!(doc.extracted_data && Object.keys(doc.extracted_data).filter((k) => !k.startsWith('_')).length > 0);
     const hasDiscrepancies = !!(doc.ocr_discrepancies && doc.ocr_discrepancies.length > 0);
     const isProcessingOcr = doc.document_type !== 'profile_photo' && isPending && !doc.ocr_processed_at && !hasOcrData;
+    const screeningAlert = isPending && !isExpired ? (doc.screening?.user_alert ?? null) : null;
 
-    // Filter valid non-empty entries for raw extracted data
+    // Filter valid non-empty entries for raw extracted data (exclude internal metadata keys)
     const validRawEntries = Object.entries(doc.extracted_data || {}).filter(
-      ([, val]) => val !== null && val !== undefined && String(val).trim() !== '' && String(val).trim().toUpperCase() !== 'UNKNOWN'
+      ([key, val]) => !key.startsWith('_') && val !== null && val !== undefined && typeof val !== 'object' && String(val).trim() !== '' && String(val).trim().toUpperCase() !== 'UNKNOWN'
     );
 
     return (
@@ -527,7 +538,7 @@ export function VerificationStatusModal({
           />
 
           <View style={styles.docItemTitleBox}>
-            <Text style={styles.docItemTitle} numberOfLines={1}>{uiText(docTitle)}</Text>
+            <Text style={styles.docItemTitle} numberOfLines={2}>{uiText(docTitle)}</Text>
             {formattedDate ? (
               <Text style={styles.docItemSub} numberOfLines={1}>
                 {isVerified ? 'Verified by Barangay Official' : `Submitted on ${formattedDate}`}
@@ -603,6 +614,36 @@ export function VerificationStatusModal({
               </Pressable>}
             </View>
           </View>
+        ) : screeningAlert ? (
+          <View style={screeningAlert.level === 'error' ? styles.screeningErrorCard : styles.screeningWarningCard}>
+            <View style={styles.rejectedHeader}>
+              <Ionicons
+                name={screeningAlert.level === 'error' ? 'alert-circle' : 'time-outline'}
+                size={18}
+                color={screeningAlert.level === 'error' ? '#DC2626' : '#B45309'}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={screeningAlert.level === 'error' ? styles.rejectedTitle : styles.screeningWarningTitle}>
+                {uiText(screeningAlert.title)}
+              </Text>
+            </View>
+            <Text style={screeningAlert.level === 'error' ? styles.rejectedReasonText : styles.screeningWarningText}>
+              {screeningAlert.message}
+            </Text>
+            <Pressable
+              style={[
+                styles.reuploadFullBtn,
+                screeningAlert.level === 'warning' && styles.screeningWarningBtn,
+                { marginTop: 10, minHeight: 42 },
+              ]}
+              disabled={uploadLoading}
+              onPress={() => handleReupload(doc.document_type)}
+              accessibilityRole="button"
+            >
+              <Ionicons name="camera-outline" size={17} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.reuploadFullBtnText}>{uiText(screeningAlert.action_label)}</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         {/* Reading Document State (Processing) */}
@@ -653,8 +694,8 @@ export function VerificationStatusModal({
 
             {isExpanded && (
               <View style={styles.ocrExpandedContainer}>
-                {/* Reassuring Friendly Callout Box */}
-                {hasDiscrepancies && (
+                {/* Reassuring Friendly Callout Box (only for minor name/field differences, not blocking flags) */}
+                {hasDiscrepancies && !screeningAlert && (
                   <View style={styles.friendlyNoticeBox}>
                     <View style={styles.friendlyNoticeHeader}>
                       <Ionicons name="bulb-outline" size={18} color="#92400E" style={{ marginRight: 6 }} />
@@ -671,30 +712,37 @@ export function VerificationStatusModal({
                     <Text style={styles.discrepancyBoxHeaderLabel}>{uiText("Here is what we noticed:")}</Text>
 
                     {doc.ocr_discrepancies.map((disc, idx) => {
-                      const fieldLabel = EXTRACTED_FIELD_LABELS[disc.field] || disc.field;
+                      const fieldLabel = EXTRACTED_FIELD_LABELS[disc.field] || disc.field.replace(/_/g, ' ');
+                      const hasComparisonValues = Boolean(disc.profile_value || disc.document_value);
                       return (
                         <View key={idx} style={styles.humanDiscrepancyCard}>
                           <Text style={styles.humanFieldBadge}>{fieldLabel.toUpperCase()}</Text>
 
-                          <View style={styles.humanRow}>
-                            <Text style={styles.humanLabel}>{uiText("Your profile says:")}</Text>
-                            <Text style={styles.humanValProfile}>{disc.profile_value || '(Not set)'}</Text>
-                          </View>
+                          {hasComparisonValues ? (
+                            <>
+                              <View style={styles.humanRow}>
+                                <Text style={styles.humanLabel}>{uiText("Your profile says:")}</Text>
+                                <Text style={styles.humanValProfile}>{disc.profile_value || '(Not set)'}</Text>
+                              </View>
 
-                          <View style={styles.humanRowDivider} />
+                              <View style={styles.humanRowDivider} />
 
-                          <View style={styles.humanRow}>
-                            <Text style={styles.humanLabel}>{uiText("Your document shows:")}</Text>
-                            <Text style={styles.humanValDoc}>{disc.document_value || '(Not found)'}</Text>
-                          </View>
+                              <View style={styles.humanRow}>
+                                <Text style={styles.humanLabel}>{uiText("Your document shows:")}</Text>
+                                <Text style={styles.humanValDoc}>{disc.document_value || '(Not found)'}</Text>
+                              </View>
+                            </>
+                          ) : (
+                            <Text style={styles.humanValDoc}>{disc.message || uiText('Please check this document carefully.')}</Text>
+                          )}
                         </View>
                       );
                     })}
 
                     <View style={styles.profileTipRow}>
-                      <Ionicons name="create-outline" size={15} color="#92400E" style={{ marginRight: 6 }} />
+                      <Ionicons name="chatbubble-ellipses-outline" size={15} color="#92400E" style={{ marginRight: 6 }} />
                       <Text style={styles.profileTipText}>
-                        {uiText("If there is a typo in your SerbiSure name, you can update it anytime in Profile Settings.")}</Text>
+                        {uiText("If there is a typo in your SerbiSure name, message your Barangay official or SerbiSure Admin to update it for you.")}</Text>
                     </View>
                   </View>
                 )}
@@ -743,6 +791,7 @@ export function VerificationStatusModal({
     return (
       <View style={styles.uploadSection}>
         <Text style={styles.uploadSectionHeader}>{uiText("Upload Documents")}</Text>
+        <VerificationPrivacyNotice isHomeowner={effectiveRole === 'homeowner'} />
 
         {needsNbi ? (
           <UploadBox
@@ -763,6 +812,17 @@ export function VerificationStatusModal({
             defaultFilename="police_clearance.jpg"
             onPress={() => handleBoxPress('police')}
             onRemove={() => setPoliceImage(null)}
+          />
+        ) : null}
+
+        {needsTesda ? (
+          <UploadBox
+            title={uiText("TESDA NC II")}
+            subtitle={uiText('Tap to take or choose a photo')}
+            image={tesdaImage}
+            defaultFilename="tesda_nc2.jpg"
+            onPress={() => handleBoxPress('tesda')}
+            onRemove={() => setTesdaImage(null)}
           />
         ) : null}
 
@@ -1481,6 +1541,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     fontFamily: THEME.typography.fontFamily.mainBold,
+  },
+  screeningErrorCard: {
+    marginTop: 10,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    padding: 12,
+  },
+  screeningWarningCard: {
+    marginTop: 10,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    padding: 12,
+  },
+  screeningWarningTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+    flex: 1,
+  },
+  screeningWarningText: {
+    fontSize: 12.5,
+    color: '#78350F',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  screeningWarningBtn: {
+    backgroundColor: '#D97706',
   },
 });
 

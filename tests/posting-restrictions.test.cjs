@@ -32,6 +32,10 @@ function load(relative, mocks = {}) {
     if (name === 'react') return { ...React, default: React };
     if (name in mocks) return mocks[name];
     if (name.endsWith('.png')) return 1;
+    // Load the real shared pricing code, retaining strict handling of other imports.
+    if (name.endsWith('/utils/rate')) return load('src/shared/utils/rate.ts');
+    if (name.endsWith('/posting/validation') || name === '../validation') return load('src/features/posting/validation.ts');
+    if (name === './postingConfig') return load('src/features/posting/postingConfig.ts');
     throw new Error('Unexpected dependency: ' + name);
   }, module, module.exports);
   return module.exports;
@@ -64,7 +68,10 @@ function postingScreen(t, mode = 'service') {
   const { usePostForm } = load('src/features/posting/hooks/usePostForm.ts', {
     'react-native': native, 'react-native-safe-area-context': safeArea,
     '../../bookings/engagementForm': engagement, '../workingHours': load('src/features/posting/workingHours.ts'), '../validation': validation, '../postingConfig': posting,
-    '../../bookings/api/bookingApi': { fetchMinimumWage: async (_token, type) => ({ rate_period: type === 'long_term' ? 'month' : 'day', minimum_rate: type === 'long_term' ? '6500' : '600' }) },
+    '../../bookings/api/bookingApi': {
+      fetchMinimumWage: async (_token, type) => ({ rate_period: type === 'long_term' ? 'month' : 'day', minimum_rate: type === 'long_term' ? '6500' : '600' }),
+      extractPendingReview: data => data?.code === 'pending_mandatory_review' && data?.pending_review?.booking_id ? data.pending_review : null,
+    },
     '../api/postingApi': { submitPost: (...args) => { const request = { ...deferred(), args }; requests.push(request); return request.promise; } },
     '../../auth/session/UserContext': { useUser: () => ({ user }) },
     '../../../shared/localization/LanguageContext': language,
@@ -97,6 +104,7 @@ function postingScreen(t, mode = 'service') {
     '../../../../assets/serbisure-logo.png': 1, '../styles': { postingStyles: {} },
     '../hooks/usePostForm': { usePostForm: props => { controller = usePostForm(props); return controller; } },
     '../../bookings/components/BookingRestrictionModal': restriction,
+    '../../reviews/components/ReviewModal': { ReviewModal: 'ReviewModal' },
     '../../verification/components/VerificationRequiredModal': { VerificationRequiredModal: props => props.visible ? React.createElement('Text', {}, 'Account Verification Required') : null },
     '../components/PostStep1': step1,
     '../components/PostStep2': step2,
@@ -151,10 +159,10 @@ test(`${mode}: short-term replaces a previous Stay-in choice with Stay-out`, asy
   screen.set(form => form.handleBack());
   screen.set(form => form.handleBack());
   assert.equal(screen.form.step, 1);
-  screen.press('Long-term');
+  screen.press('Full-time / Monthly');
   screen.press('Stay-in');
   assert.equal(screen.form.setupPreference, 'stay-in');
-  screen.press('Short-term');
+  screen.press('Part-time / Daily');
   assert.equal(screen.form.setupPreference, 'stay-out');
   await screen.next(); await screen.next();
   assert.equal(screen.form.step, 2); // Changing engagement must not invent replacement work hours.
@@ -163,7 +171,11 @@ test(`${mode}: short-term replaces a previous Stay-in choice with Stay-out`, asy
   assert.equal(screen.form.step, 3);
   await screen.submit(403, { code: 'booking_restricted' });
   assert.equal(screen.requests[0].args[1].work_setup, 'stay_out');
-  assert.doesNotMatch(screen.requests[0].args[1].special_instruction, /stay-out/);
+  if (mode === 'service') {
+    assert.match(screen.requests[0].args[1].special_instruction, /Stay-out \(Goes home\)/);
+    assert.equal(screen.requests[0].args[1].rate_amount, null);
+    assert.doesNotMatch(screen.requests[0].args[1].special_instruction, /expected rate/);
+  } else assert.doesNotMatch(screen.requests[0].args[1].special_instruction, /stay-out/);
 });
 }
 
@@ -233,4 +245,16 @@ test('closing the form ignores a late restriction response', async t => {
   await pending; await tick();
   assert.equal(screen.form.showBookingRestricted, false);
   assert.equal(screen.form.showVerificationRequired, false);
+});
+
+
+test('worker availability has no budget input or summary row and publishes a null price', async t => {
+  const screen = postingScreen(t, 'service');
+  await screen.ready();
+  screen.set(form => { form.setOfferAmount(''); form.handleBack(); });
+  assert.doesNotMatch(screen.text(), /Offer Amount|OFFER AMOUNT|HOMEOWNER'S BUDGET|Offer Rate/);
+  await screen.next(); assert.equal(screen.form.step,3);
+  assert.doesNotMatch(screen.text(), /Offer Amount|Homeowner's Budget|Offer Rate/);
+  await screen.submit(201, {success:true});
+  assert.equal(screen.requests[0].args[1].rate_amount,null);
 });

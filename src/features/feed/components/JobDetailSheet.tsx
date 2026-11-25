@@ -1,4 +1,5 @@
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
+import { formatRate, stripLegacyExpectedRate } from '../../../shared/utils/rate';
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, Image, Pressable, Modal, Animated, PanResponder, Dimensions, ActivityIndicator, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +16,8 @@ const SNAP_COLLAPSED = Math.round(SCREEN_HEIGHT * 0.40);
 const SNAP_DISMISSED = SCREEN_HEIGHT;
 
 export interface JobDetailData {
+  authorRole?: string;
+  kind?: 'job' | 'service';
   start_time?: string;
   end_time?: string | null;
   booking_type?: 'short_term' | 'long_term';
@@ -29,6 +32,8 @@ export interface JobDetailData {
   image?: string;
   time?: string;
   location?: string;
+  distance_km?: number | null;
+  proximity_label?: string | null;
   roleTag?: string;
   termTag?: string;
   tags?: string[];
@@ -39,6 +44,8 @@ export interface JobDetailData {
 }
 
 export interface JobDetailSheetProps {
+  onSubmitBid?: () => void;
+  onMessage?: () => void;
   visible: boolean;
   job: JobDetailData | null;
   onClose: () => void;
@@ -59,6 +66,8 @@ export function JobDetailSheet({
   job,
   onClose,
   onApply,
+  onSubmitBid,
+  onMessage,
   isApplied,
   isApplying = false,
   isSaved = false,
@@ -276,6 +285,7 @@ export function JobDetailSheet({
   const location = job.location || 'Location not provided';
   const time = job.time || 'Date not available';
   const price = job.price || 'Rate not provided';
+  const workerPost = job.authorRole === 'Kasambahay' || job.kind === 'service';
   const unit = job.unit || '';
   const about =
     job.aboutText ||
@@ -347,7 +357,9 @@ export function JobDetailSheet({
                 <View style={styles.locationRow}>
                   <Ionicons name="location-sharp" size={13} color="#F97316" />
                   <Text style={styles.sheetLocation} numberOfLines={1}>
-                    {location}
+                    {job.proximity_label
+                      ? `${location.replace(/City of Cagayan De Oro/gi, 'CDO')} · ${uiText(job.proximity_label)}`
+                      : location}
                   </Text>
                 </View>
 
@@ -392,16 +404,20 @@ export function JobDetailSheet({
           >
             {/* Price & Term Display */}
             <View style={styles.priceRow}>
+              {workerPost ? (
+                <Text style={styles.termText}>{uiText(term.toLowerCase().includes('full') || term.toLowerCase().includes('long') ? 'Full-time / Monthly' : 'Part-time / Daily')}</Text>
+              ) : (
               <View style={styles.priceWrap}>
                 <Text style={styles.sheetPrice}>{price}</Text>
                 <Text style={styles.sheetUnit}> / {unit?.replace(/^\//, '').trim() || 'month'}</Text>
               </View>
-              <View style={[styles.termBadge, term.toLowerCase().includes('short') && styles.termBadgeShort]}>
+              )}
+              {!workerPost && <View style={[styles.termBadge, term.toLowerCase().includes('short') && styles.termBadgeShort]}>
                 <Ionicons name="briefcase-outline" size={14} color="#0D0D11" style={{ marginRight: 5 }} />
                 <Text style={[styles.termText, term.toLowerCase().includes('short') && styles.termTextShort]}>
                   {term}
                 </Text>
-              </View>
+              </View>}
             </View>
 
             <View style={styles.scheduleSection}>
@@ -413,7 +429,7 @@ export function JobDetailSheet({
             {/* About This Role (Clean Squircle Card) */}
             <View style={styles.aboutCard}>
               <Text style={styles.aboutTitle}>{uiText("ABOUT THIS ROLE")}</Text>
-              <Text style={styles.aboutBody}>{about}</Text>
+              <Text style={styles.aboutBody}>{workerPost ? stripLegacyExpectedRate(about) : about}</Text>
             </View>
 
             {/* Dynamic Worker/Employer Feedback Summary from Database */}
@@ -508,10 +524,17 @@ export function JobDetailSheet({
                 </View>
               ) : (
                 <Text style={styles.applyBtnText}>
-                  {ctaText || ((job as any)?.kind === 'service' || (job as any)?.authorRole === 'Kasambahay' ? uiText('Offer to Book') : uiText('Apply Now'))}
+                  {workerPost ? ctaText || uiText('Offer to Book') : uiText('Accept {amount}', { amount: formatRate(price) })}
                 </Text>
               )}
             </Pressable>
+
+            {!workerPost && !isClosed && !isApplied && onSubmitBid && <Pressable accessibilityRole="button" style={[styles.applyBtn, { marginTop: 8, backgroundColor: '#FFF1E5' }]} onPress={onSubmitBid}>
+              <Text style={[styles.applyBtnText, { color: '#8C421F' }]}>{uiText('Submit a Bid')}</Text>
+            </Pressable>}
+            {onMessage && <Pressable accessibilityRole="button" style={{ paddingVertical: 12, alignItems: 'center' }} onPress={onMessage}>
+              <Text style={{ color: '#4B5563', fontWeight: '600' }}>{uiText('Message')}</Text>
+            </Pressable>}
 
             <Text style={styles.applyNotice}>
               {isClosed

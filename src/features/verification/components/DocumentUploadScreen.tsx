@@ -1,6 +1,6 @@
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
-import { Image, Pressable, StyleSheet, Text, View, Alert, ActivityIndicator } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { IDPhotoModal } from './IDPhotoModal';
@@ -11,6 +11,7 @@ import { RegistrationStepper } from '../../auth/components/RegistrationStepper';
 import type { SelfieUploadTask } from '../api/selfieUpload';
 import { APP_HEADER_BACK_ICON_COLOR, APP_HEADER_BACK_ICON_SIZE, APP_HEADER_LOGO_SIZE, APP_HEADER_SIDE_WIDTH } from '../../../shared/components/AppHeader';
 import { canReplaceDocument, currentDocuments } from '../documentStatus';
+import { VerificationPrivacyNotice } from '../../profile/components/PrivacyPolicyModal';
 
 const noSubscription = () => () => {};
 const noSelfieUpload = () => null;
@@ -40,9 +41,10 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
   const { tr: uiText } = useUiLanguage();
   const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
-  const [activeBox, setActiveBox] = useState<'nbi' | 'police' | 'national_front' | 'national_back' | null>(null);
+  const [activeBox, setActiveBox] = useState<'nbi' | 'police' | 'tesda' | 'national_front' | 'national_back' | null>(null);
   const [nbiImage, setNbiImage] = useState<string | null>(null);
   const [policeImage, setPoliceImage] = useState<string | null>(null);
+  const [tesdaImage, setTesdaImage] = useState<string | null>(null);
   const [nationalFrontImage, setNationalFrontImage] = useState<string | null>(null);
   const [nationalBackImage, setNationalBackImage] = useState<string | null>(null);
   const [existingDocs, setExistingDocs] = useState<Set<string>>(new Set());
@@ -92,7 +94,7 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
     }
   }, [token]);
 
-  const handleBoxPress = (box: 'nbi' | 'police' | 'national_front' | 'national_back') => {
+  const handleBoxPress = (box: 'nbi' | 'police' | 'tesda' | 'national_front' | 'national_back') => {
     setActiveBox(box);
     setModalVisible(true);
   };
@@ -100,6 +102,7 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
   const handlePickedImage = (uri: string) => {
     if (activeBox === 'nbi') setNbiImage(uri);
     else if (activeBox === 'police') setPoliceImage(uri);
+    else if (activeBox === 'tesda') setTesdaImage(uri);
     else if (activeBox === 'national_front') setNationalFrontImage(uri);
     else if (activeBox === 'national_back') setNationalBackImage(uri);
   };
@@ -124,12 +127,14 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
     } else {
       const hasNbi = existingDocs.has('nbi_clearance') || !!nbiImage;
       const hasPolice = existingDocs.has('police_clearance') || !!policeImage;
-      if (!hasNbi && !hasPolice) {
-        Alert.alert("Missing Documents", "Please upload at least one clearance document.");
+      const hasTesda = existingDocs.has('tesda_nc2') || !!tesdaImage;
+      if (!hasNbi || !hasPolice || !hasTesda) {
+        Alert.alert(uiText("Missing Documents"), uiText("Please upload your NBI Clearance, Police Clearance, and TESDA NC II."));
         return;
       }
       if (nbiImage && !existingDocs.has('nbi_clearance')) uploads.push({ type: 'nbi_clearance', uri: nbiImage });
       if (policeImage && !existingDocs.has('police_clearance')) uploads.push({ type: 'police_clearance', uri: policeImage });
+      if (tesdaImage && !existingDocs.has('tesda_nc2')) uploads.push({ type: 'tesda_nc2', uri: tesdaImage });
     }
 
     busy.current = true;
@@ -254,7 +259,8 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
             />
           </View>
 
-          <View style={styles.uploadBoxesSection}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.uploadBoxesSection} showsVerticalScrollIndicator={false}>
+            <VerificationPrivacyNotice isHomeowner={role === 'homeowner'} />
             {role === 'homeowner' ? (
               <>
                 <Pressable style={[styles.uploadBox, styles.uploadBoxHomeowner, (!!nationalFrontImage || existingDocs.has('national_id_front')) && styles.uploadBoxHasImage]} onPress={() => handleBoxPress('national_front')}>
@@ -305,13 +311,19 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
               </>
             ) : (
               <>
-                <Pressable style={[styles.uploadBox, styles.uploadBoxKasambahay, !!nbiImage && styles.uploadBoxHasImage]} onPress={() => handleBoxPress('nbi')}>
+                <Pressable style={[styles.uploadBox, styles.uploadBoxKasambahay, (!!nbiImage || existingDocs.has('nbi_clearance')) && styles.uploadBoxHasImage]} onPress={() => handleBoxPress('nbi')}>
                   {nbiImage ? (
                     <View style={styles.attachmentContainer}>
                       <Image source={{ uri: nbiImage }} style={styles.uploadPreview} resizeMode="cover" />
                       <Text style={styles.fileNameTextItalic} numberOfLines={1}>
                         {getFileName(nbiImage, 'nbi_clearance.jpg')}
                       </Text>
+                    </View>
+                  ) : existingDocs.has('nbi_clearance') ? (
+                    <View style={styles.attachmentContainer}>
+                      <Ionicons name="checkmark-circle" size={32} color="#16A34A" />
+                      <Text style={[styles.uploadTitle, { color: '#16A34A', marginTop: 4 }]}>{uiText("NBI Clearance")}</Text>
+                      <Text style={[styles.uploadSubtitle, { color: '#15803D' }]}>{uiText("Submitted (Under Review)")}</Text>
                     </View>
                   ) : (
                     <>
@@ -322,13 +334,19 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
                   )}
                 </Pressable>
 
-                <Pressable style={[styles.uploadBox, styles.uploadBoxKasambahay, !!policeImage && styles.uploadBoxHasImage]} onPress={() => handleBoxPress('police')}>
+                <Pressable style={[styles.uploadBox, styles.uploadBoxKasambahay, (!!policeImage || existingDocs.has('police_clearance')) && styles.uploadBoxHasImage]} onPress={() => handleBoxPress('police')}>
                   {policeImage ? (
                     <View style={styles.attachmentContainer}>
                       <Image source={{ uri: policeImage }} style={styles.uploadPreview} resizeMode="cover" />
                       <Text style={styles.fileNameTextItalic} numberOfLines={1}>
                         {getFileName(policeImage, 'police_clearance.jpg')}
                       </Text>
+                    </View>
+                  ) : existingDocs.has('police_clearance') ? (
+                    <View style={styles.attachmentContainer}>
+                      <Ionicons name="checkmark-circle" size={32} color="#16A34A" />
+                      <Text style={[styles.uploadTitle, { color: '#16A34A', marginTop: 4 }]}>{uiText("Police Clearance")}</Text>
+                      <Text style={[styles.uploadSubtitle, { color: '#15803D' }]}>{uiText("Submitted (Under Review)")}</Text>
                     </View>
                   ) : (
                     <>
@@ -338,9 +356,32 @@ export function DocumentUploadScreen({ role = 'kasambahay', token, selfieUpload,
                     </>
                   )}
                 </Pressable>
+
+                <Pressable style={[styles.uploadBox, styles.uploadBoxKasambahay, (!!tesdaImage || existingDocs.has('tesda_nc2')) && styles.uploadBoxHasImage]} onPress={() => handleBoxPress('tesda')}>
+                  {tesdaImage ? (
+                    <View style={styles.attachmentContainer}>
+                      <Image source={{ uri: tesdaImage }} style={styles.uploadPreview} resizeMode="cover" />
+                      <Text style={styles.fileNameTextItalic} numberOfLines={1}>
+                        {getFileName(tesdaImage, 'tesda_nc2.jpg')}
+                      </Text>
+                    </View>
+                  ) : existingDocs.has('tesda_nc2') ? (
+                    <View style={styles.attachmentContainer}>
+                      <Ionicons name="checkmark-circle" size={32} color="#16A34A" />
+                      <Text style={[styles.uploadTitle, { color: '#16A34A', marginTop: 4 }]}>{uiText("TESDA NC II")}</Text>
+                      <Text style={[styles.uploadSubtitle, { color: '#15803D' }]}>{uiText("Submitted (Under Review)")}</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload-outline" size={28} color={THEME.colors.brand} style={styles.uploadIcon} />
+                      <Text style={styles.uploadTitle}>{uiText("TESDA NC II")}</Text>
+                      <Text style={styles.uploadSubtitle}>{uiText("Tap or upload image")}</Text>
+                    </>
+                  )}
+                </Pressable>
               </>
             )}
-          </View>
+          </ScrollView>
 
           <View>
             <View style={styles.divider} />
@@ -450,7 +491,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   uploadBoxesSection: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingVertical: 8,
   },

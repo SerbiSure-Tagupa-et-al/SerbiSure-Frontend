@@ -37,10 +37,10 @@ export function isPostAvailable(post: PostState, now = Date.now()): boolean {
 
 export function applicationLabel(post: PostState, now = Date.now()): string {
   const status = post.application_status;
-  if (status === 'accepted') return 'Selected';
+  if (status === 'accepted') return 'Hired';
   if (status === 'withdrawn') return 'Withdrawn';
-  if (status === 'not_selected') return 'Closed / Not Selected';
+  if (status === 'not_selected') return 'Position Filled';
   if (status === 'cancelled' || postDisplayStatus(post, now) === 'Cancelled') return 'Closed / Cancelled';
-  if (!isPostAvailable(post, now)) return 'Closed / Not Selected';
-  return 'Application sent';
+  if (!isPostAvailable(post, now)) return 'Position Filled';
+  return 'Pending Review';
 }

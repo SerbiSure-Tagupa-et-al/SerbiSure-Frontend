@@ -85,7 +85,7 @@ export function WorkerCvModal({ visible, onClose, userId, token, editable = fals
       if (current !== generation.current) return;
       const initialDraft = workerDraft(result, cv?.details?.service_categories || [], cv?.languages || '');
       if (!initialDraft.available_days || initialDraft.available_days.length === 0) {
-        initialDraft.available_days = ['M', 'T', 'W', 'TH', 'F', 'SA', 'SU'];
+        initialDraft.available_days = ['M', 'T', 'W', 'Th', 'F', 'S', 'Su'];
       }
       setDraft(initialDraft);
       setEditing(true);
@@ -124,7 +124,16 @@ export function WorkerCvModal({ visible, onClose, userId, token, editable = fals
       await refresh(current);
       if (current === generation.current) onSaved?.();
     } catch (err) {
-      if (current === generation.current) setError(err instanceof Error ? err.message : 'Could not save your details. Please try again.');
+      if (current === generation.current) {
+        let message = err instanceof Error ? err.message : 'Could not save your details. Please try again.';
+        const details = err && typeof err === 'object' && 'details' in err ? (err as { details?: unknown }).details : null;
+        if (details && typeof details === 'object') {
+          const firstVal = Object.values(details as Record<string, unknown>)[0];
+          const firstMsg = Array.isArray(firstVal) ? firstVal[0] : firstVal;
+          if (typeof firstMsg === 'string' && firstMsg.trim()) message = firstMsg.trim();
+        }
+        setError(message);
+      }
     } finally {
       if (current === generation.current) {
         action.current = false;

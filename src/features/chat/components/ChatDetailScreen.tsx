@@ -9,16 +9,19 @@ import { useScheduleClock } from '../../bookings/hooks/useScheduleClock';
 import { sendBookingOffer, respondToBookingOffer } from '../api/bookingOffersApi';
 import type { BookingConfirmData } from '../../bookings/components/BookingModal';
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
-import { StyleSheet, Text, View, Image, TextInput, FlatList, Pressable, Modal, Keyboard, KeyboardAvoidingView, Platform, Alert, Animated, ActivityIndicator, Dimensions, PanResponder, ToastAndroid, NativeModules, LayoutChangeEvent } from 'react-native';
+import { StyleSheet, Text, View, Image, TextInput, FlatList, ScrollView, Pressable, Modal, Keyboard, KeyboardAvoidingView, Platform, Alert, Animated, ActivityIndicator, Dimensions, PanResponder, ToastAndroid, NativeModules, LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { BookingModal } from '../../bookings/components/BookingModal';
-import { confirmBookingAcceptance, bookingResponseMessage } from '../../bookings/bookingAcceptance';
+import { confirmBookingAcceptance, bookingResponseMessage, getPendingReviewFromError, promptPendingReview } from '../../bookings/bookingAcceptance';
+import type { PendingMandatoryReview } from '../../bookings/api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { UserProfileView } from '../../profile/components/UserProfileView';
 import { OfficialProfileModal } from '../../profile/components/OfficialProfileModal';
 import { useChatSafety } from '../hooks/useChatSafety';
 import { containsOffensiveLanguage, OFFENSIVE_LANGUAGE_ADVISORY } from '../offensiveLanguage';
+import { analyzeChatCurrency, buildRateProposalMessage, formatRate, formatRateInput, type ChatCurrencyAnalysis } from '../chatCurrency';
 
 import { useUser } from '../../auth/session/UserContext';
 import THEME from '../../../shared/theme/theme';
@@ -487,6 +490,22 @@ function ChatDetailSession({
     `https://ui-avatars.com/api/?name=${encodeURIComponent(contactName || 'User')}&background=FFB43B&color=fff`;
 
   const [inputMessage, setInputMessage] = useState('');
+  const [rateModalVisible, setRateModalVisible] = useState(false);
+  const [proposalType, setProposalType] = useState<'short_term' | 'long_term'>('short_term');
+  const [proposalAmount, setProposalAmount] = useState('');
+  const [amountAlert, setAmountAlert] = useState<{ blocking: boolean; message: string; edit: () => void; send?: () => void; amountFormatted: string } | null>(null);
+  const currencyAnalysis = useMemo(() => !isSupportConversation ? analyzeChatCurrency(inputMessage) : null, [inputMessage, isSupportConversation]);
+  const currencyWarningText = (warning: NonNullable<ChatCurrencyAnalysis['warning']>) =>
+    uiText(warning.message.replace(warning.amountFormatted, '{amount}'), { amount: warning.amountFormatted });
+  const proposalPeriod = proposalType === 'short_term' ? 'day' : 'month';
+  const proposalAnalysis = analyzeChatCurrency(`₱${proposalAmount} / ${proposalPeriod}`);
+  const proposalError = !proposalAmount.trim() ? null
+    : !/^\d+(?:\.\d{1,2})?$/.test(proposalAmount) || !proposalAnalysis.hasAmount
+      ? uiText('Enter a valid amount with up to two decimal places.')
+      : proposalAnalysis.warning ? currencyWarningText(proposalAnalysis.warning) : null;
+  const quickReplies = isHomeowner
+    ? ['How much is your expected rate?', 'Part-time / Daily or Full-time / Monthly?', 'Is this rate negotiable?']
+    : ['What is the offered budget?', 'Part-time / Daily or Full-time / Monthly?', 'Are you still hiring?'];
   const sendingText = useRef(false);
   const [isSendingText, setIsSendingText] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(cachedThread || []);
@@ -511,6 +530,13 @@ function ChatDetailSession({
       initialAutoSentKey.current = null;
     }
   }, [visible]);
+  useEffect(() => {
+    if (!visible || chatPaused || isSupportConversation) {
+      setAmountAlert(null);
+      setRateModalVisible(false);
+      setProposalAmount('');
+    }
+  }, [visible, chatPaused, isSupportConversation]);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const removalPending = useRef(false);
@@ -715,6 +741,7 @@ function ChatDetailSession({
   const [threadLoading, setThreadLoading] = useState(cachedThread === null);
   const [threadError, setThreadError] = useState<string | null>(null);
   const [threadReload, setThreadReload] = useState(0);
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
   const offerDraft = useRef<{ body: string; key: string } | null>(null);
 
   useLayoutEffect(() => {
@@ -729,9 +756,11 @@ function ChatDetailSession({
       await respondToBookingOffer(effectiveToken, card, action);
       if (!sessionActive.current) return;
       setMessages(current => current.map(message => message.id === msgId && message.bookingInfo ? {
-        ...message, bookingInfo: { ...message.bookingInfo, canRespond: false,
+        ...message, bookingInfo: {
+          ...message.bookingInfo, canRespond: false,
           isConfirmed: action === 'accept', isDeclined: action === 'reject',
-          title: action === 'accept' ? 'BOOKING CONFIRMED' : 'BOOKING DECLINED' },
+          title: action === 'accept' ? 'BOOKING CONFIRMED' : 'BOOKING DECLINED'
+        },
       } : message));
       if (action === 'accept') savedJobsStore.markJobClosed(card.bookingId);
     } finally {
@@ -747,7 +776,13 @@ function ChatDetailSession({
     const respond = () => {
       if (!sessionActive.current) return;
       void handleOfferResponse(id, action).catch(error => {
-        if (sessionActive.current) Alert.alert(uiText('Booking not updated'), uiText(bookingResponseMessage(error)));
+        if (!sessionActive.current) return;
+        const requiredReview = getPendingReviewFromError(error);
+        if (requiredReview) {
+          promptPendingReview(requiredReview, bookingResponseMessage(error), setPendingReview, uiText);
+        } else {
+          Alert.alert(uiText('Booking not updated'), uiText(bookingResponseMessage(error)));
+        }
       });
     };
     if (action === 'accept') confirmBookingAcceptance(card.bookingType, uiText, respond);
@@ -819,8 +854,10 @@ function ChatDetailSession({
             const visibleItems = items.filter((m) => !chatStore.isMessageDeleted(m.chat_message_id));
             const mapped: ChatMessage[] = visibleItems.map((m) => {
               const persistedOffer = mapBookingCard(m.booking_offer);
-              if (persistedOffer) return { id: m.chat_message_id, sender: 'system' as const,
-                bookingInfo: persistedOffer, time: formatTimeOnly(m.createdAt), createdAtRaw: m.createdAt };
+              if (persistedOffer) return {
+                id: m.chat_message_id, sender: 'system' as const,
+                bookingInfo: persistedOffer, time: formatTimeOnly(m.createdAt), createdAtRaw: m.createdAt
+              };
 
               let displayReaction = m.my_reaction || undefined;
               if (!displayReaction && m.reaction_summary) {
@@ -935,11 +972,11 @@ function ChatDetailSession({
                 text: initialMessage,
                 replyTo: initialReplyTo
                   ? {
-                      author: initialReplyTo.author,
-                      text: initialReplyTo.text,
-                      imageUri: initialReplyTo.imageUri,
-                      messageId: initialReplyTo.messageId,
-                    }
+                    author: initialReplyTo.author,
+                    text: initialReplyTo.text,
+                    imageUri: initialReplyTo.imageUri,
+                    messageId: initialReplyTo.messageId,
+                  }
                   : undefined,
                 time: formatTimeOnly(),
               };
@@ -1085,7 +1122,7 @@ function ChatDetailSession({
           clearTimeout(typingTimer);
           if (event.is_typing) typingTimer = setTimeout(() => setIsOtherTyping(false), 5000);
         } else if (event.type === 'sync' || event.type === 'booking.changed' ||
-                   (event.type === 'chat.changed' && event.partner_id === partnerId)) syncThread(false);
+          (event.type === 'chat.changed' && event.partner_id === partnerId)) syncThread(false);
       });
       syncThread(true);
       const appState = AppState.addEventListener('change', state => { if (state === 'active') syncThread(false); });
@@ -1104,13 +1141,29 @@ function ChatDetailSession({
     }
   }, [visible, transitionReady, partnerId, effectiveToken, resolvedAvatar, initialMessage, threadReload, threadKey, presenceAccount]);
 
-  const handleSend = (acknowledged = false) => {
-    const trimmed = inputMessage.trim();
+  const handleSend = (acknowledged = false, overrideText?: string, skipAmountWarning = false) => {
+    const rawTrimmed = (overrideText ?? inputMessage).trim();
+    let trimmed = rawTrimmed;
     if (!trimmed || sendingText.current || chatPaused) return;
     if (!partnerId || !effectiveToken) { Alert.alert('Sign in required', 'Please sign in before sending messages.'); return; }
+    if (!isSupportConversation) {
+      const analysis = analyzeChatCurrency(rawTrimmed);
+      trimmed = analysis.formattedText;
+      if (analysis.warning && (analysis.warning.blocking || !skipAmountWarning)) {
+        const blocking = analysis.warning.blocking;
+        if (blocking && overrideText === undefined) setInputMessage(trimmed);
+        setAmountAlert({ blocking, amountFormatted: analysis.warning.amountFormatted,
+          message: currencyWarningText(analysis.warning) + (blocking ? '' : ` ${uiText('Formal booking offers enforce these limits.')}`),
+          edit: () => { if (overrideText === undefined) setInputMessage(trimmed); inputRef.current?.focus(); },
+          // Keep the original source: typed messages clear; quick sends preserve the draft.
+          send: blocking ? undefined : () => { if (sessionActive.current) handleSend(acknowledged, overrideText, true); },
+        });
+        return;
+      }
+    }
     const quoted = replyingTo ? `> [${replyingTo.author}]: ${replyingTo.text}\n\n` : '';
     if (acknowledged !== true && containsOffensiveLanguage(quoted + trimmed)) {
-      setLanguageWarning({ send: () => { if (sessionActive.current) handleSend(true); } });
+      setLanguageWarning({ send: () => { if (sessionActive.current) handleSend(true, overrideText, skipAmountWarning); } });
       return;
     }
     sendingText.current = true;
@@ -1169,7 +1222,7 @@ function ChatDetailSession({
       return [...nonTyping, newMessage];
     });
 
-    setInputMessage('');
+    if (overrideText === undefined) setInputMessage('');
 
     setTimeout(() => {
       scrollViewRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -1201,7 +1254,7 @@ function ChatDetailSession({
           setInputMessage(current => current || trimmed);
           setReplyingTo(current => current || currentReply);
           if (err?.details?.code === 'offensive_language_warning') {
-            setLanguageWarning({ send: () => { if (sessionActive.current) handleSend(true); } });
+            setLanguageWarning({ send: () => { if (sessionActive.current) handleSend(true, overrideText, skipAmountWarning); } });
             return;
           }
           Alert.alert('Message not sent', err.message || 'Could not send message. Please try again.');
@@ -1547,18 +1600,18 @@ function ChatDetailSession({
               }}
               ListHeaderComponent={isOtherTyping ? <TypingDotsIndicator avatarUri={resolvedAvatar} useOfficialLogo={useOfficialLogo} /> : null}
               ListFooterComponent={<>
-              {/* Show initial Date Separator if empty thread */}
-              {messages.length === 0 && !threadLoading && !threadError ? (
-                <View style={{ padding: 32, alignItems: 'center' }}>
-                  <Ionicons name="chatbubbles-outline" size={38} color="#9CA3AF" />
-                  <Text style={{ marginTop: 12, fontWeight: '700' }}>{uiText("No messages yet")}</Text>
-                  <Text style={{ marginTop: 6, color: '#6B7280', textAlign: 'center' }}>{isSupportConversation ? 'Tell us how we can help. Your message will be sent to this support desk.' : 'Send a message or use the calendar button to propose a booking.'}</Text>
-                </View>
-              ) : null}
+                {/* Show initial Date Separator if empty thread */}
+                {messages.length === 0 && !threadLoading && !threadError ? (
+                  <View style={{ padding: 32, alignItems: 'center' }}>
+                    <Ionicons name="chatbubbles-outline" size={38} color="#9CA3AF" />
+                    <Text style={{ marginTop: 12, fontWeight: '700' }}>{uiText("No messages yet")}</Text>
+                    <Text style={{ marginTop: 6, color: '#6B7280', textAlign: 'center' }}>{isSupportConversation ? 'Tell us how we can help. Your message will be sent to this support desk.' : 'Send a message or use the calendar button to propose a booking.'}</Text>
+                  </View>
+                ) : null}
 
-              {liveStatus !== 'connected' ? <Text accessibilityLiveRegion="polite" style={{ padding: 12, color: '#71717A', fontSize: 12 }}>{liveStatus === 'unauthorized' ? 'Live updates unavailable. Please sign in again.' : 'Reconnecting live updates…'}</Text> : null}
-              {threadLoading && !messages.length ? <ActivityIndicator style={{ marginTop: 32 }} color="#FFB380" /> : null}
-              {threadError ? <View style={{ padding: 20 }}><Text>{uiText(threadError)}</Text><Pressable onPress={() => setThreadReload(value => value + 1)}><Text style={{ marginTop: 8, color: '#EA580C' }}>{uiText("Retry conversation")}</Text></Pressable></View> : null}
+                {liveStatus !== 'connected' ? <Text accessibilityLiveRegion="polite" style={{ padding: 12, color: '#71717A', fontSize: 12 }}>{liveStatus === 'unauthorized' ? 'Live updates unavailable. Please sign in again.' : 'Reconnecting live updates…'}</Text> : null}
+                {threadLoading && !messages.length ? <ActivityIndicator style={{ marginTop: 32 }} color="#FFB380" /> : null}
+                {threadError ? <View style={{ padding: 20 }}><Text>{uiText(threadError)}</Text><Pressable onPress={() => setThreadReload(value => value + 1)}><Text style={{ marginTop: 8, color: '#EA580C' }}>{uiText("Retry conversation")}</Text></Pressable></View> : null}
               </>}
               renderItem={({ item, index: reversedIndex }) => {
                 const index = messages.length - 1 - reversedIndex;
@@ -1618,7 +1671,7 @@ function ChatDetailSession({
                       <View style={styles.leftMessageCol}>
                         <Pressable accessibilityRole="button" accessibilityLabel="Open sensitive message"
                           onPress={() => setSensitiveTarget(item.id)} style={styles.sensitiveBubble}>
-                          <Text accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.sensitiveBlur}>━━━━━━━━━━━━{ '\n' }━━━━━━━━</Text>
+                          <Text accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.sensitiveBlur}>━━━━━━━━━━━━{'\n'}━━━━━━━━</Text>
                           <Text style={styles.sensitiveLabel}>Sensitive message · Tap to view</Text>
                         </Pressable>
                       </View>
@@ -2029,85 +2082,176 @@ function ChatDetailSession({
           {!bookingModalVisible && (
             <>
               {replyingTo ? (
-            <View style={styles.replyBanner}>
-              {replyingTo.imageUri ? (
-                <Image
-                  source={{ uri: replyingTo.imageUri }}
-                  style={styles.replyBannerPhotoThumb}
-                  resizeMode="cover"
-                />
-              ) : null}
-              <View style={styles.replyBannerContent}>
-                <View style={styles.replyBannerTopRow}>
-                  <View style={styles.replyBannerHeaderLeft}>
-                    <Ionicons name="arrow-undo" size={13} color="#8E8E93" style={{ marginRight: 5 }} />
-                    <Text style={styles.replyBannerAuthor}>
-                      {uiText("Replying to")}{' '}<Text style={styles.replyBannerAuthorName}>{replyingTo.author}</Text>
-                    </Text>
+                <View style={styles.replyBanner}>
+                  {replyingTo.imageUri ? (
+                    <Image
+                      source={{ uri: replyingTo.imageUri }}
+                      style={styles.replyBannerPhotoThumb}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+                  <View style={styles.replyBannerContent}>
+                    <View style={styles.replyBannerTopRow}>
+                      <View style={styles.replyBannerHeaderLeft}>
+                        <Ionicons name="arrow-undo" size={13} color="#8E8E93" style={{ marginRight: 5 }} />
+                        <Text style={styles.replyBannerAuthor}>
+                          {uiText("Replying to")}{' '}<Text style={styles.replyBannerAuthorName}>{replyingTo.author}</Text>
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => setReplyingTo(null)}
+                        hitSlop={8}
+                        style={styles.replyBannerCloseBtn}
+                        accessibilityLabel="Cancel reply"
+                      >
+                        <Ionicons name="close" size={17} color="#8E8E93" />
+                      </Pressable>
+                    </View>
+                    {!isGenericPhotoReply(replyingTo.text, replyingTo.imageUri) ? <Text style={styles.replyBannerText} numberOfLines={1}>
+                      {replyingTo.text}
+                    </Text> : null}
                   </View>
-                  <Pressable
-                    onPress={() => setReplyingTo(null)}
-                    hitSlop={8}
-                    style={styles.replyBannerCloseBtn}
-                    accessibilityLabel="Cancel reply"
-                  >
-                    <Ionicons name="close" size={17} color="#8E8E93" />
-                  </Pressable>
                 </View>
-                {!isGenericPhotoReply(replyingTo.text, replyingTo.imageUri) ? <Text style={styles.replyBannerText} numberOfLines={1}>
-                  {replyingTo.text}
-                </Text> : null}
+              ) : null}
+
+              {/* Messenger Style Input Footer */}
+              {!!safety?.restricted_until && !isSupportConversation && <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+                <Text style={{ color: '#6B7280', fontSize: 13 }}>{uiText("Messaging paused until")} {new Date(safety.restricted_until).toLocaleString()}{uiText(". Contact your Barangay desk or SerbiSure Support for help.")}</Text>
+              </View>}
+              {isUploadingImage && (
+                <View style={styles.uploadingBar}>
+                  <ActivityIndicator size="small" color="#FFB43B" />
+                  <Text style={styles.uploadingText}>{uiText("Sending photo...")}</Text>
+                </View>
+              )}
+              {!isSupportConversation && !chatPaused && (
+                <>
+                  {currencyAnalysis?.hasAmount && (currencyAnalysis.warning || currencyAnalysis.hint || currencyAnalysis.formattedText !== inputMessage.trim()) ? (
+                    <View testID="chat-currency-banner" style={[styles.currencyBanner, currencyAnalysis.warning && styles.currencyBannerWarning]}>
+                      <Text style={styles.currencyHint}>
+                        {currencyAnalysis.warning ? currencyWarningText(currencyAnalysis.warning)
+                          : [currencyAnalysis.formattedText !== inputMessage.trim() ? uiText('Auto-formats as {amount}', { amount: currencyAnalysis.amounts[0]?.formatted || '' }) : '',
+                            currencyAnalysis.hint ? uiText(currencyAnalysis.hint) : ''].filter(Boolean).join(' ')}
+                      </Text>
+                      <View style={styles.currencyActions}>
+                        {currencyAnalysis.warning && <Pressable accessibilityRole="button" disabled={isSendingText} onPress={() => { Keyboard.dismiss(); setRateModalVisible(true); }} style={styles.currencyPillAccent}>
+                          <Text style={styles.currencyPillText}>{uiText('Propose a Rate')}</Text>
+                        </Pressable>}
+                        {currencyAnalysis.formattedText !== inputMessage.trim() && !currencyAnalysis.warning?.blocking && <Pressable accessibilityRole="button" disabled={isSendingText} onPress={() => setInputMessage(currencyAnalysis.formattedText)} style={styles.currencyPill}>
+                          <Text style={styles.currencyPillText}>{uiText('Format')}</Text>
+                        </Pressable>}
+                      </View>
+                    </View>
+                  ) : null}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={styles.currencyQuickReplies} contentContainerStyle={styles.currencyQuickReplyContent}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={uiText('Propose a Rate')} disabled={isSendingText} onPress={() => { Keyboard.dismiss(); setRateModalVisible(true); }} style={[styles.currencyPill, styles.currencyPillAccent]}>
+                      <Ionicons name="cash-outline" size={14} color="#9A4A20" />
+                      <Text style={styles.currencyPillText}>{uiText('Propose a Rate')}</Text>
+                    </Pressable>
+                    {quickReplies.map(reply => <Pressable key={reply} accessibilityRole="button" accessibilityLabel={uiText(reply)} disabled={isSendingText} onPress={() => handleSend(false, uiText(reply))} style={styles.currencyPill}>
+                      <Text style={styles.currencyPillText}>{uiText(reply)}</Text>
+                    </Pressable>)}
+                  </ScrollView>
+                </>
+              )}
+              <View style={[styles.inputFooter, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+                <Pressable style={styles.attachBtn} disabled={chatPaused} onPress={handlePickImage}>
+                  <Ionicons name="add-circle" size={32} color="#FFB43B" />
+                </Pressable>
+                <Pressable style={styles.imageBtn} disabled={chatPaused} onPress={handlePickImage}>
+                  <Ionicons name="image-outline" size={22} color="#888" />
+                </Pressable>
+
+                <TextInput
+                  ref={inputRef}
+                  style={styles.textInput}
+                  placeholder={uiText("Type a message...")}
+                  placeholderTextColor="#888"
+                  value={inputMessage}
+                  editable={!isSendingText && !chatPaused}
+                  onChangeText={(text) => {
+                    setInputMessage(text);
+                    handleTyping();
+                  }}
+                  multiline
+                />
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sendBtn,
+                    (!inputMessage.trim() || chatPaused) && styles.sendBtnDisabled,
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => handleSend()}
+                  disabled={!inputMessage.trim() || isSendingText || chatPaused}
+                >
+                  {isSendingText ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />}
+                </Pressable>
               </View>
-            </View>
-          ) : null}
-
-          {/* Messenger Style Input Footer */}
-          {!!safety?.restricted_until && !isSupportConversation && <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
-            <Text style={{ color: '#6B7280', fontSize: 13 }}>{uiText("Messaging paused until")} {new Date(safety.restricted_until).toLocaleString()}{uiText(". Contact your Barangay desk or SerbiSure Support for help.")}</Text>
-          </View>}
-          {isUploadingImage && (
-            <View style={styles.uploadingBar}>
-              <ActivityIndicator size="small" color="#FFB43B" />
-              <Text style={styles.uploadingText}>{uiText("Sending photo...")}</Text>
-            </View>
-          )}
-          <View style={[styles.inputFooter, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-            <Pressable style={styles.attachBtn} disabled={chatPaused} onPress={handlePickImage}>
-              <Ionicons name="add-circle" size={32} color="#FFB43B" />
-            </Pressable>
-            <Pressable style={styles.imageBtn} disabled={chatPaused} onPress={handlePickImage}>
-              <Ionicons name="image-outline" size={22} color="#888" />
-            </Pressable>
-
-            <TextInput
-              ref={inputRef}
-              style={styles.textInput}
-              placeholder={uiText("Type a message...")}
-              placeholderTextColor="#888"
-              value={inputMessage}
-              editable={!isSendingText && !chatPaused}
-              onChangeText={(text) => {
-                setInputMessage(text);
-                handleTyping();
-              }}
-              multiline
-            />
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.sendBtn,
-                (!inputMessage.trim() || chatPaused) && styles.sendBtnDisabled,
-                pressed && { opacity: 0.8 },
-              ]}
-              onPress={() => handleSend()}
-              disabled={!inputMessage.trim() || isSendingText || chatPaused}
-            >
-              {isSendingText ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />}
-            </Pressable>
-          </View>
             </>
           )}
         </KeyboardAvoidingView>
+
+        {/* One dialog surface for currency warnings and rate proposals. */}
+        <Modal visible={!isSupportConversation && !chatPaused && (rateModalVisible || !!amountAlert)} transparent animationType="fade"
+          onRequestClose={() => { setAmountAlert(null); setRateModalVisible(false); inputRef.current?.focus(); }}>
+          <KeyboardAvoidingView style={styles.removeBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ width: '100%' }} contentContainerStyle={styles.currencyDialogContent}>
+              <View accessibilityViewIsModal style={styles.removeDialog} testID={rateModalVisible ? 'chat-rate-dialog' : 'chat-amount-alert'}>
+                {rateModalVisible ? <>
+                  <View style={styles.currencyDialogHeader}>
+                    <Text accessibilityRole="header" style={styles.removeTitle}>{uiText('Propose a Rate')}</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel={uiText('Close')} onPress={() => { setRateModalVisible(false); inputRef.current?.focus(); }} hitSlop={10}>
+                      <Ionicons name="close" size={22} color="#6B7280" />
+                    </Pressable>
+                  </View>
+                  <View style={styles.currencyChoices}>
+                    {(['short_term', 'long_term'] as const).map(type => <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected: proposalType === type }}
+                      onPress={() => { if (proposalType !== type) { setProposalType(type); setProposalAmount(''); } }} style={[styles.currencyChoice, proposalType === type && styles.currencyPillAccent]}>
+                      <Text style={styles.currencyPillText}>{uiText(type === 'short_term' ? 'Part-time / Daily' : 'Full-time / Monthly')}</Text>
+                    </Pressable>)}
+                  </View>
+                  <View style={[styles.currencyInputBox, !!proposalError && { borderColor: '#DC2626' }]}>
+                    <Text style={styles.currencyPrefix}>₱</Text>
+                    <TextInput accessibilityLabel={uiText('Proposed rate')} keyboardType="decimal-pad" style={styles.currencyInput}
+                      value={formatRateInput(proposalAmount)} onChangeText={value => setProposalAmount(value.replace(/,/g, ''))}
+                      onBlur={() => { if (formatRate(proposalAmount) !== 'Rate not provided') setProposalAmount(formatRate(proposalAmount, '').replace(/,/g, '')); }}
+                      placeholder="0.00" placeholderTextColor="#9CA3AF" />
+                    <Text style={styles.currencyHint}>{uiText(proposalType === 'short_term' ? '/ day' : '/ month')}</Text>
+                  </View>
+                  <Text style={[styles.currencyHint, { marginTop: 8 }]}>{uiText(proposalType === 'short_term'
+                    ? 'Allowed range: ₱600.00 – ₱5,000.00 / day'
+                    : 'Allowed range: ₱6,500.00 – ₱50,000.00 / month (Region X · RA 10361)')}</Text>
+                  {proposalError && <Text accessibilityRole="alert" style={styles.currencyError}>{proposalError}</Text>}
+                  <Pressable accessibilityRole="button" accessibilityLabel={uiText('Send Proposal')} disabled={!proposalAmount.trim() || !!proposalError || isSendingText}
+                    style={[styles.currencySubmit, (!proposalAmount.trim() || !!proposalError || isSendingText) && { opacity: 0.4 }]}
+                    onPress={() => {
+                      if (!proposalAmount.trim() || proposalError || isSendingText) return;
+                      const message = buildRateProposalMessage(proposalType, proposalAmount);
+                      setRateModalVisible(false); setAmountAlert(null); setProposalAmount('');
+                      handleSend(false, message);
+                    }}>
+                    <Text style={styles.removeConfirmText}>{uiText('Send Proposal')}</Text>
+                  </Pressable>
+                </> : amountAlert ? <>
+                  <Text accessibilityRole="header" style={styles.removeTitle}>{uiText(amountAlert.blocking ? 'Offer amount outside allowed range' : 'Check offered amount')}</Text>
+                  <Text style={styles.removeDescription}>{amountAlert.message}</Text>
+                  <View style={styles.removeButtons}>
+                    <Pressable accessibilityRole="button" style={styles.removeButton} onPress={() => { const alert = amountAlert; setAmountAlert(null); alert.edit(); }}>
+                      <Text style={styles.removeCancelText}>{uiText(amountAlert.blocking ? 'Edit Message' : 'Edit Amount')}</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" style={[styles.removeButton, styles.currencyPillAccent, { alignItems: 'center', justifyContent: 'center' }]} onPress={() => {
+                      const alert = amountAlert; setAmountAlert(null);
+                      if (alert.blocking) { Keyboard.dismiss(); setRateModalVisible(true); } else alert.send?.();
+                    }}>
+                      <Text style={styles.currencyPillText}>{amountAlert.blocking ? uiText('Propose a Rate') : uiText('Send as {amount}', { amount: amountAlert.amountFormatted })}</Text>
+                    </Pressable>
+                  </View>
+                </> : null}
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </Modal>
 
         {/* Messenger-Style Full-Screen Image Zoom Viewer Modal */}
         <Modal
@@ -2355,18 +2499,18 @@ function ChatDetailSession({
 
 
                 {/* Removal is private to this account for either message direction. */}
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.actionMenuItem,
-                      styles.actionMenuItemLast,
-                      pressed && styles.actionMenuItemPressed,
-                    ]}
-                    accessibilityLabel="Remove message"
-                    onPress={() => { setRemoveError(null); setRemoveTarget(activeActionMenuMsg); setActiveActionMenuMsg(null); }}
-                  >
-                    <Ionicons name="trash-outline" size={19} color="#EF4444" style={styles.actionMenuIcon} />
-                    <Text style={[styles.actionMenuText, { color: '#EF4444' }]}>Remove for you</Text>
-                  </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.actionMenuItem,
+                    styles.actionMenuItemLast,
+                    pressed && styles.actionMenuItemPressed,
+                  ]}
+                  accessibilityLabel="Remove message"
+                  onPress={() => { setRemoveError(null); setRemoveTarget(activeActionMenuMsg); setActiveActionMenuMsg(null); }}
+                >
+                  <Ionicons name="trash-outline" size={19} color="#EF4444" style={styles.actionMenuIcon} />
+                  <Text style={[styles.actionMenuText, { color: '#EF4444' }]}>Remove for you</Text>
+                </Pressable>
               </Animated.View>
             </View>
           );
@@ -2409,12 +2553,41 @@ function ChatDetailSession({
             </View>
           </View>
         </Modal>
+        {pendingReview && (
+          <ReviewModal
+            visible
+            bookingId={pendingReview.booking_id}
+            revieweeName={pendingReview.reviewee_name}
+            token={effectiveToken}
+            isMandatory
+            onClose={() => setPendingReview(null)}
+            onSuccess={() => setPendingReview(null)}
+          />
+        )}
       </Animated.View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  currencyBanner: { marginHorizontal: 14, marginTop: 5, borderRadius: 10, padding: 10, backgroundColor: '#F4F5F6' },
+  currencyBannerWarning: { backgroundColor: '#FFF3DF' },
+  currencyHint: { fontSize: 11, lineHeight: 16, color: '#61616B' },
+  currencyActions: { flexDirection: 'row', gap: 6, marginTop: 5 },
+  currencyQuickReplies: { flexGrow: 0, maxHeight: 42 },
+  currencyQuickReplyContent: { paddingHorizontal: 14, paddingVertical: 5, gap: 6, alignItems: 'center' },
+  currencyPill: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 16, backgroundColor: '#F5F4F2', borderWidth: 1, borderColor: '#E8E3DD' },
+  currencyPillAccent: { backgroundColor: '#FFE6D2', borderColor: '#FFB980', borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5 },
+  currencyPillText: { fontSize: 11, lineHeight: 15, fontWeight: '600', color: '#553B2D', textAlign: 'center' },
+  currencyDialogContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
+  currencyDialogHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  currencyChoices: { flexDirection: 'row', gap: 8, marginVertical: 14 },
+  currencyChoice: { flex: 1, padding: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, justifyContent: 'center' },
+  currencyInputBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12, paddingHorizontal: 12 },
+  currencyPrefix: { fontSize: 17, fontWeight: '700', color: '#1A1A1A', marginRight: 8 },
+  currencyInput: { flex: 1, minWidth: 0, fontSize: 18, paddingVertical: 12, color: '#1A1A1A' },
+  currencyError: { fontSize: 11, lineHeight: 16, color: '#DC2626', marginTop: 8 },
+  currencySubmit: { backgroundColor: '#0D0D11', alignItems: 'center', justifyContent: 'center', borderRadius: 14, minHeight: 44, marginTop: 18 },
   sensitiveBubble: { alignSelf: 'flex-start', width: 235, maxWidth: '100%', padding: 16, borderRadius: 20, backgroundColor: '#F0F0EC' },
   sensitiveBlur: { color: 'transparent', textShadowColor: '#999999', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 7, lineHeight: 18 },
   sensitiveLabel: { marginTop: 8, fontSize: 12, fontWeight: '600', color: '#52525B' },

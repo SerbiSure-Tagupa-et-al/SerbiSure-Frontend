@@ -6,6 +6,7 @@ import { SearchIcon } from '../../../shared/components/icons/LucideIcons';
 import THEME from '../../../shared/theme/theme';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
 import { HOME_FEED_CATEGORIES, HomeFeedCategory } from '../feedFilters';
+import type { LocationEmptyExpansion, LocationFilterState } from '../locationFilter';
 
 interface HomeFeedFiltersProps {
   placeholder: string;
@@ -13,9 +14,11 @@ interface HomeFeedFiltersProps {
   selectedCategory: HomeFeedCategory | null;
   onSearchChange: (query: string) => void;
   onCategoryChange: (category: HomeFeedCategory | null) => void;
+  locationLabel?: string;
+  onLocationPress?: () => void;
 }
 
-export function HomeFeedFilters({ placeholder, searchQuery, selectedCategory, onSearchChange, onCategoryChange }: HomeFeedFiltersProps) {
+export function HomeFeedFilters({ placeholder, searchQuery, selectedCategory, onSearchChange, onCategoryChange, locationLabel, onLocationPress }: HomeFeedFiltersProps) {
   const { tr: uiText } = useUiLanguage();
   const hasActiveFilters = !!selectedCategory || !!searchQuery.trim();
 
@@ -40,6 +43,21 @@ export function HomeFeedFilters({ placeholder, searchQuery, selectedCategory, on
           </Pressable>
         )}
       </View>
+
+      {locationLabel && onLocationPress ? (
+        <View style={styles.locationChipWrap}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={uiText('Change location and distance')}
+            onPress={onLocationPress}
+            style={({ pressed }) => [styles.locationChip, pressed && { opacity: 0.78 }]}
+          >
+            <Ionicons name="location-sharp" size={14} color={THEME.colors.brandDark} />
+            <Text style={styles.locationChipText} numberOfLines={1}>{locationLabel}</Text>
+            <Ionicons name="chevron-down" size={14} color={THEME.colors.textSecondary} />
+          </Pressable>
+        </View>
+      ) : null}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories} keyboardShouldPersistTaps="handled">
         {HOME_FEED_CATEGORIES.map((category) => {
@@ -144,12 +162,35 @@ export function HomeFeedLoadingState() {
   );
 }
 
-export function HomeFeedEmptyState({ role, hasActiveFilters = false, onResetFilters }: {
+export function HomeFeedEmptyState({ role, hasActiveFilters = false, onResetFilters, locationPrompt, onSelectLocation }: {
   role: 'homeowner' | 'kasambahay';
   hasActiveFilters?: boolean;
   onResetFilters?: () => void;
+  locationPrompt?: LocationEmptyExpansion | null;
+  onSelectLocation?: (next: LocationFilterState) => void;
 }) {
   const { tr: uiText } = useUiLanguage();
+  if (!hasActiveFilters && locationPrompt && onSelectLocation) {
+    return (
+      <View style={styles.emptyState}>
+        <Ionicons name="location-outline" size={40} color="#CBD5E1" style={{ marginBottom: 12 }} />
+        <Text style={styles.emptyTitle}>{locationPrompt.title}</Text>
+        <Text style={styles.emptySubtitle}>{locationPrompt.description}</Text>
+        <View style={styles.expandActionsRow}>
+          {locationPrompt.actions.map((act, idx) => (
+            <Pressable
+              key={act.label}
+              accessibilityRole="button"
+              onPress={() => onSelectLocation(act.next)}
+              style={[styles.expandBtn, idx > 0 && styles.expandBtnSecondary]}
+            >
+              <Text style={[styles.expandBtnText, idx > 0 && styles.expandBtnTextSecondary]}>{act.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
   const description = hasActiveFilters
     ? role === 'homeowner'
       ? 'No workers match your search or category. Try another search or clear your filters.'
@@ -163,6 +204,11 @@ export function HomeFeedEmptyState({ role, hasActiveFilters = false, onResetFilt
       <Ionicons name={hasActiveFilters ? 'search-outline' : 'newspaper-outline'} size={40} color="#CBD5E1" style={{ marginBottom: 12 }} />
       <Text style={styles.emptyTitle}>{hasActiveFilters ? uiText("No posts found") : uiText("No Recent Posts")}</Text>
       <Text style={styles.emptySubtitle}>{uiText(description)}</Text>
+      {hasActiveFilters && onResetFilters ? (
+        <Pressable accessibilityRole="button" onPress={onResetFilters} style={[styles.expandBtn, { marginTop: 16 }]}>
+          <Text style={styles.expandBtnText}>{uiText("Clear Filters")}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -217,4 +263,12 @@ const styles = StyleSheet.create({
   emptyState: { paddingVertical: 56, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', maxWidth: 320, marginTop: 24 },
   emptyTitle: { fontSize: 17, fontFamily: THEME.typography.fontFamily.display, color: THEME.colors.ink, marginBottom: 6, textAlign: 'center' },
   emptySubtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19, fontFamily: THEME.typography.fontFamily.secondaryRegular },
+  locationChipWrap: { marginHorizontal: 20, marginTop: 10, alignItems: 'flex-start' },
+  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: THEME.roundness.pill, backgroundColor: THEME.colors.white, borderWidth: 1, borderColor: '#EAE6DF', maxWidth: '100%' },
+  locationChipText: { flexShrink: 1, fontSize: 12.5, fontFamily: THEME.typography.fontFamily.secondarySemiBold, color: THEME.colors.ink },
+  expandActionsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 16 },
+  expandBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: THEME.roundness.pill, backgroundColor: THEME.colors.brand },
+  expandBtnSecondary: { backgroundColor: THEME.colors.white, borderWidth: 1, borderColor: '#E5E7EB' },
+  expandBtnText: { fontSize: 13, fontFamily: THEME.typography.fontFamily.display, color: THEME.colors.ink },
+  expandBtnTextSecondary: { fontFamily: THEME.typography.fontFamily.secondarySemiBold, color: THEME.colors.ink },
 });

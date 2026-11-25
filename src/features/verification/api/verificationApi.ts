@@ -10,9 +10,34 @@ export interface DocumentDiscrepancy {
   message?: string;
 }
 
+export type ScreeningCheckStatus = 'pass' | 'warn' | 'fail' | 'na';
+
+export interface DocumentScreeningUserAlert {
+  level: 'error' | 'warning';
+  code: 'wrong_document' | 'unreadable' | 'expired' | 'suspicious';
+  title: string;
+  message: string;
+  action_label: string;
+}
+
+export interface DocumentScreeningSummary {
+  checks: {
+    document_type_match: ScreeningCheckStatus;
+    name_match: ScreeningCheckStatus;
+    not_expired: ScreeningCheckStatus;
+    image_clarity: ScreeningCheckStatus;
+  };
+  detected_document_type?: string | null;
+  primary_issue?: string | null;
+  has_blocking_flag: boolean;
+  blocking_reasons?: string[];
+  suggested_rejection_reason?: string | null;
+  user_alert?: DocumentScreeningUserAlert | null;
+}
+
 export interface DocumentStatusItem {
   document_id: string;
-  document_type: 'nbi_clearance' | 'police_clearance' | 'national_id_front' | 'national_id_back' | 'profile_photo';
+  document_type: 'nbi_clearance' | 'police_clearance' | 'tesda_nc2' | 'national_id_front' | 'national_id_back' | 'profile_photo';
   verification_status: 'Unverified' | 'Pending' | 'Verified' | 'Rejected';
   document_image_url: string | null;
   date_issued: string | null;
@@ -22,6 +47,7 @@ export interface DocumentStatusItem {
   extracted_data?: Record<string, any> | null;
   ocr_match_score: number | null;
   ocr_discrepancies: DocumentDiscrepancy[];
+  screening?: DocumentScreeningSummary | null;
   ocr_processed_at?: string | null;
   ocr_retry_count?: number;
   rejection_reason: string | null;

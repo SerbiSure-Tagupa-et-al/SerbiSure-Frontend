@@ -1,3 +1,4 @@
+import { formatRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React, { useState } from 'react';
 import { Text, View, Pressable } from 'react-native';
@@ -60,7 +61,7 @@ export function PostStep3({ form }: { form: PostFormController }) {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{uiText("Engagement")}</Text>
           <Text style={styles.summaryValue}>
-            {engagementType === 'short' ? uiText("Short-term") : uiText("Long-term")}
+            {engagementType === 'short' ? uiText("Part-time / Daily (1–7 days)") : uiText("Full-time / Monthly (30+ days)")}
           </Text>
         </View>
 
@@ -69,18 +70,18 @@ export function PostStep3({ form }: { form: PostFormController }) {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{uiText("Work Setup")}</Text>
           <Text style={styles.summaryValue}>
-            {setupPreference === 'stay-in' ? uiText("Stay-in") : uiText("Stay-out")}
+            {setupPreference === 'stay-in' ? uiText("Stay-in (Live-in)") : uiText("Stay-out (Goes home)")}
           </Text>
         </View>
 
+        {config.role === 'homeowner' && <>
         <View style={styles.summaryDivider} />
-
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{uiText("Offer Rate")}</Text>
+          <Text style={styles.summaryLabel}>{uiText('Offer Amount')}</Text>
           <Text style={[styles.summaryValue, { color: '#EA580C', fontWeight: '800' }]}>
-            ₱{offerAmount} {engagementType === 'short' ? uiText("/ day") : uiText("/ month")}
+            {formatRate(offerAmount)} {engagementType === 'short' ? uiText("/ day") : uiText("/ month")}
           </Text>
-        </View>
+        </View></>}
 
         <View style={styles.summaryDivider} />
 

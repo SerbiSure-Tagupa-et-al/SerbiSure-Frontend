@@ -15,8 +15,9 @@ import { useUser } from '../../auth/session/UserContext';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
 import { AppHeader, APP_HEADER_BACK_ICON_COLOR, APP_HEADER_BACK_ICON_SIZE } from '../../../shared/components/AppHeader';
 import { localizeProfileCopy } from '../profileConfig';
-import { ReviewsSection } from './ReviewsSection';
+import { ReviewsSection, WorkHistorySection } from './ReviewsSection';
 import { WorkerCvModal } from '../worker/WorkerCvModal';
+import { ProposalsModal } from '../../bookings/components/ProposalsModal';
 import { JobDetailSheet } from '../../feed/components/JobDetailSheet';
 import { BookingModal, type BookingConfirmData } from '../../bookings/components/BookingModal';
 import { sendBookingOffer, type ChatOfferPayload } from '../../chat/api/bookingOffersApi';
@@ -24,6 +25,8 @@ import { generateUUID } from '../../chat/api/chatApi';
 import { bookingSchedule } from '../../bookings/engagementForm';
 import { useJobsActivity } from '../../bookings/store/savedJobsStore';
 import { useJobApplication } from '../../bookings/hooks/useJobApplication';
+import type { PendingMandatoryReview } from '../../bookings/api/bookingApi';
+import { ReviewModal } from '../../reviews/components/ReviewModal';
 import { mapFeedPost } from '../../feed/feedMapper';
 import type { FeedPost } from '../../feed/types';
 import { formatBookingAddress, formatBookingLocationShort, type PublicPendingPost } from '../../bookings/api/bookingApi';
@@ -78,11 +81,14 @@ export function UserProfileView({
   const { t } = useLanguage();
   const { isSaved, isApplied, toggleSave } = useJobsActivity();
   const effectiveToken = token || user.token;
-  const { applyJob, applyingJobId } = useJobApplication(effectiveToken, () => { void refreshPosts(); });
-  const { profile, reviews, summary, posts, canUsePost, loading, postsLoading, profileError, postsError, refreshPosts, markSubmitted } = usePublicProfile(visible, userId, effectiveToken);
-  const [activeTab, setActiveTab] = useState<'posts' | 'reviews'>('posts');
+  const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
+  const { applyJob, applyingJobId } = useJobApplication(effectiveToken, () => { void refreshPosts(); }, setPendingReview);
+  const { profile, reviews, summary, workHistory, posts, canUsePost, loading, postsLoading, profileError, postsError, refreshPosts, markSubmitted } = usePublicProfile(visible, userId, effectiveToken);
+  const [activeTab, setActiveTab] = useState<'posts' | 'history' | 'reviews'>('posts');
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(false);
   const [showCv, setShowCv] = useState(false);
+  const [bidPost, setBidPost] = useState<FeedPost | null>(null);
+  useEffect(() => setBidPost(null), [visible, userId, effectiveToken]);
   const [selectedJob, setSelectedJob] = useState<FeedPost | null>(null);
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
   const [offerPost, setOfferPost] = useState<FeedPost | null>(null);
@@ -95,6 +101,10 @@ export function UserProfileView({
   const displayName = profile?.full_name || prefilledName;
   const displayRole = profile?.account_type || prefilledRole;
   const isWorker = displayRole === 'Kasambahay';
+  const hasHistory = isWorker || displayRole === 'Homeowner';
+  const completedJobs = workHistory?.summary?.completed_jobs_count ?? 0;
+  const repeatPartners = workHistory?.summary?.repeat_employers_count ?? 0;
+  const recommendedCount = workHistory?.summary?.recommended_count ?? reviews.filter(r => r.would_recommend === true).length;
 
   useEffect(() => {
     setActiveTab('posts');
@@ -144,9 +154,9 @@ export function UserProfileView({
       Alert.alert(
         uiText('Booking Offer Sent'),
         result.language_warning ||
-          uiText('Your booking offer has been sent to {name}. You can track and chat with them in your messages.', {
-            name: displayName,
-          })
+        uiText('Your booking offer has been sent to {name}. You can track and chat with them in your messages.', {
+          name: displayName,
+        })
       );
     } catch (err: any) {
       void refreshPosts();
@@ -165,7 +175,7 @@ export function UserProfileView({
 
   const displayTags = profile?.user_tags || [];
 
-  const handlePostReply = async (post?: PublicPendingPost) => {
+  const handlePostReply = async (post?: PublicPendingPost, applyBudget = false) => {
     if (!userId || !effectiveToken) return;
     if (!post) {
       onMessage({
@@ -180,18 +190,18 @@ export function UserProfileView({
     }
 
     const isJob = displayRole === 'Homeowner';
-    const application = isJob ? await applyJob(mapFeedPost({ ...post, poster_id: userId }, 'kasambahay')) : null;
-    if (isJob && !application) return;
+    const application = isJob && applyBudget ? await applyJob(mapFeedPost({ ...post, poster_id: userId }, 'kasambahay')) : null;
+    if (isJob && applyBudget && !application) return;
     const rawCategories = Array.isArray(post.service_category)
       ? post.service_category
       : post.service_category
-      ? [post.service_category]
-      : [isJob ? 'Household Service' : 'General Service'];
+        ? [post.service_category]
+        : [isJob ? 'Household Service' : 'General Service'];
     const catKey = rawCategories[0];
     const roleName = (catKey && CATEGORY_LABELS[catKey]) || catKey?.replace(/_/g, ' ') || (isJob ? 'Job Position' : 'Service');
     const formattedRate = formatRate(post.rate_amount);
     const period = post.rate_period || (post.booking_type === 'long_term' ? 'month' : 'day');
-    const rateStr = isJob ? `${formattedRate} / ${period}` : `${formattedRate} per ${period}`;
+    const rateStr = isJob ? `${formattedRate} / ${period}` : uiText(post.booking_type === 'long_term' ? 'Full-time' : 'Part-time');
     const locStr = formatBookingLocationShort(post, locationText || '');
     const snippet = [roleName, rateStr, locStr].filter(Boolean).join(' • ');
 
@@ -316,6 +326,40 @@ export function UserProfileView({
               </Text>
             </View>
 
+            {/* Verified track record for both booking participant roles. */}
+            {hasHistory && (completedJobs > 0 || recommendedCount > 0) ? (
+              <View style={styles.trustStripRow}>
+                {completedJobs > 0 && (
+                  <View style={styles.trustPill}>
+                    <Ionicons name="checkmark-circle" size={14} color="#0D0D11" />
+                    <Text style={styles.trustPillText}>
+                      {completedJobs === 1
+                        ? uiText('1 Completed Job')
+                        : uiText('{count} Completed Jobs', { count: completedJobs })}
+                    </Text>
+                  </View>
+                )}
+                {recommendedCount > 0 && (
+                  <View style={[styles.trustPill, styles.trustPillReferral]}>
+                    <Ionicons name="thumbs-up" size={13} color="#166534" />
+                    <Text style={[styles.trustPillText, styles.trustPillReferralText]}>
+                      {recommendedCount === 1
+                        ? uiText(isWorker ? 'Recommended by 1 Homeowner' : 'Recommended by 1 Kasambahay')
+                        : uiText(isWorker ? 'Recommended by {count} Homeowners' : 'Recommended by {count} Kasambahays', { count: recommendedCount })}
+                    </Text>
+                  </View>
+                )}
+                {repeatPartners > 0 && (
+                  <View style={styles.trustPill}>
+                    <Ionicons name="repeat" size={13} color="#EA580C" />
+                    <Text style={styles.trustPillText}>
+                      {uiText(isWorker ? 'Rehired by {count}' : 'Rehired {count}', { count: repeatPartners })}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : null}
+
             {/* Hero Tags Pill Row */}
             <View style={styles.heroTagsRow}>
               {displayTags.map((tag, idx) => (
@@ -350,12 +394,14 @@ export function UserProfileView({
             )}
           </View>
 
-          {/* Profile Tabs: Recent Posts vs Reviews & Feedbacks */}
+          {/* Booking participants share Recent Posts, Job History and Reviews. */}
           <ProfileTabs
             activeTab={activeTab}
             onChange={setActiveTab}
             postsCount={posts.length}
+            historyCount={workHistory?.summary?.completed_jobs_count}
             reviewsCount={totalReviews}
+            showHistory={hasHistory}
           />
 
           {activeTab === 'posts' ? (
@@ -373,9 +419,11 @@ export function UserProfileView({
               onRefresh={refreshPosts}
               onSubmitted={markSubmitted}
               onDetails={(jobPost) => setSelectedJob(jobPost)}
-              onMessage={handlePostReply}
-              onApplyJob={handlePostReply}
+              onMessage={post => { void handlePostReply(post); }}
+              onApplyJob={post => { void handlePostReply(post, true); }}
             />
+          ) : activeTab === 'history' && hasHistory ? (
+            <WorkHistorySection workHistory={workHistory} loading={loading} profileRole={isWorker ? 'Kasambahay' : 'Homeowner'} />
           ) : (
             <ReviewsSection
               profile={{
@@ -404,11 +452,15 @@ export function UserProfileView({
           </View>
         ) : null}
 
+        {bidPost && <ProposalsModal visible onClose={() => setBidPost(null)} bookingId={String(bidPost.id)} isPoster={false}
+          currentRate={bidPost.price.replace(/[^0-9.]/g, '') || null} ratePeriod={bidPost.unit.includes('month') ? 'month' : 'day'} token={effectiveToken} onUpdated={() => { void refreshPosts(); }} />}
         {/* Details sheet when tapping See Details on any post */}
         <JobDetailSheet
           visible={!!selectedJob}
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
+          onSubmitBid={user.accountType === 'Kasambahay' && !isWorker ? () => { setBidPost(selectedJob); setSelectedJob(null); } : undefined}
+          onMessage={() => { setSelectedJob(null); handlePostReply(); }}
           onApply={async () => {
             const isBookingOffer = isWorker && user.accountType === 'Homeowner';
             const currentJob = selectedJob;
@@ -444,10 +496,10 @@ export function UserProfileView({
           isApplied={
             selectedJob
               ? isApplied(selectedJob.id) || posts.some(
-                  (p) =>
-                    p.booking_id === selectedJob.id &&
-                    (p.viewer_proposal?.status === 'Pending' || p.viewer_proposal?.status === 'Accepted')
-                )
+                (p) =>
+                  p.booking_id === selectedJob.id &&
+                  (p.viewer_proposal?.status === 'Pending' || p.viewer_proposal?.status === 'Accepted')
+              )
               : false
           }
           isApplying={applyingJobId === selectedJob?.id}
@@ -475,7 +527,7 @@ export function UserProfileView({
             contactAvatar={activeAvatar}
             userRole="homeowner"
             token={effectiveToken}
-            bookingType={offerPost?.termTag === 'Long-term' ? 'long_term' : 'short_term'}
+            bookingType={offerPost?.termTag === 'Full-time' || offerPost?.termTag === 'Long-term' ? 'long_term' : 'short_term'}
             jobPost={offerJobPost}
             onConfirm={handleConfirmBookingOffer}
           />
@@ -494,6 +546,17 @@ export function UserProfileView({
         )}
 
         {children}
+        {pendingReview && (
+          <ReviewModal
+            visible
+            bookingId={pendingReview.booking_id}
+            revieweeName={pendingReview.reviewee_name}
+            token={effectiveToken}
+            isMandatory
+            onClose={() => setPendingReview(null)}
+            onSuccess={() => setPendingReview(null)}
+          />
+        )}
       </View>
     </Modal>
   );
@@ -683,6 +746,33 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     alignItems: 'center',
+  },
+  trustStripRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  trustPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 9999,
+  },
+  trustPillReferral: {
+    backgroundColor: '#DCFCE7',
+  },
+  trustPillText: {
+    fontFamily: THEME.typography.fontFamily.mainBold,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0D0D11',
+  },
+  trustPillReferralText: {
+    color: '#166534',
   },
   heroTagBadge: {
     backgroundColor: '#FFAE7A',

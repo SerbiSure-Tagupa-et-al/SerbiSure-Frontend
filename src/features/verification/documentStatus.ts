@@ -10,6 +10,7 @@ export function documentIsExpired(document: DocumentStatusItem, now = Date.now()
 export function documentLabel(type: string): string {
   const names: Record<string, string> = {
     profile_photo: 'Profile Photo', nbi_clearance: 'NBI Clearance', police_clearance: 'Police Clearance',
+    tesda_nc2: 'TESDA NC II',
     national_id_front: 'National ID (Front)', national_id_back: 'National ID (Back)',
   };
   return names[type] || type.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
@@ -17,6 +18,8 @@ export function documentLabel(type: string): string {
 
 export function canReplaceDocument(document: DocumentStatusItem): boolean {
   if (document.document_type === 'profile_photo') return document.verification_status === 'Rejected';
+  if (document.can_replace === true) return true;
+  if (document.verification_status === 'Pending' && document.screening?.has_blocking_flag) return true;
   return ['Unverified', 'Rejected'].includes(document.verification_status) ||
     (document.verification_status === 'Verified' && documentIsExpired(document));
 }
