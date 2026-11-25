@@ -29,6 +29,10 @@ function load(filename, mocks = {}) {
   new Function('require', 'module', 'exports', source)(name => {
     if (name === 'react') return { ...React, default: React };
     if (name in mocks) return mocks[name];
+    // Load the real shared pricing code, retaining strict handling of other imports.
+    if (name.endsWith('/utils/rate')) return load('src/shared/utils/rate.ts');
+    if (name.endsWith('/posting/validation') || name === '../validation') return load('src/features/posting/validation.ts');
+    if (name === './postingConfig') return load('src/features/posting/postingConfig.ts');
     throw new Error('Unexpected dependency: ' + name);
   }, module, module.exports);
   return module.exports;

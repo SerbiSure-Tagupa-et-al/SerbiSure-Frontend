@@ -493,6 +493,9 @@ export interface MinimumWageData {
   booking_type: 'long_term' | 'short_term';
   rate_period: 'day' | 'month';
   minimum_rate: string;
+  maximum_rate?: string;
+  max_daily_rate?: string | null;
+  max_monthly_rate?: string | null;
   min_daily_rate: string | null;
   min_monthly_rate?: string | null;
   working_days_per_month?: number;

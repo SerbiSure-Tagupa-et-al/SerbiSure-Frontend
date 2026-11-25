@@ -1,3 +1,4 @@
+import { formatRateInput } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -285,8 +286,8 @@ export function WorkerCvForm({ value, onChange, disabled = false }: Props) {
           placeholder="e.g. ₱8000"
           placeholderTextColor="#6B7280"
           keyboardType="numeric"
-          value={value.desired_monthly_rate}
-          onChangeText={(text) => setField('desired_monthly_rate', text)}
+          value={formatRateInput(value.desired_monthly_rate)}
+          onChangeText={(text) => setField('desired_monthly_rate', text.replace(/,/g, ''))}
         />
         <Text style={styles.step2SuffixText}>/ month</Text>
       </View>
@@ -301,8 +302,8 @@ export function WorkerCvForm({ value, onChange, disabled = false }: Props) {
           placeholder="e.g. ₱800"
           placeholderTextColor="#6B7280"
           keyboardType="numeric"
-          value={value.desired_daily_rate}
-          onChangeText={(text) => setField('desired_daily_rate', text)}
+          value={formatRateInput(value.desired_daily_rate)}
+          onChangeText={(text) => setField('desired_daily_rate', text.replace(/,/g, ''))}
         />
         <Text style={styles.step2SuffixText}>/ day</Text>
       </View>

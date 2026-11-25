@@ -539,7 +539,7 @@ for (const role of ['homeowner', 'kasambahay']) {
     await tick();
     assert.equal(screen.chats.at(-1).partnerId, 'author');
     assert.equal(screen.find('ChatDetailScreen').props.initialReplyTo.author, role === 'homeowner' ? 'Service Post' : 'Job Post');
-    assert.ok(screen.find('ChatDetailScreen').props.initialReplyTo.text.includes('₱8000'));
+    assert.ok(screen.find('ChatDetailScreen').props.initialReplyTo.text.includes('₱8,000.00'));
     screen.act(() => screen.find('ChatDetailScreen').props.onClose());
     screen.store.savedJobs = [screen.saves[0][0]]; screen.store.savedCount = 1;
     screen.act(() => screen.find('BrowseHeader').props.onTabChange('saved'));

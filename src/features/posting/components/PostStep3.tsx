@@ -1,3 +1,4 @@
+import { formatRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React, { useState } from 'react';
 import { Text, View, Pressable } from 'react-native';
@@ -78,7 +79,7 @@ export function PostStep3({ form }: { form: PostFormController }) {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{uiText("Offer Rate")}</Text>
           <Text style={[styles.summaryValue, { color: '#EA580C', fontWeight: '800' }]}>
-            ₱{offerAmount} {engagementType === 'short' ? uiText("/ day") : uiText("/ month")}
+            {formatRate(offerAmount)} {engagementType === 'short' ? uiText("/ day") : uiText("/ month")}
           </Text>
         </View>
 

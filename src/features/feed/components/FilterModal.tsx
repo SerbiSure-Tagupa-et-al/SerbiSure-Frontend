@@ -45,7 +45,7 @@ const BOOKING_TYPES = [
   { label: 'Full-time', value: 'long_term' },
 ];
 
-export const RATE_PRESETS = [400, 500, 600, 800, 1000];
+export const RATE_PRESETS = [600, 800, 1000, 1500, 2000];
 
 export const SORT_OPTIONS: { label: string; value: 'newest'; icon?: keyof typeof Ionicons.glyphMap }[] = [
   { label: 'Newest first', value: 'newest', icon: 'time-outline' },
@@ -447,7 +447,7 @@ export function FilterModal({
                           onPress={() => handlePeriodChange(period)}
                         >
                           <Text style={[styles.periodBtnText, isSelected && styles.periodBtnTextActive]}>
-                            {period === 'day' ? uiText("Daily Budget") : uiText("Monthly Budget")}
+                            {period === 'day' ? uiText("Part-time (Daily)") : uiText("Full-time (Monthly)")}
                           </Text>
                         </Pressable>
                       );
@@ -466,7 +466,7 @@ export function FilterModal({
                         onPress={() => handleRatePreset(rate)}
                       >
                         <Text style={[styles.rateChipText, isSelected && styles.rateChipTextActive]}>
-                          ≤ P{rate}
+                          ≤ ₱{rate.toLocaleString('en-US')}
                         </Text>
                       </Pressable>
                     );

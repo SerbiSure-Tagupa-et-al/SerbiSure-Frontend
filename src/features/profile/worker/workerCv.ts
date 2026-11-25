@@ -1,3 +1,4 @@
+import { PART_TIME_MAX_RATE, FULL_TIME_MAX_RATE } from '../../posting/validation';
 import { normalizeServices } from '../../bookings/engagementForm';
 
 export const CV_PAGES = ['Work preferences', 'Experience & family', 'Availability', 'Extras & sharing'];
@@ -95,9 +96,10 @@ export function validateWorkerPage(value: WorkerDraft, page: number): string | n
   if (page === 0) {
     if (!value.service_categories.length) return 'Choose at least one service.';
     if (!value.engagement_preference || !value.work_setup) return 'Choose your engagement and work setup preferences.';
-    for (const [amount, needed, label] of [[value.desired_monthly_rate, value.engagement_preference !== 'short_term', 'monthly salary'], [value.desired_daily_rate, value.engagement_preference !== 'long_term', 'daily rate']] as const) {
+    for (const [amount, needed, label, maximum, capMessage] of [[value.desired_monthly_rate, value.engagement_preference !== 'short_term', 'monthly salary', FULL_TIME_MAX_RATE, 'Maximum expected Full-time / Monthly rate is ₱50,000.00 / month.'], [value.desired_daily_rate, value.engagement_preference !== 'long_term', 'daily rate', PART_TIME_MAX_RATE, 'Maximum expected Part-time / Daily rate is ₱5,000.00 / day.']] as const) {
       if (needed && !amount.trim()) return `Enter your expected ${label}.`;
-      if (amount.trim() && (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || Number(amount) <= 0 || Number(amount) > 999999.99)) return `Enter a valid ${label} with at most two decimal places.`;
+      if (amount.trim() && (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || Number(amount) <= 0 || !Number.isFinite(Number(amount)))) return `Enter a valid ${label} with at most two decimal places.`;
+      if (amount.trim() && Number(amount) > maximum) return capMessage;
     }
     if (!value.languages.length) return 'Choose at least one spoken language.';
   }

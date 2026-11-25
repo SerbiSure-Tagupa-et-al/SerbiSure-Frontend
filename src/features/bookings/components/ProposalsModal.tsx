@@ -1,4 +1,5 @@
-import { formatRate } from '../../../shared/utils/rate';
+import { validatePostingRate } from '../../posting/validation';
+import { formatRate, formatRateInput } from '../../../shared/utils/rate';
 import { validRating } from '../../reviews/ratings';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { realtime } from '../../../shared/realtime';
@@ -75,6 +76,8 @@ export function ProposalsModal({
 
   const confirmLegacyRate = async () => {
     if (!token) return;
+    const rateError = validatePostingRate('job', ratePeriod === 'month' ? 'long' : 'short', counterRate);
+    if (rateError) { Alert.alert(uiText(rateError.title), uiText(rateError.message)); return; }
     setSubmitting(true);
     try {
       await confirmPostRate(token, bookingId, counterRate, ratePeriod);
@@ -88,9 +91,10 @@ export function ProposalsModal({
 
   const handleSubmitProposal = async () => {
     if (!token) return;
-    const numRate = parseFloat(counterRate);
-    if (isNaN(numRate) || numRate <= 0) {
-      Alert.alert('Invalid Rate', 'Please enter a valid compensation amount.');
+    const numRate = Number(counterRate);
+    const rateError = validatePostingRate('job', ratePeriod === 'month' ? 'long' : 'short', counterRate);
+    if (rateError) {
+      Alert.alert(uiText(rateError.title), uiText(rateError.message));
       return;
     }
 
@@ -177,7 +181,7 @@ export function ProposalsModal({
           {isPoster && rateNeedsReview ? <View style={{ padding: 16, backgroundColor: '#FFF4ED', borderRadius: 16, marginBottom: 12 }}>
               <Text style={{ fontWeight: '700' }}>{uiText("Confirm the monthly salary")}</Text>
               <Text>{uiText("This older post used an ambiguous rate field. Enter the actual monthly amount before accepting any proposal.")}</Text>
-              <TextInput value={counterRate} onChangeText={setCounterRate} keyboardType="decimal-pad" style={{ padding: 12, backgroundColor: '#FFFFFF', marginVertical: 8 }} />
+              <TextInput value={formatRateInput(counterRate)} onChangeText={text => setCounterRate(text.replace(/,/g, ''))} keyboardType="decimal-pad" style={{ padding: 12, backgroundColor: '#FFFFFF', marginVertical: 8 }} />
               <Pressable disabled={submitting} onPress={confirmLegacyRate}><Text style={{ color: '#C2410C', fontWeight: '700' }}>{submitting ? 'Confirming...' : 'Confirm Monthly Amount'}</Text></Pressable>
             </View> : null}
             <View style={styles.rateBanner}>
@@ -196,8 +200,8 @@ export function ProposalsModal({
                   keyboardType="numeric"
                   placeholder="e.g. 650"
                   placeholderTextColor="#9CA3AF"
-                  value={counterRate}
-                  onChangeText={setCounterRate}
+                  value={formatRateInput(counterRate)}
+                  onChangeText={text => setCounterRate(text.replace(/,/g, ''))}
                 />
                 <Text style={styles.perDay}>/ {ratePeriod}</Text>
               </View>
@@ -259,7 +263,7 @@ export function ProposalsModal({
                     </View>
 
                     <View style={styles.offerBadge}>
-                      <Text style={styles.offerAmount}>₱{item.proposed_rate} / {item.rate_period}</Text>
+                      <Text style={styles.offerAmount}>{formatRate(item.proposed_rate)} / {item.rate_period}</Text>
                       <Text style={styles.offerStatus}>{item.status}</Text>
                     </View>
                   </View>

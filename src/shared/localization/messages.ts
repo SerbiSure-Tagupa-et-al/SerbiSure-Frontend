@@ -1,6 +1,46 @@
 // English source text -> Tagalog, Bisaya. Keep stored API values in English;
 // translate only their presentation. User-authored content is never passed here.
 export const UI_MESSAGES = {
+  'Propose a Rate': ['Magmungkahi ng Bayad', 'Mosugyot og Bayad'],
+  'How much is your expected rate?': ['Magkano ang inaasahan mong bayad?', 'Pila ang imong gipaabot nga bayad?'],
+  'Part-time / Daily or Full-time / Monthly?': ['Part-time / Arawan o Full-time / Buwanan?', 'Part-time / Inadlaw o Full-time / Binulan?'],
+  'Is this rate negotiable?': ['Maaari pa bang pag-usapan ang bayad?', 'Mahimo pa bang sabotan ang bayad?'],
+  'What is the offered budget?': ['Magkano ang inaalok na badyet?', 'Pila ang gitanyag nga badyet?'],
+  'Are you still hiring?': ['Naghahanap pa ba kayo ng kasambahay?', 'Nangita pa ba mo og kasambahay?'],
+  'Proposed rate': ['Iminungkahing bayad', 'Gisugyot nga bayad'],
+  'Allowed range: ₱600.00 – ₱5,000.00 / day': ['Pinapayagang halaga: ₱600.00 – ₱5,000.00 / araw', 'Gitugot nga kantidad: ₱600.00 – ₱5,000.00 / adlaw'],
+  'Allowed range: ₱6,500.00 – ₱50,000.00 / month (Region X · RA 10361)': ['Pinapayagang halaga: ₱6,500.00 – ₱50,000.00 / buwan (Region X · RA 10361)', 'Gitugot nga kantidad: ₱6,500.00 – ₱50,000.00 / bulan (Region X · RA 10361)'],
+  'Enter a valid amount with up to two decimal places.': ['Maglagay ng wastong halaga na may hanggang dalawang decimal.', 'Pagsulod og hustong kantidad nga adunay hangtod duha ka decimal.'],
+  'Send Proposal': ['Ipadala ang Mungkahi', 'Ipadala ang Sugyot'],
+  'Offer amount outside allowed range': ['Wala sa pinapayagang halaga ang alok', 'Wala sa gitugot nga kantidad ang tanyag'],
+  'Check offered amount': ['Suriin ang inaalok na halaga', 'Susiha ang gitanyag nga kantidad'],
+  'Edit Message': ['Baguhin ang Mensahe', 'Usba ang Mensahe'],
+  'Edit Amount': ['Baguhin ang Halaga', 'Usba ang Kantidad'],
+  'Send as {amount}': ['Ipadala bilang {amount}', 'Ipadala isip {amount}'],
+  'Auto-formats as {amount}': ['Awtomatikong magiging {amount}', 'Awtomatikong mahimong {amount}'],
+  'Format': ['Ayusin ang Format', 'Ayuhon ang Pormat'],
+  'Formal booking offers enforce these limits.': ['Ipinapatupad ang mga limitasyong ito sa pormal na alok ng booking.', 'Gipatuman kini nga mga limitasyon sa pormal nga tanyag sa booking.'],
+  'Valid for Part-time / Daily (₱600.00–₱5,000.00/day). For Full-time / Monthly, Region X minimum is ₱6,500.00/month.': ['Wasto para sa Part-time / Arawan (₱600.00–₱5,000.00/araw). Para sa Full-time / Buwanan, ₱6,500.00/buwan ang minimum sa Region X.', 'Balido para sa Part-time / Inadlaw (₱600.00–₱5,000.00/adlaw). Para sa Full-time / Binulan, ₱6,500.00/bulan ang minimum sa Region X.'],
+  '{amount} is below the minimum pay. Part-time / Daily minimum is ₱600.00/day, and Full-time / Monthly (Region X / RA 10361) minimum is ₱6,500.00/month.': ['Mas mababa sa minimum na bayad ang {amount}. ₱600.00/araw ang minimum sa Part-time / Arawan, at ₱6,500.00/buwan sa Full-time / Buwanan (Region X / RA 10361).', 'Ubos sa minimum nga bayad ang {amount}. Ang minimum sa Part-time / Inadlaw kay ₱600.00/adlaw, ug ₱6,500.00/bulan sa Full-time / Binulan (Region X / RA 10361).'],
+  '{amount}/month is below the Region X Full-time / Monthly minimum of ₱6,500.00/month (RA 10361).': ['Mas mababa ang {amount}/buwan sa minimum na ₱6,500.00/buwan para sa Full-time / Buwanan sa Region X (RA 10361).', 'Ubos ang {amount}/bulan sa minimum nga ₱6,500.00/bulan para sa Full-time / Binulan sa Region X (RA 10361).'],
+  '{amount} is above the Part-time / Daily max (₱5,000.00/day) and below the Full-time / Monthly minimum (₱6,500.00/month under RA 10361).': ['Lampas ang {amount} sa maximum ng Part-time / Arawan (₱5,000.00/araw) at mas mababa sa minimum ng Full-time / Buwanan (₱6,500.00/buwan sa ilalim ng RA 10361).', 'Labaw ang {amount} sa maximum sa Part-time / Inadlaw (₱5,000.00/adlaw) ug ubos sa minimum sa Full-time / Binulan (₱6,500.00/bulan ubos sa RA 10361).'],
+  '{amount}/day exceeds the Part-time / Daily maximum of ₱5,000.00/day. Switch to Full-time / Monthly for monthly rates.': ['Lampas ang {amount}/araw sa maximum na ₱5,000.00/araw para sa Part-time / Arawan. Piliin ang Full-time / Buwanan para sa buwanang bayad.', 'Labaw ang {amount}/adlaw sa maximum nga ₱5,000.00/adlaw para sa Part-time / Inadlaw. Pilia ang Full-time / Binulan para sa binulan nga bayad.'],
+  "{amount} exceeds SerbiSure's realistic pay cap (Part-time / Daily max ₱5,000.00/day · Full-time / Monthly max ₱50,000.00/month).": ['Lampas ang {amount} sa limitasyon ng bayad sa SerbiSure (maximum na ₱5,000.00/araw sa Part-time / Arawan · ₱50,000.00/buwan sa Full-time / Buwanan).', 'Labaw ang {amount} sa limitasyon sa bayad sa SerbiSure (maximum nga ₱5,000.00/adlaw sa Part-time / Inadlaw · ₱50,000.00/bulan sa Full-time / Binulan).'],
+  'Part-time (Daily)': ['Part-time (Arawan)', 'Part-time (Adlaw-adlaw)'],
+  'Full-time (Monthly)': ['Full-time (Buwanan)', 'Full-time (Binulan)'],
+  'Full-time / Monthly · RA 10361': ['Full-time / Buwanan · RA 10361', 'Full-time / Binulan · RA 10361'],
+  'Allowed range: {minimum} – {maximum} / {period} ({engagement})': ['Pinapayagang halaga: {minimum} – {maximum} / {period} ({engagement})', 'Gitugot nga kantidad: {minimum} – {maximum} / {period} ({engagement})'],
+  'Direct payment between Homeowner and Kasambahay · ₱0.00 SerbiSure fee.': ['Direktang bayad sa pagitan ng Homeowner at Kasambahay · ₱0.00 ang bayad sa SerbiSure.', 'Direktang bayad tali sa Homeowner ug Kasambahay · ₱0.00 ang bayranan sa SerbiSure.'],
+  'Maximum Rate Exceeded': ['Lampas sa Pinakamataas na Halaga', 'Milapas sa Kinatas-ang Kantidad'],
+  'Minimum Compensation': ['Pinakamababang Bayad', 'Kinagamayang Bayad'],
+  'Valid Rate Required': ['Kailangan ng Wastong Halaga', 'Gikinahanglan ang Hustong Kantidad'],
+  'Rate Policy Changed': ['Nagbago ang Patakaran sa Bayad', 'Nausab ang Patakaran sa Bayad'],
+  'Refresh the wage policy before continuing.': ['I-refresh ang patakaran sa bayad bago magpatuloy.', 'I-refresh ang patakaran sa bayad sa dili pa mopadayon.'],
+  'Please enter a valid compensation amount.': ['Maglagay ng wastong halaga ng bayad.', 'Palihog pagsulod og hustong kantidad sa bayad.'],
+  'Minimum compensation for {engagement} bookings is {rate} / {period}.': ['Ang pinakamababang bayad para sa {engagement} na booking ay {rate} / {period}.', 'Ang kinagamayang bayad para sa {engagement} nga booking kay {rate} / {period}.'],
+  'Maximum compensation for {engagement} bookings is {rate} / {period}.': ['Ang pinakamataas na bayad para sa {engagement} na booking ay {rate} / {period}.', 'Ang kinatas-ang bayad para sa {engagement} nga booking kay {rate} / {period}.'],
+  'Maximum expected Part-time / Daily rate is ₱5,000.00 / day.': ['Ang pinakamataas na inaasahang Part-time / Arawan na bayad ay ₱5,000.00 / araw.', 'Ang kinatas-ang gipaabot nga Part-time / Adlaw-adlaw nga bayad kay ₱5,000.00 / adlaw.'],
+  'Maximum expected Full-time / Monthly rate is ₱50,000.00 / month.': ['Ang pinakamataas na inaasahang Full-time / Buwanan na bayad ay ₱50,000.00 / buwan.', 'Ang kinatas-ang gipaabot nga Full-time / Binulan nga bayad kay ₱50,000.00 / bulan.'],
   'Data Privacy Notice (RA 10173)': ['Paunawa sa Pagkapribado ng Datos (RA 10173)', 'Pahibalo sa Pribasiya sa Datos (RA 10173)'],
   'ID, clearance and TESDA NC II images are confidential to authorized Barangay Desk Officers and System Administrators. Other users cannot view them.': ['Kumpidensiyal ang mga larawan ng ID, clearance at TESDA NC II at tanging awtorisadong Barangay Desk Officers at System Administrators ang makakakita nito. Hindi ito makikita ng ibang gumagamit.', 'Kompidensiyal ang mga hulagway sa ID, clearance ug TESDA NC II ug awtorisadong Barangay Desk Officers ug System Administrators ra ang makakita niini. Dili kini makita sa ubang tiggamit.'],
   'Google Cloud Vision API and Groq AI assist with reading document images and organizing text for manual review.': ['Tumutulong ang Google Cloud Vision API at Groq AI sa pagbasa ng mga larawan ng dokumento at pag-aayos ng teksto para sa manwal na pagsusuri.', 'Ang Google Cloud Vision API ug Groq AI motabang sa pagbasa sa mga hulagway sa dokumento ug paghan-ay sa teksto para sa manwal nga pagsusi.'],
@@ -1086,6 +1126,10 @@ export type AppLanguage = 'English' | 'Tagalog' | 'Bisaya' | 'Cebuano';
 export type MessageParams = Readonly<Record<string, string | number>>;
 
 export function translateMessage(language: AppLanguage, source: string, params: MessageParams = {}): string {
+  const rateBound = /^(Minimum|Maximum) compensation for (Part-time \/ Daily|Full-time \/ Monthly) bookings is (₱[\d,.]+) \/ (day|month)\.$/.exec(source);
+  if (rateBound) return translateMessage(language, `${rateBound[1]} compensation for {engagement} bookings is {rate} / {period}.`, {
+    engagement: translateMessage(language, rateBound[2]!), rate: rateBound[3]!, period: translateMessage(language, rateBound[4]!),
+  });
   // Legacy cached feeds store generated relative labels instead of timestamps.
   const relative = /^(Posted )?(\d+)([mhd]) ago$/.exec(source);
   if (relative) return translateMessage(language, `${relative[1] || ''}{count}${relative[3]} ago`, { count: relative[2]! });

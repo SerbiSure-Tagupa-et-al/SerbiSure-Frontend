@@ -1,3 +1,4 @@
+import { formatRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
@@ -22,8 +23,8 @@ export function WorkerCvPreview({ cv }: { cv: WorkerCv }) {
   const activePhoto = cv.profile_image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=FFB43B&color=fff&size=150`;
 
   // Rates
-  const dailyRate = details.desired_daily_rate ? `PHP ${Number(details.desired_daily_rate).toLocaleString()} / day` : null;
-  const monthlyRate = details.desired_monthly_rate ? `PHP ${Number(details.desired_monthly_rate).toLocaleString()} / month` : null;
+  const dailyRate = details.desired_daily_rate ? `${formatRate(details.desired_daily_rate, '₱')} / day` : null;
+  const monthlyRate = details.desired_monthly_rate ? `${formatRate(details.desired_monthly_rate, '₱')} / month` : null;
 
   // Work Setup & Engagement
   const workSetupLabel = details.work_setup === 'stay_in' ? 'Stay-in (Live-in)' : details.work_setup === 'stay_out' ? 'Stay-out (Goes home)' : details.work_setup === 'either' ? 'Either (Stay-in / Stay-out)' : 'Not provided';

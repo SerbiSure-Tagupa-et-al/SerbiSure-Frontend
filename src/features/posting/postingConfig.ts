@@ -1,3 +1,4 @@
+import { formatRate } from '../../shared/utils/rate';
 export type PostingMode = 'job' | 'service';
 
 export const POSTING_CONFIG = {
@@ -58,7 +59,7 @@ export function buildPostLocation(input: {
 
 function buildPostRateText(rate: string | undefined, shortTerm: boolean): string {
   const amount = rate?.trim().replace(/^₱\s*/, '');
-  return amount ? `₱${amount} / ${shortTerm ? 'day' : 'month'}` : '';
+  return amount ? `${formatRate(amount)} / ${shortTerm ? 'day' : 'month'}` : '';
 }
 
 export function buildPostDescription(mode: PostingMode, input: {

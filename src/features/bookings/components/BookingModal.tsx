@@ -1,3 +1,4 @@
+import { formatRate, formatRateInput } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { useUser } from '../../auth/session/UserContext';
 import type { WorkSetup } from '../workSetup';
@@ -13,7 +14,7 @@ import { WorkScheduleFields } from './WorkScheduleFields';
 import { WorkLocationFields } from './WorkLocationFields';
 import { workLocationError } from '../workLocation';
 import { useWorkLocation } from '../hooks/useWorkLocation';
-import { validatePostingRate } from '../../posting/validation';
+import { validatePostingRate, PART_TIME_MAX_RATE, FULL_TIME_MAX_RATE } from '../../posting/validation';
 import { ProfileAvatar } from '../../../shared/ui/ProfileAvatar';
 import { PrivacyPolicyModal } from '../../profile/components/PrivacyPolicyModal';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -344,7 +345,7 @@ export function BookingModal({
       if (!address.selectedBarangay) errors.barangay = true;
       if (!address.streetAddress.trim()) errors.street = true;
       if (!address.zipcode.trim()) errors.zipcode = true;
-      if (!salary.trim() || isBelowMinWage) errors.salary = true;
+      if (!salary.trim() || salaryError) errors.salary = true;
     }
     return errors;
   };
@@ -428,14 +429,11 @@ export function BookingModal({
     });
   };
 
-  const salaryNum = parseFloat(salary.replace(/[^0-9.]/g, '')) || 0;
-  const effectiveMinDaily = minWageInfo?.rate_period === 'day' ? Number(minWageInfo.minimum_rate) : null;
-  const effectiveMinMonthly = minWageInfo?.rate_period === 'month' ? Number(minWageInfo.minimum_rate) : null;
-  const isBelowMinWage =
-    salaryNum > 0 &&
-    (selectedBookingType === 'short_term'
-      ? effectiveMinDaily !== null && salaryNum < effectiveMinDaily
-      : effectiveMinMonthly !== null && salaryNum < effectiveMinMonthly);
+  const salaryError = salary.trim()
+    ? validatePostingRate('job', selectedBookingType === 'short_term' ? 'short' : 'long', salary, minWageInfo || undefined) : null;
+  const isInvalidRate = !!salaryError;
+  const minimumRate = Number(minWageInfo?.minimum_rate ?? (selectedBookingType === 'short_term' ? 600 : 6500));
+  const maximumRate = Number(minWageInfo?.maximum_rate ?? (selectedBookingType === 'short_term' ? PART_TIME_MAX_RATE : FULL_TIME_MAX_RATE));
 
 
   const modalContent = (
@@ -750,13 +748,15 @@ export function BookingModal({
                 <Text style={styles.fieldLabel}>
                   {selectedBookingType === 'short_term' ? 'AGREED DAILY RATE' : 'AGREED MONTHLY SALARY'}
                 </Text>
-                <View style={[styles.inputBox, (fieldErrors.salary || isBelowMinWage) && styles.inputBoxInvalid]}>
+                <View style={[styles.inputBox, (fieldErrors.salary || isInvalidRate) && styles.inputBoxInvalid]}>
+                  <Text style={[styles.currencyPrefix, (fieldErrors.salary || isInvalidRate) && { color: '#DC2626' }]}>₱</Text>
                   <TextInput
                     accessibilityLabel={selectedBookingType === 'short_term' ? 'Daily rate' : 'Monthly salary'}
                     style={styles.inputText}
-                    value={salary}
+                    value={formatRateInput(salary)}
+                    onBlur={() => { if (formatRate(salary) !== 'Rate not provided') setSalary(formatRate(salary, '').replace(/,/g, '')); }}
                     onChangeText={text => {
-                      setSalary(text);
+                      setSalary(text.replace(/,/g, ''));
                       if (text.trim()) setFieldErrors(prev => ({ ...prev, salary: false }));
                     }}
                     editable={!submitting}
@@ -768,9 +768,17 @@ export function BookingModal({
                     {selectedBookingType === 'short_term' ? uiText("/ day") : uiText("/ month")}
                   </Text>
                 </View>
-                {isBelowMinWage && (
+                <Text style={styles.helperText}>
+                  {uiText('Allowed range: {minimum} – {maximum} / {period} ({engagement})', {
+                    minimum: formatRate(minimumRate), maximum: formatRate(maximumRate),
+                    period: uiText(selectedBookingType === 'short_term' ? 'day' : 'month'),
+                    engagement: uiText(selectedBookingType === 'short_term' ? 'Part-time / Daily' : 'Full-time / Monthly · RA 10361'),
+                  })}
+                </Text>
+                <Text style={styles.helperText}>{uiText('Direct payment between Homeowner and Kasambahay · ₱0.00 SerbiSure fee.')}</Text>
+                {isInvalidRate && (
                   <Text style={[styles.helperText, styles.invalidRateHint]}>
-                    {uiText("Minimum: ₱")}{Number(minWageInfo?.minimum_rate).toLocaleString('en-PH')} / {minWageInfo?.rate_period === 'day' || selectedBookingType === 'short_term' ? uiText("day") : uiText("month")}
+                    {uiText(salaryError?.message || 'Please enter a valid compensation amount.')}
                   </Text>
                 )}
               </View>
@@ -1286,10 +1294,10 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   currencyPrefix: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#1A1A1A',
-    marginRight: 4,
+    marginRight: 6,
   },
   rateUnitSuffix: {
     fontSize: 13,

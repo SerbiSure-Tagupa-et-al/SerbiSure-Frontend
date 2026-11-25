@@ -1,3 +1,4 @@
+import { formatRate } from '../../../shared/utils/rate';
 import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,7 +58,7 @@ export function RepostModal({ post, token, onClose, onSuccess }: {
         days={days} shift={shift} ongoing={ongoing} disabled={saving}
         onStartDate={setStartDate} onEndDate={setEndDate} onWorkHours={setWorkHours} onDays={setDays} onOngoing={setOngoing}
         onShift={value => { setShift(value); const preset = WORK_SHIFTS.find(item => item.value === value); if (preset) setWorkHours(preset.hours); }} />
-      <Text style={{ marginVertical: 16 }}>{post.service_category.join(', ')} · ₱{post.rate_amount} / {post.rate_period}</Text>
+      <Text style={{ marginVertical: 16 }}>{post.service_category.join(', ')} · {formatRate(post.rate_amount)} / {post.rate_period}</Text>
       <Pressable disabled={saving} onPress={() => { void submit(); }} style={{ padding: 16, backgroundColor: '#FFB380', borderRadius: 24, alignItems: 'center' }}>
         {saving ? <ActivityIndicator /> : <Text style={{ fontWeight: '700' }}>{tr('Publish New Post')}</Text>}
       </Pressable>

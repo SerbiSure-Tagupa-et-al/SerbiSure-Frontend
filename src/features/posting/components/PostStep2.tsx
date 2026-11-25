@@ -1,3 +1,5 @@
+import { PART_TIME_MAX_RATE, FULL_TIME_MAX_RATE } from '../validation';
+import { formatRate, formatRateInput } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { WorkLocationFields } from '../../bookings/components/WorkLocationFields';
 import { PublicWorkHoursFields } from './PublicWorkHoursFields';
@@ -29,8 +31,9 @@ export function PostStep2({ form }: { form: PostFormController }) {
   if (step !== 2) return null;
 
   const num = Number(offerAmount.replace(/[^0-9.]/g, ''));
-  const minRate = wagePolicy ? Number(wagePolicy.minimum_rate) : null;
-  const isBelowMin = offerAmount.trim().length > 0 && num > 0 && minRate !== null && num < minRate;
+  const minRate = Number(wagePolicy?.minimum_rate ?? (engagementType === 'short' ? 600 : 6500));
+  const maxRate = Number(wagePolicy?.maximum_rate ?? (engagementType === 'short' ? PART_TIME_MAX_RATE : FULL_TIME_MAX_RATE));
+  const isOutsideRange = offerAmount.trim().length > 0 && num > 0 && minRate !== null && (num < minRate || num > maxRate);
 
   return (
     <View style={styles.stepContainer}>
@@ -82,28 +85,33 @@ export function PostStep2({ form }: { form: PostFormController }) {
       <Text style={[styles.sectionHeader, { marginTop: 14 }]}>
         {uiText("OFFER AMOUNT")}
       </Text>
-      <View style={[styles.offerInputWrapper, (fieldErrors.rate || isBelowMin) && styles.offerInputWrapperInvalid]}>
-        <Text style={[styles.currencyPrefix, isBelowMin && { color: '#DC2626' }]}>₱</Text>
+      <View style={[styles.offerInputWrapper, (fieldErrors.rate || isOutsideRange) && styles.offerInputWrapperInvalid]}>
+        <Text style={[styles.currencyPrefix, isOutsideRange && { color: '#DC2626' }]}>₱</Text>
         <TextInput
-          style={[styles.offerInput, isBelowMin && { color: '#DC2626' }]}
-          value={offerAmount}
-          onChangeText={setOfferAmount}
+          style={[styles.offerInput, isOutsideRange && { color: '#DC2626' }]}
+          value={formatRateInput(offerAmount)}
+          onChangeText={text => setOfferAmount(text.replace(/,/g, ''))}
+          onBlur={() => { if (formatRate(offerAmount) !== 'Rate not provided') setOfferAmount(formatRate(offerAmount, '').replace(/,/g, '')); }}
           keyboardType="decimal-pad"
           placeholder={wagePolicy?.minimum_rate || uiText('Enter amount')}
           placeholderTextColor="#9CA3AF"
           editable={!isPosting}
         />
-        <Text style={[styles.rateUnitSuffix, isBelowMin && { color: '#DC2626' }]}>
+        <Text style={[styles.rateUnitSuffix, isOutsideRange && { color: '#DC2626' }]}>
           {engagementType === 'short' ? uiText("/ day") : uiText("/ month")}
         </Text>
       </View>
 
-      {/* Only show minimum wage note if user inputs below minimum */}
-      {isBelowMin ? (
-        <Text style={styles.invalidRateHint}>
-          {uiText("Minimum: ₱")}{Number(minRate).toLocaleString('en-PH')} / {wagePolicy?.rate_period === 'day' || engagementType === 'short' ? uiText("day") : uiText("month")}
-        </Text>
-      ) : null}
+      <Text style={[styles.invalidRateHint, { color: isOutsideRange ? '#DC2626' : '#6B7280', marginTop: 8 }]}>
+        {uiText('Allowed range: {minimum} – {maximum} / {period} ({engagement})', {
+          minimum: formatRate(minRate), maximum: formatRate(maxRate),
+          period: uiText(engagementType === 'short' ? 'day' : 'month'),
+          engagement: uiText(engagementType === 'short' ? 'Part-time / Daily' : 'Full-time / Monthly · RA 10361'),
+        })}
+      </Text>
+      <Text style={[styles.invalidRateHint, { color: '#6B7280', marginTop: 5 }]}>
+        {uiText('Direct payment between Homeowner and Kasambahay · ₱0.00 SerbiSure fee.')}
+      </Text>
     </View>
   );
 }

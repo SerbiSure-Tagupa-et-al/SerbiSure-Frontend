@@ -1,3 +1,4 @@
+import { formatRate } from '../../../shared/utils/rate';
 import type { WorkerCv } from '../api/workerCvApi';
 
 export interface GenerateCvPdfOptions {
@@ -61,8 +62,8 @@ export function generateWorkerCvPdf(cv: WorkerCv, options?: GenerateCvPdfOptions
   const emailText = (options?.email || cv.email || cv.details?.email || model?.email || '').trim();
 
   // Rates
-  const dailyRate = details.desired_daily_rate ? `PHP ${Number(details.desired_daily_rate).toLocaleString()} / day` : null;
-  const monthlyRate = details.desired_monthly_rate ? `PHP ${Number(details.desired_monthly_rate).toLocaleString()} / month` : null;
+  const dailyRate = details.desired_daily_rate ? `${formatRate(details.desired_daily_rate, 'PHP ')} / day` : null;
+  const monthlyRate = details.desired_monthly_rate ? `${formatRate(details.desired_monthly_rate, 'PHP ')} / month` : null;
 
   // Work Setup & Engagement
   const workSetupLabel = details.work_setup === 'stay_in' ? 'Stay-in (Live-in)' : details.work_setup === 'stay_out' ? 'Stay-out (Goes home)' : details.work_setup === 'either' ? 'Either (Stay-in / Stay-out)' : 'Not provided';

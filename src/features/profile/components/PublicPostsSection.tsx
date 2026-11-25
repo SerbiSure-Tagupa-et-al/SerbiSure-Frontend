@@ -1,3 +1,5 @@
+import { validatePostingRate } from '../../posting/validation';
+import { formatRateInput } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -113,8 +115,9 @@ export function PublicPostsSection({
   const submit = async () => {
     if (!selected || !token || submittingRef.current) return;
     const amount = Number(rate);
-    if (!Number.isFinite(amount) || amount < 1 || amount > 999999.99) {
-      Alert.alert('Invalid Rate', 'Enter a valid amount up to ₱999,999.99. The applicable minimum is checked by the server.');
+    const rateError = validatePostingRate('job', selected.rate_period === 'month' ? 'long' : 'short', rate);
+    if (rateError) {
+      Alert.alert(uiText(rateError.title), uiText(rateError.message));
       return;
     }
     submittingRef.current = true;
@@ -272,8 +275,8 @@ export function PublicPostsSection({
             <Text style={styles.pendingPostManageBtnText}>Proposed amount (₱/{selected?.rate_period})</Text>
             <TextInput
               accessibilityLabel="Proposed compensation amount"
-              value={rate}
-              onChangeText={setRate}
+              value={formatRateInput(rate)}
+              onChangeText={text => setRate(text.replace(/,/g, ''))}
               keyboardType="decimal-pad"
               editable={!submitting}
               style={[styles.bioTextInput, { minHeight: 48, marginTop: 8, marginBottom: 16 }]}

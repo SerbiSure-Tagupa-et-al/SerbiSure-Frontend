@@ -1,3 +1,4 @@
+import { formatRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React, { useState } from 'react';
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -20,17 +21,6 @@ interface CardProps {
   readonly onProfilePress: () => void;
   readonly onSave: () => void;
   readonly onDetails: () => void;
-}
-
-function formatCardPrice(rawPrice: string): string {
-  if (!rawPrice) return 'Php 0';
-  const clean = rawPrice.replace(/^[₱\sPhpPHP]+/i, '').trim();
-  const num = Number.parseFloat(clean.replace(/,/g, ''));
-  if (Number.isNaN(num)) return rawPrice;
-  const formatted = num % 1 === 0
-    ? num.toLocaleString('en-PH')
-    : num.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  return `Php ${formatted}`;
 }
 
 function formatCardUnit(rawUnit: string): string {
@@ -78,7 +68,7 @@ export function BrowsePostCard({ name, avatarUri, authorRole, title, location, d
             </View>
             <View style={styles.footer}>
               <View style={styles.rate}>
-                <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit>{formatCardPrice(price)}</Text>
+                <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit>{uiText(formatRate(price))}</Text>
                 <Text style={styles.unit}>{uiText(formatCardUnit(unit))}</Text>
               </View>
               <Pressable accessibilityRole="button" onPress={onDetails} style={[styles.details, applied && styles.applied]}>

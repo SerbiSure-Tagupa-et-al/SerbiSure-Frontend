@@ -130,7 +130,7 @@ class SavedJobsStore {
             roleTag: (item.service_category || []).join(', '), title: (item.service_category || []).join(', '),
             location: formatBookingLocationShort(item, 'Location not provided'),
             termTag: item.booking_type === 'long_term' ? 'Full-time' : 'Part-time',
-            price: formatRate(item.rate_amount, 'PHP '), unit: '/ ' + item.rate_period,
+            price: formatRate(item.rate_amount), unit: '/ ' + item.rate_period,
             aboutText: item.special_instruction || '', tags: item.service_category || [],
             start_time: item.start_time, booking_status: item.booking_status, post_status: item.post_status,
             end_time: item.end_time, booking_type: item.booking_type,

@@ -1,3 +1,5 @@
+import { PART_TIME_MAX_RATE, FULL_TIME_MAX_RATE } from '../../posting/validation';
+import { formatRateInput } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Image, Pressable, StyleSheet, Text, TextInput, View, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, ScrollView, Modal } from 'react-native';
@@ -444,7 +446,7 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
 
     const salaryNum = parseFloat(desiredSalary.replace(/[^\d.]/g, '')) || 0;
     const salaryFormatted = salaryNum > 0
-      ? `₱ ${salaryNum.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      ? `₱${salaryNum.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : '';
 
     const livingStr = livingArrangement ? livingArrangement.toLowerCase() : 'a flexible';
@@ -539,11 +541,14 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
       errors.monthlySalary = "Please enter a valid monthly salary.";
     }
 
+    if (Number(workerDetails.desired_monthly_rate) > FULL_TIME_MAX_RATE) errors.monthlySalary = uiText('Maximum expected Full-time / Monthly rate is ₱50,000.00 / month.');
+
     if (needsDaily && !workerDetails.desired_daily_rate?.trim()) {
       errors.dailyRate = "Please enter your expected daily rate.";
     } else if (workerDetails.desired_daily_rate?.trim() && (isNaN(Number(workerDetails.desired_daily_rate)) || Number(workerDetails.desired_daily_rate) <= 0)) {
       errors.dailyRate = "Please enter a valid daily rate.";
     }
+    if (Number(workerDetails.desired_daily_rate) > PART_TIME_MAX_RATE) errors.dailyRate = uiText('Maximum expected Part-time / Daily rate is ₱5,000.00 / day.');
 
     const langs = workerDetails.languages || [];
     if (langs.length === 0) {
@@ -1334,7 +1339,7 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
                       placeholder="e.g. ₱8000"
                       placeholderTextColor="#6B7280"
                       keyboardType="numeric"
-                      value={workerDetails.desired_monthly_rate}
+                      value={formatRateInput(workerDetails.desired_monthly_rate)}
                       onChangeText={(t) => {
                         const clean = t.replace(/[^\d.]/g, '');
                         setWorkerDetails(prev => ({ ...prev, desired_monthly_rate: clean }));
@@ -1358,7 +1363,7 @@ export function RegistrationScreen({ role, onBack, onNext, onCancel, onNavigateT
                       placeholder="e.g. ₱800"
                       placeholderTextColor="#6B7280"
                       keyboardType="numeric"
-                      value={workerDetails.desired_daily_rate}
+                      value={formatRateInput(workerDetails.desired_daily_rate)}
                       onChangeText={(t) => {
                         const clean = t.replace(/[^\d.]/g, '');
                         setWorkerDetails(prev => ({ ...prev, desired_daily_rate: clean }));

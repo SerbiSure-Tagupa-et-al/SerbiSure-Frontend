@@ -65,7 +65,7 @@ export function BookingOfferReview(props: Props) {
   const showDateRange = !short || (!!props.endDate.trim() && startDate !== endDate);
   const openEnded = !short && (props.ongoing || !props.endDate.trim());
   const amount = props.salary.trim() && Number.isFinite(Number(props.salary))
-    ? `₱${Number(props.salary).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
+    ? `₱${Number(props.salary).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : props.salary || uiText('Not provided');
 
   const primaryServiceChoice = SERVICE_CHOICES.find(item => props.serviceCategory.includes(item.id));

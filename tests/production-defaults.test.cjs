@@ -80,7 +80,7 @@ test('invalid ratings are absent and averages use only real ratings', () => {
 test('missing or malformed rates never become free work or a made-up amount', () => {
   for (const value of [undefined, null, '', ' ', 0, -1, Infinity, NaN, 'wrong', '0x10', '1e3']) assert.equal(rates.formatRate(value), 'Rate not provided');
   assert.equal(rates.formatRate('800.00'), '₱800.00');
-  assert.equal(rates.formatRate('800', 'PHP '), 'PHP 800');
+  assert.equal(rates.formatRate('800', 'PHP '), 'PHP 800.00');
 });
 
 test('registered location never invents Pagatpat or a city', () => {

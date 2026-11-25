@@ -67,8 +67,8 @@ export function PendingPostCard({
     const location = formatBookingLocationShort(post, authorLocation || 'Location not provided');
     const numRate = Number(post.rate_amount) || 0;
     const rawPrice = post.rate_amount
-      ? `₱ ${numRate.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      : '₱ 0.00';
+      ? `₱${numRate.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : 'Rate not provided';
     const unit = post.rate_period ? `/${post.rate_period}` : longTerm ? '/month' : '/day';
     const description =
       post.special_instruction?.trim() ||

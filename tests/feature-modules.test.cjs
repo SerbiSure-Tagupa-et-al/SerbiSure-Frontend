@@ -187,7 +187,7 @@ test('Home maps the same DTO into distinct job and worker cards', () => {
   assert.equal(worker.authorRole, 'Kasambahay');
   assert.equal(worker.roleTag, 'Cleaner');
   assert.equal(worker.title, 'Cleaner');
-  assert.equal(job.price, '₱800');
+  assert.equal(job.price, '₱800.00');
   assert.equal(job.unit, '/ day');
   assert.equal(job.location, 'Nazareth, Cagayan de Oro');
   assert.equal(job.aboutText, 'I am looking for Cleaning & Child Care at Test Street, Brgy. Nazareth, Cagayan de Oro, on a stay-out setup.');
@@ -216,10 +216,10 @@ test('Explore keeps its own card wording and rate units', () => {
   assert.equal(worker.name, 'Test User');
   assert.equal(worker.role, 'Cleaning, Child Care');
   assert.equal(worker.years, 'Part-time');
-  assert.equal(worker.price, '₱800');
+  assert.equal(worker.price, '₱800.00');
   assert.equal(worker.unit, 'per day');
   assert.equal(mapper.mapWorkerPreview({ ...dto, booking_type: 'long_term' }).unit, 'per month');
-  assert.equal(job.price, '₱800');
+  assert.equal(job.price, '₱800.00');
   assert.equal(job.title, 'Cleaning & Child Care');
   assert.equal(job.unit, 'per month');
   assert.equal(job.termTag, 'Full-time');
@@ -372,7 +372,7 @@ test('generated descriptions preserve role and engagement wording', () => {
   assert.equal(posting.buildPostDescription('service', { ...input, shortTerm: false, instructions: '' }), 'I am looking for full-time Cleaning work in Nazareth on a stay-out arrangement.');
   const location = posting.buildPostLocation({ street: 'Lot 3', floorUnit: '5', barangay: 'Brgy. Agusan', city: 'City of Cagayan De Oro', zipcode: '9000' });
   assert.equal(location, 'Lot 3, Floor/Unit 5, Brgy. Agusan, City of Cagayan De Oro (9000)');
-  assert.equal(posting.buildPostDescription('service', { ...input, location, rate: '₱600' }), 'I am offering Cleaning service in Lot 3, Floor/Unit 5, Brgy. Agusan, City of Cagayan De Oro (9000), available 8 AM to 5 PM with an expected rate of ₱600 / day.\n\nAbout my experience:\nPet-friendly');
+  assert.equal(posting.buildPostDescription('service', { ...input, location, rate: '₱600' }), 'I am offering Cleaning service in Lot 3, Floor/Unit 5, Brgy. Agusan, City of Cagayan De Oro (9000), available 8 AM to 5 PM with an expected rate of ₱600.00 / day.\n\nAbout my experience:\nPet-friendly');
   assert.equal(posting.buildPostLocation({ street: '  ', floorUnit: '', barangay: null, city: 'Cagayan de Oro', zipcode: '9000' }), 'Cagayan de Oro (9000)');
 });
 

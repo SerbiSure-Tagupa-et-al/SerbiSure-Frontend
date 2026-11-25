@@ -42,7 +42,7 @@ function load(name) {
     if (specifier === '@expo/vector-icons') return { Ionicons: 'Icon' };
     if (specifier === 'react-native-safe-area-context') return { useSafeAreaInsets: () => ({ bottom: 0 }) };
     if (specifier.endsWith('/LanguageContext')) return { useLanguage: () => ({
-      tr: value => messages.translateMessage(language, value), formatDate: (value, style) => messages.formatLocalizedDate(language, value, style),
+      tr: (value, params) => messages.translateMessage(language, value, params), formatDate: (value, style) => messages.formatLocalizedDate(language, value, style),
     }) };
     if (specifier.endsWith('/UserContext')) return { useUser: () => ({ user: {} }) };
     if (specifier.endsWith('/reviewApi')) return { fetchReviewSummary: () => { throw new Error('Unexpected request'); } };
@@ -87,6 +87,30 @@ const dto = { booking_id: 'post-1', poster_id: 'owner-1', name: 'Poster', profil
   start_time: '2026-11-01T00:00:00Z', end_time: '2026-11-05T09:00:00Z', daily_start_time: '08:00:00', daily_end_time: '17:00:00', work_days: ['Su', 'M', 'T', 'W', 'Th'],
 };
 const detail = (t, post) => mount(t, React.createElement(JobDetailSheet, { visible: true, job: post, onClose() {}, onApply() {}, isApplied: false }));
+
+test('posting shows live allowed ranges and zero fees while preserving numeric payloads', t => {
+  const changes = [];
+  for (const [engagementType, rate_period, minimum_rate, maximum_rate, expected] of [
+    ['short', 'day', '600.00', '5000.00', '₱600.00 – ₱5,000.00'],
+    ['long', 'month', '7800.00', '45000.00', '₱7,800.00 – ₱45,000.00'],
+  ]) {
+    const screen = mount(t, React.createElement(PostStep2, { form: {
+      ...form, step: 2, engagementType, offerAmount: '1500', address: {}, user: null,
+      config: { role: 'homeowner', instructionsPlaceholder: 'Optional instructions' },
+      wagePolicy: { rate_period, minimum_rate, maximum_rate },
+      setWorkHours() {}, setSelectedTime() {}, setInstructions() {}, applyUserProfileAddress() {},
+      setOfferAmount: value => changes.push(value),
+    } }));
+    assert.ok(screen.content().includes(expected), screen.content());
+    assert.ok(screen.content().includes('₱0.00 SerbiSure fee.'));
+    const amount = screen.nodes().find(node => node.type === 'TextInput' && node.props.keyboardType === 'decimal-pad');
+    assert.equal(amount.props.value, '1,500');
+    amount.props.onChangeText('1,750.50');
+    assert.equal(changes.at(-1), '1750.50');
+    amount.props.onBlur();
+    assert.equal(changes.at(-1), '1500.00');
+  }
+});
 
 for (const role of ['homeowner', 'kasambahay']) {
   test(`${role} posting review shows only daily hours, even with legacy calendar state`, t => {

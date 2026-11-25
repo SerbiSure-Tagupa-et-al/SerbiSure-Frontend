@@ -3,6 +3,19 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
+function compileCurrency(file, mocks = {}) {
+  const module = { exports: {} };
+  const source = fs.readFileSync(path.resolve(__dirname, '..', file), 'utf8');
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  new Function('require', 'module', 'exports', output)(name => {
+    if (name in mocks) return mocks[name];
+    throw new Error('Unexpected dependency: ' + name);
+  }, module, module.exports);
+  return module.exports;
+}
+const chatCurrency = compileCurrency('src/features/chat/chatCurrency.ts', {
+  '../../shared/utils/rate': compileCurrency('src/shared/utils/rate.ts'),
+});
 function store(fetchInbox) {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/features/chat/store/chatStore.ts'), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
@@ -10,6 +23,7 @@ function store(fetchInbox) {
   new Function('require', 'module', 'exports', output)(name => {
     if (name === 'react-native') return { Image: { prefetch: async () => {} } };
     if (name.includes('chatApi')) return { fetchChatInbox: fetchInbox };
+    if (name === '../chatCurrency') return chatCurrency;
     if (name === '../offensiveLanguage') {
       const language = { exports: {} };
       const source = fs.readFileSync(path.resolve(__dirname, '../src/features/chat/offensiveLanguage.ts'), 'utf8');
@@ -111,4 +125,11 @@ test('loading or updating a conversation preview never invents an online presenc
   assert.notEqual(chats.getChats()[0].online, true);
   chats.addOrUpdateChat({ partnerId: 'new-contact', name: 'New contact', message: 'New message' });
   assert.notEqual(chats.getChats()[0].online, true);
+});
+
+test('conversation previews retain the formatted rate proposal sent by chat', () => {
+  const chats = store(async () => []);
+  const message = chatCurrency.buildRateProposalMessage('long_term', '8500');
+  chats.addOrUpdateChat({ partnerId: 'worker', name: 'Worker', message });
+  assert.equal(chats.getChats()[0].message, 'Rate proposal (Full-time / Monthly): ₱8,500.00 / month');
 });

@@ -1,3 +1,4 @@
+import { formatRate } from '../../../shared/utils/rate';
 import { useLanguage as useUiLanguage } from '../../../shared/localization/LanguageContext';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -22,12 +23,7 @@ export function BrowseActivityCard({ post, applied, closed, now, onProfile, onDe
   const { tr: uiText } = useUiLanguage();
   const badgeText = post.termTag || post.setupTag;
 
-  const formatPrice = (rawPrice?: string) => {
-    if (!rawPrice) return '₱0';
-    const cleaned = rawPrice.replace(/\.00$/, '').trim();
-    if (cleaned.startsWith('₱')) return cleaned;
-    return `₱${cleaned.replace(/^Php\s*/i, '')}`;
-  };
+  const formatPrice = (rawPrice?: string) => uiText(formatRate(rawPrice));
 
   const rawUnit = post.unit ? post.unit.replace(/^\//, '').trim() : '';
   const unitText = rawUnit ? `/ ${rawUnit}` : '';

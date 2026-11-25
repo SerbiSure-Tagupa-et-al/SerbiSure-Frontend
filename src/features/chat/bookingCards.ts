@@ -1,3 +1,4 @@
+import { formatRate } from '../../shared/utils/rate';
 import { formatBookingAddress, type BookingItem } from '../bookings/api/bookingApi';
 import type { WorkSetup } from '../bookings/workSetup';
 
@@ -65,7 +66,7 @@ export function mapBookingCard(offer?: PersistedChatOffer | null): BookingCardIn
     workHours: hours, location: formatBookingAddress(b, ''), region: b.region || '', days: b.work_days || [],
     salary: rate, bookingType: b.booking_type, serviceCategory: b.service_category, workSetup: b.work_setup || null,
     jobRole: b.service_category.map(value => value.replace(/_/g, ' ')).join(', '),
-    details: 'PHP ' + rate + '/' + b.rate_period + (hours ? ' · ' + hours : ''),
+    details: formatRate(rate) + ' / ' + b.rate_period + (hours ? ' · ' + hours : ''),
     isConfirmed: confirmed, isDeclined: declined, isAcquired: unavailable,
   };
 }

@@ -643,7 +643,7 @@ export function MyBookingsModal({
                         {/* Middle Row: Rate & Combined Terms Badge */}
                         <View style={styles.cardMiddleRow}>
                           <View style={styles.rateContainer}>
-                            <Text style={styles.rateAmount}>{uiText(formatRate(booking.rate_amount).replace(/\.00$/, ''))}</Text>
+                            <Text style={styles.rateAmount}>{uiText(formatRate(booking.rate_amount))}</Text>
                             <Text style={styles.ratePeriod}>
                               / {booking.rate_period || (booking.booking_type === 'long_term' ? 'month' : 'day')}
                             </Text>
