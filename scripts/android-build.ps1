@@ -25,6 +25,8 @@ $gradleExitCode = 1
 
 & node (Join-Path $PSScriptRoot "patch-mediapipe.js")
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& node (Join-Path $PSScriptRoot "patch-android-networking.js")
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Push-Location $androidDir
 try {

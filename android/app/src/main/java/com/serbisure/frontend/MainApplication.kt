@@ -10,7 +10,14 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.ReactHost
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
+import com.facebook.react.modules.network.OkHttpClientFactory
+import com.facebook.react.modules.network.OkHttpClientProvider
 import com.facebook.soloader.SoLoader
+
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.util.concurrent.TimeUnit
+import okhttp3.Dns
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
@@ -40,6 +47,19 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    // Prefer IPv4 addresses before IPv6 (while keeping IPv6 fallback for NAT64/IPv6-only networks)
+    // so residential Wi-Fi routers with unrouted IPv6 RA do not stall OkHttp before falling back.
+    OkHttpClientProvider.setOkHttpClientFactory(
+      OkHttpClientFactory {
+        OkHttpClientProvider.createClientBuilder(applicationContext)
+          .dns(object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> =
+              Dns.SYSTEM.lookup(hostname).sortedBy { it !is Inet4Address }
+          })
+          .connectTimeout(10, TimeUnit.SECONDS)
+          .build()
+      }
+    )
     SoLoader.init(this, false)
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
       // If you opted-in for the New Architecture, we load the native entry point for this app.

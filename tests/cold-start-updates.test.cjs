@@ -408,3 +408,34 @@ test('installer permission errors keep the download; a deleted cached APK is dow
     assert.equal(downloads, missing ? 2 : 1); assert.equal(u.state.getUpdatePhase(), 'installReady');
   }
 });
+
+
+test('Retry reuses an unsettled Expo serial-queue check instead of stacking duplicates, then starts fresh once settled', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const ota = deferred();
+  let nativeCalls = 0;
+  const u = updater({
+    nativeCheck: async () => { nativeCalls++; return null; },
+    api: { checkForUpdateAsync: () => { u.calls.push('check'); return ota.promise; } },
+  });
+
+  const first = u.state.startColdStartUpdate();
+  await tick();
+  assert.equal(nativeCalls, 1);
+  assert.deepEqual(u.calls, ['check']);
+
+  t.mock.timers.tick(6000);
+  await first;
+  assert.equal(u.state.getUpdatePhase(), 'checkError');
+
+  // User taps Try Again while Expo's native CheckForUpdateProcedure is still running:
+  // native version is re-checked, and the in-flight Expo check is joined rather than duplicated.
+  const retry = u.state.retryColdStartUpdate();
+  await tick();
+  assert.equal(nativeCalls, 2);
+  assert.deepEqual(u.calls, ['check']);
+
+  ota.resolve(current);
+  await retry;
+  assert.equal(u.state.getUpdatePhase(), 'ready');
+});
