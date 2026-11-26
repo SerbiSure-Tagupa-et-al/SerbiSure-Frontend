@@ -1,6 +1,6 @@
 {
   "name": "serbisure-frontend",
-  "version": "2.1.7",
+  "version": "2.1.8",
   "private": true,
   "main": "expo/AppEntry.js",
   "scripts": {
@@ -31,7 +31,7 @@
     "android:build:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/android-build-debug.ps1",
     "typecheck": "tsc --noEmit",
     "test:modules": "node --test tests/feature-modules.test.cjs",
-    "postinstall": "node scripts/patch-mediapipe.js",
+    "postinstall": "node scripts/patch-mediapipe.js && node scripts/patch-android-networking.js",
     "test": "node scripts/run-tests.cjs"
   },
   "dependencies": {

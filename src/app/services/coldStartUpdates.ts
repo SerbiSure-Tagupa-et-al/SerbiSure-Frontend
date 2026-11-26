@@ -10,6 +10,7 @@ let phase: UpdatePhase = bypass ? 'ready' : 'checking';
 let started = false;
 let downloaded = false;
 let inFlight: Promise<void> | null = null;
+let pendingOtaCheck: Promise<Updates.UpdateCheckResult> | null = null;
 const listeners = new Set<(value: UpdatePhase) => void>();
 export const UPDATE_CHECK_TIMEOUT_MS = 6000;
 let native = { release: null as NativeRelease | null, progress: null as number | null, path: null as string | null,
@@ -32,6 +33,20 @@ function setPhase(value: UpdatePhase) {
 // Allow the blocking screen to paint before starting native work/reloading.
 const nextPaint = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
+// Expo's native check runs on a strict serial FIFO queue and cannot be cancelled.
+// Reusing an unsettled check prevents Retry taps from piling up duplicate queued procedures.
+function checkOtaAvailability(): Promise<Updates.UpdateCheckResult> {
+  if (!pendingOtaCheck) {
+    const request = Updates.checkForUpdateAsync();
+    const clear = () => {
+      if (pendingOtaCheck === request) pendingOtaCheck = null;
+    };
+    request.then(clear, clear);
+    pendingOtaCheck = request;
+  }
+  return pendingOtaCheck;
+}
+
 async function checkAvailability() {
   const controller = new AbortController();
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -46,7 +61,7 @@ async function checkAvailability() {
     if (controller.signal.aborted) throw new Error('Update check cancelled');
     if (release) return { release, result: null };
     if (!Updates.isEnabled) throw new Error('OTA updates are unavailable in this release build.');
-    return { release: null, result: await Updates.checkForUpdateAsync() };
+    return { release: null, result: await checkOtaAvailability() };
   };
   try {
     // One budget covers BOTH checks, not six seconds per request. Expo's check

@@ -21,7 +21,10 @@ export function isNewerVersion(latest: string, installed: string): boolean {
 
 // The cold-start coordinator owns the shared six-second check deadline.
 export async function checkNativeUpdate(signal?: AbortSignal): Promise<NativeRelease | null> {
-  const response = await fetch(buildApiUrl('/api/v1/app-version/'), { signal });
+  const response = await fetch(buildApiUrl('/api/v1/app-version/'), {
+    signal,
+    headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+  });
   if (!response.ok) throw new Error('Version check failed');
   const data = await response.json();
   // No published release yet is different from an unreachable version service.
