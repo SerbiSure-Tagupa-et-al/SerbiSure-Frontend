@@ -30,6 +30,30 @@ export function shortCityLabel(city?: string | null): string {
   return cleaned.replace(/^city of\s+/i, '').replace(/^municipality of\s+/i, '').trim();
 }
 
+export function isSameCity(a?: string | null, b?: string | null): boolean {
+  const left = shortCityLabel(a).toLowerCase();
+  const right = shortCityLabel(b).toLowerCase();
+  return !!left && left === right;
+}
+
+export function resolveBarangayForScope(
+  scope: LocationScope,
+  city: string,
+  barangay: string,
+  userLocation?: { city?: string | null; barangay?: string | null } | null,
+): string {
+  if (scope !== 'same_barangay' && scope !== 'radius') return '';
+  const trimmed = barangay.trim();
+  if (trimmed) return trimmed;
+  const profileBarangay = (userLocation?.barangay || '').trim();
+  if (!profileBarangay) return '';
+  const profileCity = (userLocation?.city || 'City of Cagayan De Oro').trim();
+  if (!city.trim() || isSameCity(city, profileCity)) {
+    return profileBarangay;
+  }
+  return '';
+}
+
 export function formatBarangayShort(barangay?: string | null): string {
   const trimmed = (barangay || '').trim();
   if (!trimmed) return '';

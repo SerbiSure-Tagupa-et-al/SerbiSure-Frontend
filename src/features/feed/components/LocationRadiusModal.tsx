@@ -16,6 +16,7 @@ import {
   defaultLocationFilter,
   formatBarangayShort,
   RADIUS_OPTIONS,
+  resolveBarangayForScope,
   shortCityLabel,
   type LocationFilterState,
   type LocationScope,
@@ -78,13 +79,17 @@ export function LocationRadiusModal({
 
   useEffect(() => {
     if (!visible) return;
+    const nextCity = value.city || userLocation?.city || 'City of Cagayan De Oro';
     setScope(value.scope);
     setRadiusKm(value.radiusKm || 5);
-    setCity(value.city || userLocation?.city || 'City of Cagayan De Oro');
-    setBarangay(value.barangay || '');
+    setCity(nextCity);
+    setBarangay(
+      value.barangay ||
+        resolveBarangayForScope(value.scope, nextCity, '', userLocation),
+    );
     setPickerMode('none');
     setSearch('');
-  }, [visible, value, userLocation?.city]);
+  }, [visible, value, userLocation?.city, userLocation?.barangay]);
 
   useEffect(() => {
     if (!visible || pickerMode !== 'barangay') return;
@@ -148,8 +153,16 @@ export function LocationRadiusModal({
   const handleSelectScope = (nextScope: LocationScope, nextRadius?: number) => {
     setScope(nextScope);
     if (nextRadius !== undefined) setRadiusKm(nextRadius);
-    if (nextScope !== 'all' && !city.trim()) {
-      setCity(userLocation?.city || 'City of Cagayan De Oro');
+    const nextCity =
+      nextScope !== 'all' && !city.trim()
+        ? userLocation?.city || 'City of Cagayan De Oro'
+        : city;
+    if (nextCity !== city) {
+      setCity(nextCity);
+    }
+    if ((nextScope === 'same_barangay' || nextScope === 'radius') && !barangay.trim()) {
+      const prefilled = resolveBarangayForScope(nextScope, nextCity, '', userLocation);
+      if (prefilled) setBarangay(prefilled);
     }
     setPickerMode('none');
   };
@@ -162,7 +175,7 @@ export function LocationRadiusModal({
 
   const handleApply = () => {
     const effectiveCity = scope === 'all' ? '' : city.trim();
-    const effectiveBarangay = needsBarangay ? barangay.trim() : '';
+    const effectiveBarangay = resolveBarangayForScope(scope, effectiveCity, barangay, userLocation);
     const effectiveScope: LocationScope =
       scope === 'same_barangay' && !effectiveBarangay
         ? (effectiveCity ? 'same_city' : 'all')

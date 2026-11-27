@@ -171,3 +171,37 @@ test('every Misamis Oriental city has instant offline PSGC barangay fallbacks wi
   assert.equal(opol.code, '104321000');
   assert.ok(locationService.getFallbackBarangays(opol.code).some(b => b.name === 'Igpit'));
 });
+
+test('resolveBarangayForScope prefills profile barangay when switching from All CDO or All Areas to Same Barangay or radius', () => {
+  const userLocation = { city: 'City of Cagayan De Oro', barangay: 'Carmen' };
+
+  // After using All CDO (barangay cleared), tapping Same Barangay prefills profile barangay
+  assert.equal(
+    locationFilter.resolveBarangayForScope('same_barangay', 'City of Cagayan De Oro', '', userLocation),
+    'Carmen',
+  );
+  // After using All Areas (city & barangay cleared), tapping 5 km radius prefills profile barangay
+  assert.equal(
+    locationFilter.resolveBarangayForScope('radius', '', '', userLocation),
+    'Carmen',
+  );
+  // Explicit barangay choice is always preserved
+  assert.equal(
+    locationFilter.resolveBarangayForScope('same_barangay', 'City of Cagayan De Oro', 'Macasandig', userLocation),
+    'Macasandig',
+  );
+  // Different city does not wrongly inject the user's CDO barangay
+  assert.equal(
+    locationFilter.resolveBarangayForScope('same_barangay', 'Opol', '', userLocation),
+    '',
+  );
+  // City-wide and All Areas scopes clear barangay
+  assert.equal(
+    locationFilter.resolveBarangayForScope('same_city', 'City of Cagayan De Oro', 'Carmen', userLocation),
+    '',
+  );
+  assert.equal(
+    locationFilter.resolveBarangayForScope('all', '', 'Carmen', userLocation),
+    '',
+  );
+});

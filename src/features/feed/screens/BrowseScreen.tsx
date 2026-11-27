@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ROLE_CONFIG, type Role } from '../../../app/roleConfig';
 import { useLanguage } from '../../../shared/localization/LanguageContext';
@@ -47,6 +48,7 @@ interface ActiveChat {
 
 export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookingsPress }: Props) {
   const { tr: uiText } = useLanguage();
+  const insets = useSafeAreaInsets();
   const { user } = useUser();
   const effectiveToken = token || user.token;
   const [pendingReview, setPendingReview] = useState<PendingMandatoryReview | null>(null);
@@ -227,7 +229,7 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
   const openProfile = (post: SavedJobItem) => { if (post.partnerId) setProfilePost(post); };
 
   return <View style={styles.container}>
-    <ScrollView style={{ flex: 1, backgroundColor: THEME.colors.canvas }} contentContainerStyle={{ flexGrow: 1, paddingTop: 6, paddingBottom: 20 }}
+    <ScrollView style={{ flex: 1, backgroundColor: THEME.colors.canvas }} contentContainerStyle={{ flexGrow: 1, paddingTop: 6, paddingBottom: Math.max(insets.bottom + 96, 112) }}
       showsVerticalScrollIndicator={false} alwaysBounceVertical
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} colors={[THEME.colors.brandDark]} tintColor={THEME.colors.brandDark} progressViewOffset={0} />}>
       <BrowseHeader {...headerCopy} name={user.firstName || ROLE_CONFIG[role].accountType} avatarUri={user.profileLink || avatarUri}
@@ -235,18 +237,6 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
         onTabChange={tab => setSubTab(!findingJobs && tab === 'applied' ? 'explore' : tab)} onProfilePress={onViewProfile}
         filtersVisible={quickFiltersVisible} onFiltersToggle={() => setQuickFiltersVisible(visible => !visible)} />
       {subTab === 'explore' ? <>
-        <View style={styles.locationChipWrap}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={uiText('Change location and distance')}
-            onPress={() => setLocationModalVisible(true)}
-            style={({ pressed }) => [styles.locationChip, pressed && { opacity: 0.78 }]}
-          >
-            <Ionicons name="location-sharp" size={14} color={THEME.colors.brandDark} />
-            <Text style={styles.locationChipText} numberOfLines={1}>{formatLocationChipLabel(currentLocationState, uiText)}</Text>
-            <Ionicons name="chevron-down" size={14} color={THEME.colors.textSecondary} />
-          </Pressable>
-        </View>
         {quickFiltersVisible && <BrowseFilters activeChip={activeBrowseChip(filters)} filterCount={activeFilterCount}
           onChipPress={label => applyFilters(quickBrowseFilters(filters, label))} onFilterPress={() => setFilterVisible(true)} />}
         {isLoading ? <View style={deckStyles.centerWrapper}><BrowseDeckSkeleton /></View>
@@ -264,6 +254,20 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
               </Animated.View>
               <BrowseDeckSwipeControls role={role} dragX={position.x} onSkip={() => swipeCard('left')} onInterested={() => swipeCard('right')} />
             </View></View>}
+        {!isLoading && (
+          <View style={styles.locationChipWrap}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={uiText('Change location and distance')}
+              onPress={() => setLocationModalVisible(true)}
+              style={({ pressed }) => [styles.locationChip, pressed && { opacity: 0.78 }]}
+            >
+              <Ionicons name="location-sharp" size={14} color={THEME.colors.brandDark} />
+              <Text style={styles.locationChipText} numberOfLines={1}>{formatLocationChipLabel(currentLocationState, uiText)}</Text>
+              <Ionicons name="chevron-down" size={14} color={THEME.colors.textSecondary} />
+            </Pressable>
+          </View>
+        )}
       </> : <View style={styles.activityTabContainer}>
         {loadingSaved && activityPosts.length === 0 ? <BrowseDeckSkeleton />
           : savedLoadError ? <BrowseEmptyState icon="cloud-offline-outline" title={subTab === 'applied' ? 'Unable to load applications' : 'Unable to load saved posts'}
@@ -300,6 +304,7 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
         onApply={applyFilters}
         initialFilters={filters}
         mode={role}
+        userLocation={user}
         onPickLocation={() => {
           setFilterVisible(false);
           setLocationModalVisible(true);
@@ -331,7 +336,7 @@ export function BrowseScreen({ role, avatarUri, onViewProfile, token, onBookings
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.colors.canvas },
-  locationChipWrap: { marginHorizontal: 20, marginBottom: 8, alignItems: 'flex-start' },
+  locationChipWrap: { marginHorizontal: 20, marginTop: 4, marginBottom: 12, alignItems: 'center' },
   locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: THEME.roundness.pill, backgroundColor: THEME.colors.white, borderWidth: 1, borderColor: '#EAE6DF', maxWidth: '100%' },
   locationChipText: { flexShrink: 1, fontSize: 12.5, fontFamily: THEME.typography.fontFamily.secondarySemiBold, color: THEME.colors.ink },
   activityTabContainer: { flex: 1, paddingBottom: 40 },
