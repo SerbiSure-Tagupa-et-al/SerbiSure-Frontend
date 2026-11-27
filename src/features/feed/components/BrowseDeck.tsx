@@ -118,7 +118,7 @@ export function BrowseDeckSwipeControls({ role, dragX, onSkip, onInterested }: R
 
 export const browseDeckStyles = StyleSheet.create({
   emptyContainer: { marginHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
-  centerWrapper: { width: '100%', alignItems: 'center', paddingHorizontal: 20, marginTop: 36, marginBottom: 20 },
+  centerWrapper: { width: '100%', alignItems: 'center', paddingHorizontal: 20, marginTop: 18, marginBottom: 12 },
   container: { width: '100%', aspectRatio: 0.95, position: 'relative' },
   front: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 10 },
   middle: { position: 'absolute', left: 10, right: 10, top: -10, bottom: 10, borderRadius: 28, opacity: 0.85, zIndex: 5 },

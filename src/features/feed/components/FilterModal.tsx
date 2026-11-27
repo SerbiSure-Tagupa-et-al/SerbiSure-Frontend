@@ -2,7 +2,7 @@ import { useLanguage as useUiLanguage } from '../../../shared/localization/Langu
 import THEME from '../../../shared/theme/theme';
 import type { WorkSetup } from '../../bookings/workSetup';
 import type { LocationScope } from '../locationFilter';
-import { formatBarangayShort, RADIUS_OPTIONS, shortCityLabel } from '../locationFilter';
+import { formatBarangayShort, RADIUS_OPTIONS, resolveBarangayForScope, shortCityLabel } from '../locationFilter';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable, Modal, TextInput, Dimensions, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Animated, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,6 +45,7 @@ interface FilterModalProps {
   onApply: (filters: FeedFilters) => void;
   initialFilters: FeedFilters;
   mode: 'homeowner' | 'kasambahay'; // homeowner searches kasambahays; kasambahay searches jobs
+  userLocation?: { city?: string | null; barangay?: string | null } | null;
   onPickLocation?: () => void;
 }
 
@@ -69,6 +70,7 @@ export function FilterModal({
   onApply,
   initialFilters,
   mode,
+  userLocation,
   onPickLocation,
 }: FilterModalProps) {
   const { tr: uiText } = useUiLanguage();
@@ -114,6 +116,20 @@ export function FilterModal({
   const handleClose = useCallback(() => {
     if (isClosingRef.current) return;
     isClosingRef.current = true;
+    const effectiveCity =
+      locationScope === 'all'
+        ? ''
+        : (originCity.trim() || (userLocation?.city || 'City of Cagayan De Oro').trim());
+    const effectiveBarangay = resolveBarangayForScope(
+      locationScope,
+      effectiveCity,
+      originBarangay,
+      userLocation,
+    );
+    const effectiveScope: LocationScope =
+      locationScope === 'same_barangay' && !effectiveBarangay
+        ? (effectiveCity ? 'same_city' : 'all')
+        : locationScope;
     onApply({
       categories,
       bookingType,
@@ -121,10 +137,10 @@ export function FilterModal({
       maxRate,
       ratePeriod: bookingType === 'long_term' ? 'month' : bookingType === 'short_term' ? 'day' : ratePeriod,
       location: location.trim(),
-      locationScope,
+      locationScope: effectiveScope,
       radiusKm,
-      originCity,
-      originBarangay,
+      originCity: effectiveCity,
+      originBarangay: effectiveBarangay,
       sortBy,
     });
     Animated.timing(panY, {
@@ -137,7 +153,7 @@ export function FilterModal({
       currentTranslateY.current = SCREEN_HEIGHT;
       isClosingRef.current = false;
     });
-  }, [onClose, onApply, panY, categories, bookingType, workSetup, maxRate, ratePeriod, location, locationScope, radiusKm, originCity, originBarangay, sortBy]);
+  }, [onClose, onApply, panY, categories, bookingType, workSetup, maxRate, ratePeriod, location, locationScope, radiusKm, originCity, originBarangay, userLocation, sortBy]);
 
   const handleRelease = useCallback((gestureState: { dy: number; vy: number }) => {
     const { dy, vy } = gestureState;
@@ -279,6 +295,22 @@ export function FilterModal({
 
   const handleSortChange = (newSort: 'newest' | 'nearest' | 'rate_asc' | 'rate_desc') => {
     setSortBy(newSort);
+  };
+
+  const handleSelectLocationScope = (nextScope: LocationScope, nextRadius?: number) => {
+    setLocationScope(nextScope);
+    if (nextRadius !== undefined) setRadiusKm(nextRadius);
+    const nextCity =
+      nextScope !== 'all' && !originCity.trim()
+        ? (userLocation?.city || 'City of Cagayan De Oro').trim()
+        : originCity;
+    if (nextCity !== originCity) {
+      setOriginCity(nextCity);
+    }
+    if ((nextScope === 'same_barangay' || nextScope === 'radius') && !originBarangay.trim()) {
+      const prefilled = resolveBarangayForScope(nextScope, nextCity, '', userLocation);
+      if (prefilled) setOriginBarangay(prefilled);
+    }
   };
 
   const handleReset = () => {
@@ -535,7 +567,7 @@ export function FilterModal({
                 <View style={styles.chipGrid}>
                   <Pressable
                     style={[styles.chip, locationScope === 'same_barangay' && styles.chipActive]}
-                    onPress={() => setLocationScope('same_barangay')}
+                    onPress={() => handleSelectLocationScope('same_barangay')}
                   >
                     <Text style={[styles.chipText, locationScope === 'same_barangay' && styles.chipTextActive]}>
                       {uiText('Same Barangay')}
@@ -547,10 +579,7 @@ export function FilterModal({
                       <Pressable
                         key={km}
                         style={[styles.chip, active && styles.chipActive]}
-                        onPress={() => {
-                          setLocationScope('radius');
-                          setRadiusKm(km);
-                        }}
+                        onPress={() => handleSelectLocationScope('radius', km)}
                       >
                         <Text style={[styles.chipText, active && styles.chipTextActive]}>
                           {uiText('{km} km', { km })}
@@ -560,15 +589,15 @@ export function FilterModal({
                   })}
                   <Pressable
                     style={[styles.chip, locationScope === 'same_city' && styles.chipActive]}
-                    onPress={() => setLocationScope('same_city')}
+                    onPress={() => handleSelectLocationScope('same_city')}
                   >
                     <Text style={[styles.chipText, locationScope === 'same_city' && styles.chipTextActive]}>
-                      {uiText('All {city}', { city: shortCityLabel(originCity) || uiText('City') })}
+                      {uiText('All {city}', { city: shortCityLabel(originCity || userLocation?.city) || uiText('City') })}
                     </Text>
                   </Pressable>
                   <Pressable
                     style={[styles.chip, locationScope === 'all' && styles.chipActive]}
-                    onPress={() => setLocationScope('all')}
+                    onPress={() => handleSelectLocationScope('all')}
                   >
                     <Text style={[styles.chipText, locationScope === 'all' && styles.chipTextActive]}>
                       {uiText('All Areas')}
